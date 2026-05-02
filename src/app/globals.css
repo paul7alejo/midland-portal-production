@@ -2,47 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ============================================
-   MIDLAND SLEEP — BRAND TOKENS
-   Source: BRAND-KIT.md v3
-   ============================================ */
-
-@theme {
-  /* Primary Colours */
-  --color-navy: #0B2A3C;
-  --color-navy-light: #1a3f58;
-  --color-deep-teal: #0B5C6C;
-  --color-seafoam: #74C0A2;
-  --color-seafoam-pale: #EAF3E8;
-  --color-cream: #FDFCF5;
-  --color-charcoal: #333333;
-
-  /* Secondary / Semantic */
-  --color-sand: #E6D3A3;
-  --color-sand-pale: #FFF8E7;
-  --color-amber: #F59E0B;
-  --color-sky-blue: #DEEEF8;
-  --color-sage: #A8C3A0;
-
-  /* Font families */
-  --font-display: 'Cormorant Garamond', serif;
-  --font-body: 'DM Sans', sans-serif;
-  --font-mono: 'DM Mono', monospace;
-}
-
-/* ============================================
-   BASE STYLES
-   ============================================ */
-
 body {
-  background-color: var(--color-cream);
-  color: var(--color-charcoal);
-  font-family: var(--font-body);
-}
-
-/* Remove default Next.js dark mode styles */
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: light;
-  }
+  background-color: #FDFCF5;
+  color: #333333;
 }
