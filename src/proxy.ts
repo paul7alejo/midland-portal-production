@@ -1,10 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-// Amplify v6 persists the last authenticated username under this key
-// (localStorage in browser; same key pattern in cookie-based SSR storage).
-// Checking its presence is a fast optimistic session test — actual JWT
-// verification happens inside each route handler via getVerifiedUser().
 const AUTH_COOKIE = `CognitoIdentityServiceProvider.${process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID}.LastAuthUser`
 
 const SECURITY_HEADERS: Record<string, string> = {
@@ -41,11 +37,9 @@ function withSecurityHeaders(response: NextResponse): NextResponse {
 
 export function proxy(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl
-
   if (isProtected(pathname) && !request.cookies.has(AUTH_COOKIE)) {
-    return withSecurityHeaders(NextResponse.redirect(new URL('/', request.url)))
+    return withSecurityHeaders(NextResponse.redirect(new URL('/login', request.url)))
   }
-
   return withSecurityHeaders(NextResponse.next())
 }
 
@@ -54,6 +48,5 @@ export const config = {
     '/portal/:path*',
     '/admin/:path*',
     '/api/:path*',
-    '/',
   ],
 }
