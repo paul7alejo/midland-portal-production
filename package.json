@@ -14,27 +14,28 @@
     "@aws-sdk/client-dynamodb": "^3.1040.0",
     "@aws-sdk/client-secrets-manager": "^3.1040.0",
     "@aws-sdk/lib-dynamodb": "^3.1040.0",
+    "autoprefixer": "^10.5.0",
     "aws-amplify": "^6.16.4",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "jose": "^6.2.3",
     "lucide-react": "^1.14.0",
     "next": "16.2.4",
+    "postcss": "^8.5.13",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-hook-form": "^7.74.0",
     "server-only": "^0.0.1",
     "tailwind-merge": "^3.5.0",
+    "tailwindcss": "^3.4.19",
     "zod": "^4.4.1"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
-    "tailwindcss": "^4",
     "typescript": "^5"
   }
 }
