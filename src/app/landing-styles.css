@@ -1,0 +1,412 @@
+/* ============================================
+   LANDING PAGE STYLES
+   Midland Sleep Patient Portal
+   ============================================ */
+
+@keyframes landing-breathe {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(1.04); }
+}
+
+@keyframes landing-fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes landing-slideUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes landing-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Page container */
+.landing-page {
+  min-height: 100vh;
+  background: var(--cream, #FDFCF5);
+  font-family: 'DM Sans', sans-serif;
+  color: var(--charcoal, #333333);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Hero / Brand Section */
+.landing-hero {
+  background: linear-gradient(135deg, var(--navy, #0B2A3C) 0%, var(--deep-teal, #0B5C6C) 50%, #3A9A8C 100%);
+  padding: 32px 32px 80px;
+  position: relative;
+  overflow: hidden;
+  animation: landing-fadeUp 0.6s ease-out both;
+}
+
+/* Decorative glows */
+.landing-glow {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.landing-glow--top-right {
+  top: -60px;
+  right: -40px;
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle, rgba(116, 192, 162, 0.15) 0%, transparent 70%);
+  animation: landing-breathe 8s ease-in-out infinite;
+}
+
+.landing-glow--bottom-left {
+  bottom: -40px;
+  left: 10%;
+  width: 200px;
+  height: 200px;
+  background: radial-gradient(circle, rgba(116, 192, 162, 0.1) 0%, transparent 70%);
+  animation: landing-breathe 10s ease-in-out 2s infinite;
+}
+
+/* Header */
+.landing-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 1000px;
+  margin: 0 auto;
+  position: relative;
+  z-index: 2;
+}
+
+.landing-logo-group {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.landing-logo-img {
+  border-radius: 12px;
+}
+
+.landing-logo-text {
+  font-family: 'Cormorant Garamond', serif;
+  font-weight: 700;
+  font-size: 22px;
+  color: var(--cream, #FDFCF5);
+  line-height: 1.1;
+  margin: 0;
+}
+
+.landing-logo-sub {
+  font-size: 11px;
+  color: var(--seafoam, #74C0A2);
+  font-weight: 500;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-top: 2px;
+  display: block;
+}
+
+.landing-help-link {
+  color: var(--cream, #FDFCF5);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 400;
+  opacity: 0.85;
+  transition: opacity 0.15s ease;
+}
+
+.landing-help-link:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
+
+/* Hero content */
+.landing-hero-content {
+  text-align: center;
+  max-width: 480px;
+  margin: 40px auto 0;
+  position: relative;
+  z-index: 2;
+}
+
+.landing-hero-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: clamp(28px, 5vw, 40px);
+  font-weight: 600;
+  color: var(--cream, #FDFCF5);
+  line-height: 1.2;
+  margin: 0 0 12px;
+}
+
+.landing-hero-subtitle {
+  font-size: 15px;
+  color: rgba(253, 252, 245, 0.75);
+  line-height: 1.6;
+  margin: 0;
+  font-weight: 300;
+}
+
+/* Main / Login area */
+.landing-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 24px 48px;
+  position: relative;
+  z-index: 10;
+  margin-top: -48px;
+}
+
+/* Login card */
+.landing-card {
+  width: 100%;
+  max-width: 400px;
+  background: #FFFFFF;
+  border-radius: 16px;
+  padding: 32px;
+  box-shadow: 0 4px 6px rgba(11, 42, 60, 0.08), 0 12px 40px rgba(11, 42, 60, 0.12);
+  border: 1px solid rgba(230, 211, 163, 0.2);
+  box-sizing: border-box;
+  animation: landing-slideUp 0.5s ease-out 0.2s both;
+}
+
+/* Tabs */
+.landing-tabs {
+  display: flex;
+  border-bottom: 1px solid #eee;
+  margin-bottom: 24px;
+}
+
+.landing-tab {
+  flex: 1;
+  padding: 10px 16px;
+  border: none;
+  background: transparent;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  color: #888;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s ease;
+}
+
+.landing-tab--active {
+  color: var(--deep-teal, #0B5C6C);
+  border-bottom-color: var(--deep-teal, #0B5C6C);
+}
+
+.landing-tab:hover:not(.landing-tab--active) {
+  color: #555;
+}
+
+/* Form fields */
+.landing-field {
+  margin-bottom: 16px;
+}
+
+.landing-field:last-of-type {
+  margin-bottom: 24px;
+}
+
+.landing-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: #555;
+  margin-bottom: 6px;
+}
+
+.landing-input {
+  width: 100%;
+  padding: 14px 16px;
+  border: 1.5px solid #d4dfe2;
+  border-radius: 10px;
+  font-size: 16px;
+  font-family: 'DM Sans', sans-serif;
+  color: var(--charcoal, #333333);
+  background: #FFFFFF;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  box-sizing: border-box;
+}
+
+.landing-input:focus {
+  border-color: var(--deep-teal, #0B5C6C);
+  box-shadow: 0 0 0 3px rgba(11, 92, 108, 0.12);
+}
+
+.landing-input::placeholder {
+  color: #bbb;
+}
+
+.landing-input--sleepid {
+  font-family: 'DM Mono', monospace;
+  font-size: 24px;
+  letter-spacing: 8px;
+  text-align: center;
+  padding: 16px;
+}
+
+.landing-hint {
+  font-size: 12px;
+  color: #999;
+  margin-top: 8px;
+  line-height: 1.4;
+  text-align: center;
+}
+
+/* Password field */
+.landing-password-wrap {
+  position: relative;
+}
+
+.landing-password-toggle {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #999;
+  padding: 4px;
+  font-size: 13px;
+  font-family: 'DM Sans', sans-serif;
+  transition: color 0.15s ease;
+}
+
+.landing-password-toggle:hover {
+  color: var(--deep-teal, #0B5C6C);
+}
+
+/* Submit button */
+.landing-submit {
+  width: 100%;
+  padding: 15px;
+  background: var(--deep-teal, #0B5C6C);
+  color: #FFFFFF;
+  border: none;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 500;
+  font-family: 'DM Sans', sans-serif;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.1s ease;
+}
+
+.landing-submit:hover {
+  background: #094d5a;
+}
+
+.landing-submit:active {
+  transform: scale(0.99);
+}
+
+.landing-submit:disabled {
+  background: #9cb5bc;
+  cursor: not-allowed;
+}
+
+/* Spinner */
+.landing-spinner-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.landing-spinner {
+  animation: landing-spin 1s linear infinite;
+}
+
+/* Card footer */
+.landing-card-footer {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.landing-card-link {
+  color: var(--deep-teal, #0B5C6C);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+  transition: color 0.15s ease;
+}
+
+.landing-card-link:hover {
+  text-decoration: underline;
+}
+
+/* Trust indicators */
+.landing-trust {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  margin-top: 28px;
+  flex-wrap: wrap;
+  justify-content: center;
+  animation: landing-fadeUp 0.5s ease-out 0.4s both;
+}
+
+.landing-trust-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: #888;
+}
+
+/* Footer */
+.landing-footer {
+  text-align: center;
+  padding: 20px 24px;
+  position: relative;
+  z-index: 10;
+}
+
+.landing-footer-divider {
+  width: 60px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--sand, #E6D3A3), transparent);
+  margin: 0 auto 14px;
+}
+
+.landing-footer-text {
+  font-size: 12px;
+  color: #aaa;
+  margin: 0;
+  line-height: 1.6;
+}
+
+.landing-footer-credit {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  color: #bbb;
+}
+
+/* Mobile adjustments */
+@media (max-width: 480px) {
+  .landing-hero {
+    padding: 24px 20px 72px;
+  }
+
+  .landing-card {
+    padding: 24px;
+  }
+
+  .landing-trust {
+    gap: 16px;
+  }
+
+  .landing-input--sleepid {
+    font-size: 20px;
+    letter-spacing: 6px;
+  }
+}

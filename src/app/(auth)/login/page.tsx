@@ -1,4 +1,5 @@
 "use client";
+import "../../landing-styles.css";
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@/components/AuthProvider";
