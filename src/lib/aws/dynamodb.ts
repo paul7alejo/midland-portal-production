@@ -1,6 +1,6 @@
 import 'server-only'
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb'
-import { DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb'
+import { DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand, ScanCommand } from '@aws-sdk/lib-dynamodb'
 import { randomUUID } from 'crypto'
 import type { OrderChannel, OrderLine } from '@/types'
 
@@ -111,24 +111,19 @@ export async function getPatientByMSID(msid: string, orgId: string): Promise<Pat
 }
 
 export async function getPatientDevices(patientId: string, orgId: string): Promise<DeviceRecord[]> {
-  const res = await docClient.send(new QueryCommand({
+  const res = await docClient.send(new ScanCommand({
     TableName: TABLES.DEVICES,
-    IndexName: 'patient-index',
-    KeyConditionExpression: 'sk = :sk',
-    FilterExpression: 'org_id = :orgId',
-    ExpressionAttributeValues: { ':sk': `PATIENT#${patientId}`, ':orgId': orgId },
+    FilterExpression: 'patient_id = :patientId AND org_id = :orgId',
+    ExpressionAttributeValues: { ':patientId': patientId, ':orgId': orgId },
   }))
   return (res.Items ?? []) as DeviceRecord[]
 }
 
 export async function getPatientMask(patientId: string, orgId: string): Promise<MaskRecord | null> {
-  const res = await docClient.send(new QueryCommand({
+  const res = await docClient.send(new ScanCommand({
     TableName: TABLES.MASKS,
-    IndexName: 'patient-index',
-    KeyConditionExpression: 'sk = :sk',
-    FilterExpression: 'org_id = :orgId',
-    ExpressionAttributeValues: { ':sk': `PATIENT#${patientId}`, ':orgId': orgId },
-    Limit: 1,
+    FilterExpression: 'patient_id = :patientId AND org_id = :orgId',
+    ExpressionAttributeValues: { ':patientId': patientId, ':orgId': orgId },
   }))
   return (res.Items?.[0] as MaskRecord) ?? null
 }
