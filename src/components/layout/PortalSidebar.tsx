@@ -80,7 +80,7 @@ export default function PortalSidebar() {
       className={cn(
         "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-colors",
         isActive
-          ? "bg-white/10 text-white border-l-3 border-seafoam font-medium"
+          ? "bg-white/10 text-white border-l-2 border-seafoam font-medium"
           : "text-white/70 hover:bg-white/5 hover:text-white"
       )}
     >
