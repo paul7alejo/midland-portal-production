@@ -22,14 +22,26 @@ export class HttpError extends Error {
   }
 }
 
-// ── JWKS (module-level; jose caches and refreshes on unknown kid) ─────────────
+// ── JWKS (lazy initialisation; avoids Amplify SSR env-var timing issue) ────────
 
-const poolId   = process.env.NEXT_PUBLIC_COGNITO_USER_POOL_ID!
-const clientId = process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID!
-const region   = process.env.NEXT_PUBLIC_COGNITO_REGION ?? 'ap-southeast-2'
-const issuer   = `https://cognito-idp.${region}.amazonaws.com/${poolId}`
+const _region = process.env.NEXT_PUBLIC_COGNITO_REGION ?? 'ap-southeast-2'
+let _JWKS: ReturnType<typeof createRemoteJWKSet> | null = null
+let _issuer: string | null = null
+let _clientId: string | null = null
 
-const JWKS = createRemoteJWKSet(new URL(`${issuer}/.well-known/jwks.json`))
+function getJWKS() {
+  if (!_JWKS) {
+    const poolId = process.env.NEXT_PUBLIC_COGNITO_USER_POOL_ID
+    const clientId = process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID
+    if (!poolId || !clientId) {
+      throw new HttpError(500, 'Cognito env vars not configured')
+    }
+    _issuer = `https://cognito-idp.${_region}.amazonaws.com/${poolId}`
+    _clientId = clientId
+    _JWKS = createRemoteJWKSet(new URL(`${_issuer}/.well-known/jwks.json`))
+  }
+  return { JWKS: _JWKS, issuer: _issuer!, clientId: _clientId! }
+}
 
 // ── getVerifiedUser ───────────────────────────────────────────────────────────
 
@@ -50,6 +62,7 @@ export async function getVerifiedUser(request: NextRequest): Promise<VerifiedUse
 
   let payload: CognitoIdPayload
   try {
+    const { JWKS, issuer, clientId } = getJWKS()
     const result = await jwtVerify<CognitoIdPayload>(auth.slice(7), JWKS, {
       issuer,
       audience: clientId,
