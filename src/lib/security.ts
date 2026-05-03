@@ -37,6 +37,7 @@ interface CognitoIdPayload extends JWTPayload {
   'custom:msid'?:   string
   'custom:org_id'?: string
   'custom:name'?:   string
+  name?:            string
   email?:           string
   token_use?:       string
 }
@@ -62,14 +63,14 @@ export async function getVerifiedUser(request: NextRequest): Promise<VerifiedUse
     throw new HttpError(401, 'Expected Cognito ID token')
   }
 
-  const { sub, 'custom:msid': msid, 'custom:org_id': orgId,
-          'custom:name': name, email } = payload
+  const { sub, 'custom:msid': msid, 'custom:org_id': orgId, email } = payload
+  const name = payload['custom:name'] ?? payload['name'] as string | undefined
 
-  if (!sub || !msid || !orgId || !name || !email) {
+  if (!sub || !msid || !orgId || !email) {
     throw new HttpError(401, 'Token missing required claims')
   }
 
-  return { sub, msid, orgId, name, email }
+  return { sub, msid, orgId, name: name ?? 'Patient', email }
 }
 
 // ── safeLog ───────────────────────────────────────────────────────────────────
