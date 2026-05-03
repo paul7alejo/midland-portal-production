@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     if (err instanceof HttpError) {
       return NextResponse.json({ error: err.message }, { status: err.status });
     }
-    safeLog('patient/data: unexpected error', { error: String(err) });
+    console.error('patient/data ERROR:', err instanceof Error ? err.message : String(err), err instanceof Error ? err.stack : '');
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
