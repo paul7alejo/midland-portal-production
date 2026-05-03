@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-const AUTH_COOKIE = `CognitoIdentityServiceProvider.${process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID}.LastAuthUser`
-
 const SECURITY_HEADERS: Record<string, string> = {
   'Strict-Transport-Security':  'max-age=31536000; includeSubDomains',
   'X-Content-Type-Options':     'nosniff',
@@ -20,14 +18,6 @@ const SECURITY_HEADERS: Record<string, string> = {
   ].join('; '),
 }
 
-function isProtected(pathname: string): boolean {
-  return (
-    pathname.startsWith('/portal') ||
-    pathname.startsWith('/admin') ||
-    (pathname.startsWith('/api') && !pathname.startsWith('/api/auth'))
-  )
-}
-
 function withSecurityHeaders(response: NextResponse): NextResponse {
   for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
     response.headers.set(key, value)
@@ -36,10 +26,6 @@ function withSecurityHeaders(response: NextResponse): NextResponse {
 }
 
 export function proxy(request: NextRequest): NextResponse {
-  const { pathname } = request.nextUrl
-  if (isProtected(pathname) && !request.cookies.has(AUTH_COOKIE)) {
-    return withSecurityHeaders(NextResponse.redirect(new URL('/login', request.url)))
-  }
   return withSecurityHeaders(NextResponse.next())
 }
 
