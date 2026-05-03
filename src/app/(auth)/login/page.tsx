@@ -4,6 +4,7 @@ import "../../landing-styles.css";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { useRouter } from "next/navigation";
+import { getCurrentUser } from "@/lib/aws/cognito";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -20,6 +21,12 @@ export default function LandingPage() {
 
   const { login, isAuthenticated } = useAuth();
   const router = useRouter();
+
+  useEffect(() => {
+    getCurrentUser().then((user) => {
+      if (user) router.replace('/portal/dashboard');
+    });
+  }, []);
 
   // Redirect if already logged in
   useEffect(() => {
