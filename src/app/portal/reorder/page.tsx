@@ -41,8 +41,8 @@ export default function ReorderPage() {
 
   if (!patient) return null;
 
-  const entitlement = DEMO_ENTITLEMENTS[patient.id] ?? [];
-  const mask = DEMO_MASKS[patient.id];
+  const entitlement = DEMO_ENTITLEMENTS[patient.userId] ?? [];
+  const mask = DEMO_MASKS[patient.userId];
   const eligibleItems = entitlement.filter((item) => item.status === "ELIGIBLE");
   const notYetItems = entitlement.filter((item) => item.status === "NOT_YET");
 

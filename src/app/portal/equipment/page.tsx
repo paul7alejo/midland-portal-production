@@ -30,9 +30,9 @@ export default function EquipmentPage() {
   // Auth guard is in portal/layout.tsx — no redirect needed here.
   if (!patient) return null;
 
-  const machine = DEMO_MACHINES[patient.id];
-  const mask = DEMO_MASKS[patient.id];
-  const maintenance = DEMO_MAINTENANCE[patient.id] ?? [];
+  const machine = DEMO_MACHINES[patient.userId];
+  const mask = DEMO_MASKS[patient.userId];
+  const maintenance = DEMO_MAINTENANCE[patient.userId] ?? [];
 
   const phoneLink = (
     <a href="tel:0800000000" className="text-deep-teal font-medium hover:underline">

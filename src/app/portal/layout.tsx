@@ -42,7 +42,7 @@ function TopBar() {
       {/* User info */}
       <div className="flex items-center gap-3">
         <div className="h-8 w-8 rounded-full bg-deep-teal flex items-center justify-center text-white text-xs font-bold">
-          {patient.name.split(" ").map((n) => n[0]).join("")}
+          {(patient.name ?? "Patient").split(" ").map((n) => n[0]).join("")}
         </div>
         <div className="text-right">
           <p className="text-sm font-medium text-charcoal leading-tight">{patient.name}</p>

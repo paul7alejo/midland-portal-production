@@ -1,16 +1,16 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
-import type { DemoPatient } from "@/types";
 import {
-  login as authLogin,
-  logout as authLogout,
-  getCurrentPatient,
-  getSession,
-} from "@/lib/auth";
+  configureCognito,
+  signIn,
+  signOut,
+  getCurrentUser,
+  type PatientUser,
+} from "@/lib/aws/cognito";
 
 interface AuthContextType {
-  patient: DemoPatient | undefined;
+  patient: PatientUser | null;
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (identifier: string, password: string) => Promise<string | null>;
@@ -20,23 +20,24 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [patient, setPatient] = useState<DemoPatient | undefined>(undefined);
+  const [patient, setPatient] = useState<PatientUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const session = getSession();
-    if (session) {
-      setPatient(getCurrentPatient());
-    }
-    setIsLoading(false);
+    configureCognito();
+    getCurrentUser().then((user) => {
+      setPatient(user);
+      setIsLoading(false);
+    });
   }, []);
 
   const login = useCallback(
     async (identifier: string, password: string): Promise<string | null> => {
-      const result = await authLogin(identifier, password);
+      const result = await signIn(identifier, password);
       if (result.success) {
-        setPatient(result.patient);
-        return null; // no error
+        const user = await getCurrentUser();
+        setPatient(user);
+        return null;
       }
       return result.error;
     },
@@ -44,8 +45,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const logout = useCallback(() => {
-    authLogout();
-    setPatient(undefined);
+    signOut().then(() => setPatient(null));
   }, []);
 
   return (

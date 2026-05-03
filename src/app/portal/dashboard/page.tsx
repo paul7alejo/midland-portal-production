@@ -47,10 +47,10 @@ export default function DashboardPage() {
   // Auth guard is now in portal/layout.tsx — no need here.
   if (!patient) return null;
 
-  const machine = DEMO_MACHINES[patient.id];
-  const mask = DEMO_MASKS[patient.id];
-  const entitlement = DEMO_ENTITLEMENTS[patient.id] ?? [];
-  const maintenance = DEMO_MAINTENANCE[patient.id] ?? [];
+  const machine = DEMO_MACHINES[patient.userId];
+  const mask = DEMO_MASKS[patient.userId];
+  const entitlement = DEMO_ENTITLEMENTS[patient.userId] ?? [];
+  const maintenance = DEMO_MAINTENANCE[patient.userId] ?? [];
 
   const canReorderNow = entitlement.some((item) => item.status === "ELIGIBLE");
   const overdueChecks = maintenance.filter((c) => c.status === "OVERDUE");
@@ -72,7 +72,7 @@ export default function DashboardPage() {
     <>
       {/* Greeting — time-of-day, first name only */}
       <h1 className="font-display text-3xl md:text-4xl font-bold text-navy mb-8">
-        {getGreeting()}, {patient.name.split(" ")[0]}.
+        {getGreeting()}, {(patient.name ?? "Patient").split(" ")[0]}.
       </h1>
 
       <div className="space-y-6">
@@ -111,7 +111,7 @@ export default function DashboardPage() {
             <div>
               <p className="text-xs uppercase tracking-wide text-charcoal/60 font-mono mb-1">Funded by</p>
               <p className="text-charcoal font-medium">
-                {patient.funding_stream === "ACC" ? "ACC" : "Health NZ"}
+                {((patient as any).funding_stream ?? "ACC") === "ACC" ? "ACC" : "Health NZ"}
               </p>
             </div>
 

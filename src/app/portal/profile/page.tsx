@@ -66,21 +66,21 @@ export default function ProfilePage() {
                 Phone
               </dt>
               <dd className="text-charcoal">
-                {patient.phone ? patient.phone : "Not on file"}
+                {(patient as any).phone ?? "Not on file"}
               </dd>
             </div>
             <div>
               <dt className="text-xs uppercase tracking-wide text-charcoal/60 font-mono mb-1">
                 Date of birth
               </dt>
-              <dd className="text-charcoal">{formatDate(patient.dob)}</dd>
+              <dd className="text-charcoal">{formatDate((patient as any).dob ?? "")}</dd>
             </div>
             <div>
               <dt className="text-xs uppercase tracking-wide text-charcoal/60 font-mono mb-1">
                 Funding stream
               </dt>
               <dd className="text-charcoal font-medium">
-                {patient.funding_stream === "ACC" ? "ACC" : "Health NZ"}
+                {((patient as any).funding_stream ?? "ACC") === "ACC" ? "ACC" : "Health NZ"}
               </dd>
             </div>
           </dl>
@@ -106,7 +106,7 @@ export default function ProfilePage() {
               Masked NHI
             </p>
             <p className="text-lg font-mono text-charcoal font-medium">
-              {patient.nhi_masked || "ZZZ****"}
+              {(patient as any).nhi_masked ?? "ZZZ****"}
             </p>
           </div>
 
