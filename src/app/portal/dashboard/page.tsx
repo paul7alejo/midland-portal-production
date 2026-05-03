@@ -3,12 +3,7 @@
 import { useAuth } from "@/components/AuthProvider";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import {
-  DEMO_MACHINES,
-  DEMO_MASKS,
-  DEMO_ENTITLEMENTS,
-  DEMO_MAINTENANCE,
-} from "@/lib/demoData";
+import { usePatientData } from "@/hooks/usePatientData";
 
 const ITEM_LABELS: Record<string, string> = {
   cushion: "Mask cushion",
@@ -47,14 +42,15 @@ export default function DashboardPage() {
   // Auth guard is now in portal/layout.tsx — no need here.
   if (!patient) return null;
 
-  const machine = DEMO_MACHINES[patient.userId];
-  const mask = DEMO_MASKS[patient.userId];
-  const entitlement = DEMO_ENTITLEMENTS[patient.userId] ?? [];
-  const maintenance = DEMO_MAINTENANCE[patient.userId] ?? [];
+  const { device, mask, entitlement: entitlementData, loading: dataLoading } = usePatientData();
+  const entitlement = entitlementData?.items ?? [];
+  const maintenance = (patient as any).maintenance ?? [];
 
-  const canReorderNow = entitlement.some((item) => item.status === "ELIGIBLE");
-  const overdueChecks = maintenance.filter((c) => c.status === "OVERDUE");
-  const dueSoonChecks = maintenance.filter((c) => c.status === "DUE");
+  if (dataLoading) return <div className="p-8 text-charcoal/60 font-body">Loading your data...</div>;
+
+  const canReorderNow = entitlement.some((item: any) => item.status === "ELIGIBLE");
+  const overdueChecks = maintenance.filter((c: any) => c.status === "OVERDUE");
+  const dueSoonChecks = maintenance.filter((c: any) => c.status === "DUE");
 
   const phoneLink = (
     <a href="tel:0800000000" className="text-deep-teal font-medium hover:underline">
@@ -93,30 +89,30 @@ export default function DashboardPage() {
             <div>
               <p className="text-xs uppercase tracking-wide text-charcoal/60 font-mono mb-1">Machine</p>
               <p className="text-charcoal font-medium">
-                {machine ? `${machine.brand} ${machine.name}` : "-"}
+                {device ? `${device.brand} ${device.name}` : "-"}
               </p>
             </div>
             <div>
               <p className="text-xs uppercase tracking-wide text-charcoal/60 font-mono mb-1">Device ID</p>
               <p className="text-charcoal font-mono">
-                {machine ? machine.serial_number : "-"}
+                {device ? device.serial_number : "-"}
               </p>
             </div>
             <div>
               <p className="text-xs uppercase tracking-wide text-charcoal/60 font-mono mb-1">Issued</p>
               <p className="text-charcoal">
-                {machine ? formatDate(machine.setup_date) : "-"}
+                {device ? formatDate(device.setup_date) : "-"}
               </p>
             </div>
             <div>
               <p className="text-xs uppercase tracking-wide text-charcoal/60 font-mono mb-1">Funded by</p>
               <p className="text-charcoal font-medium">
-                {((patient as any).funding_stream ?? "ACC") === "ACC" ? "ACC" : "Health NZ"}
+                {(device?.funding_stream ?? (patient as any).funding_stream ?? "ACC") === "ACC" ? "ACC" : "Health NZ"}
               </p>
             </div>
 
             {/* Safety check + Water chamber status badges */}
-            {maintenance.map((check) => (
+            {maintenance.map((check: any) => (
               <div key={check.check_type}>
                 <p className="text-xs uppercase tracking-wide text-charcoal/60 font-mono mb-1">
                   {check.check_type === "safety_check" ? "Safety Check" : "Water Chamber"}
@@ -233,7 +229,7 @@ export default function DashboardPage() {
             </h2>
 
             <div className="space-y-3">
-              {overdueChecks.map((check) => (
+              {overdueChecks.map((check: any) => (
                 <div
                   key={check.check_type}
                   className="border border-amber/40 bg-sand-pale rounded-md p-3 flex items-start gap-3"
@@ -251,7 +247,7 @@ export default function DashboardPage() {
                 </div>
               ))}
 
-              {dueSoonChecks.map((check) => (
+              {dueSoonChecks.map((check: any) => (
                 <div
                   key={check.check_type}
                   className="border border-sand rounded-md p-3 flex items-start gap-3"
