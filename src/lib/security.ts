@@ -1,6 +1,7 @@
 import 'server-only'
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from 'jose'
 import type { NextRequest } from 'next/server'
+import { cookies } from 'next/headers'
 import { maskNHI } from '@/lib/nhi'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -43,15 +44,82 @@ function getJWKS() {
   return { JWKS: _JWKS, issuer: _issuer!, clientId: _clientId! }
 }
 
+// ── verifyIdToken ─────────────────────────────────────────────────────────────
+// Validates signature/expiry/audience only — does not require msid or orgId.
+// Use for contexts where staff tokens (no custom:msid) must also be accepted.
+export async function verifyIdToken(token: string): Promise<void> {
+  try {
+    const { JWKS, issuer, clientId } = getJWKS()
+    const { payload } = await jwtVerify<CognitoIdPayload>(token, JWKS, {
+      issuer,
+      audience: clientId,
+    })
+    if (payload.token_use !== 'id') throw new HttpError(401, 'Expected Cognito ID token')
+  } catch (err) {
+    if (err instanceof HttpError) throw err
+    throw new HttpError(401, 'Invalid or expired token')
+  }
+}
+
 // ── getVerifiedUser ───────────────────────────────────────────────────────────
 
 interface CognitoIdPayload extends JWTPayload {
   'custom:msid'?:   string
   'custom:org_id'?: string
   'custom:name'?:   string
+  'custom:role'?:   string
+  'custom:is_dev'?: string   // stored as 'true' | 'false' in Cognito
   name?:            string
   email?:           string
   token_use?:       string
+}
+
+// ── Admin claims (staff tokens may not carry msid/orgId) ─────────────────────
+
+export interface AdminClaims {
+  sub: string
+  name: string
+  email: string
+  role?: string
+  is_dev: boolean
+}
+
+const ADMIN_ALLOWED_ROLES = new Set(['clinic-staff', 'admin', 'staff'])
+
+export function isAuthorizedAdmin(claims: AdminClaims): boolean {
+  return ADMIN_ALLOWED_ROLES.has(claims.role ?? '') || claims.is_dev
+}
+
+// Reads the Cognito ID token from the `id_token` cookie (set by the admin
+// login flow) and validates it. Returns null if missing or invalid.
+export async function getAdminUser(): Promise<AdminClaims | null> {
+  try {
+    const cookieStore = await cookies()
+    const token = cookieStore.get('id_token')?.value
+    if (!token) return null
+
+    const { JWKS, issuer, clientId } = getJWKS()
+    const { payload } = await jwtVerify<CognitoIdPayload>(token, JWKS, {
+      issuer,
+      audience: clientId,
+    })
+
+    if (payload.token_use !== 'id') return null
+    const { sub, email } = payload
+    if (!sub || !email) return null
+
+    const name = payload['custom:name'] ?? payload['name'] as string | undefined
+
+    return {
+      sub,
+      name: name ?? 'Staff',
+      email,
+      role: payload['custom:role'],
+      is_dev: payload['custom:is_dev'] === 'true',
+    }
+  } catch {
+    return null
+  }
 }
 
 export async function getVerifiedUser(request: NextRequest): Promise<VerifiedUser> {

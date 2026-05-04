@@ -6,6 +6,7 @@ import {
   signIn,
   signOut,
   getCurrentUser,
+  getIdToken,
   type PatientUser,
 } from "@/lib/aws/cognito";
 
@@ -37,6 +38,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (result.success) {
         const user = await getCurrentUser();
         setPatient(user);
+        const token = await getIdToken();
+        if (token) {
+          await fetch('/api/auth/session', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` },
+          });
+        }
         return null;
       }
       return result.error;
@@ -45,6 +53,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const logout = useCallback(() => {
+    fetch('/api/auth/session', { method: 'DELETE' }).catch(() => {});
     signOut().then(() => setPatient(null));
   }, []);
 

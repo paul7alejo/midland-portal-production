@@ -1,0 +1,89 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import {
+  LayoutDashboard,
+  Users,
+  ShoppingCart,
+  Target,
+  Gift,
+  Mail,
+  FileText,
+  BarChart3,
+  Settings,
+} from "lucide-react";
+
+const navItems = [
+  { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/admin/patients", label: "Patients", icon: Users },
+  { href: "/admin/orders", label: "Orders", icon: ShoppingCart },
+  { href: "/admin/segments", label: "Segments", icon: Target },
+  { href: "/admin/entitlement", label: "Entitlement", icon: Gift },
+  { href: "/admin/outreach", label: "Outreach", icon: Mail },
+  { href: "/admin/audit", label: "Audit Log", icon: FileText },
+  { href: "/admin/reports", label: "Reports", icon: BarChart3 },
+  { href: "/admin/config", label: "Config", icon: Settings },
+];
+
+export default function AdminSidebar() {
+  const pathname = usePathname();
+
+  return (
+    <aside className="fixed left-0 top-0 h-screen w-64 bg-navy flex flex-col">
+      {/* Logo */}
+      <div className="p-6 border-b border-white/10">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-full bg-deep-teal flex items-center justify-center text-white font-display text-lg font-bold">
+            M
+          </div>
+          <div>
+            <p className="text-white font-display text-lg font-semibold">
+              Midland Sleep
+            </p>
+            <span className="inline-block bg-amber text-white text-xs font-medium px-2 py-0.5 rounded">
+              Admin
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Navigation */}
+      <nav className="flex-1 overflow-y-auto py-4">
+        {navItems.map((item) => {
+          const Icon = item.icon;
+          const isActive = pathname === item.href;
+
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`
+                flex items-center gap-3 py-3 px-4 text-base transition-colors
+                ${
+                  isActive
+                    ? "bg-deep-teal text-white border-l-4 border-seafoam"
+                    : "text-white/70 hover:text-white hover:bg-white/5"
+                }
+              `}
+            >
+              <Icon className="h-5 w-5" />
+              <span>{item.label}</span>
+            </Link>
+          );
+        })}
+      </nav>
+
+      {/* Bottom - Staff info */}
+      <div className="p-4 border-t border-white/10">
+        <div className="text-white/70 text-sm mb-2">
+          <p className="font-medium text-white text-base">Staff User</p>
+          <p className="text-xs">admin@midlandsleep.co.nz</p>
+        </div>
+        <button className="text-white/70 hover:text-white text-base transition-colors">
+          Log out
+        </button>
+      </div>
+    </aside>
+  );
+}
