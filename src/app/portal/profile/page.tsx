@@ -45,11 +45,10 @@ export default function ProfilePage() {
   }, []);
 
   const msid = profile?.msid ?? (patient as { msid?: string })?.msid ?? "";
-  const formattedMsid = msid ? `MS-${msid}` : "";
 
   const handleCopy = async () => {
-    if (!formattedMsid) return;
-    await navigator.clipboard.writeText(formattedMsid);
+    if (!msid) return;
+    await navigator.clipboard.writeText(msid);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -75,7 +74,7 @@ export default function ProfilePage() {
       return;
     }
     if (res.status === 404) {
-      setNhiState({ status: "error", message: "NHI not on file. Contact Midland Sleep." });
+      setNhiState({ status: "error", message: "NHI not available in this demo. In production, your encrypted NHI will appear here." });
       return;
     }
     if (!res.ok) {
@@ -163,13 +162,13 @@ export default function ProfilePage() {
               Your Midland Sleep ID
             </p>
             <p className="font-mono text-3xl text-cream tracking-widest">
-              {formattedMsid || "—"}
+              {msid || "—"}
             </p>
           </div>
 
           <button
             onClick={handleCopy}
-            disabled={!formattedMsid}
+            disabled={!msid}
             className={cn(
               "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-colors disabled:cursor-not-allowed",
               copied
