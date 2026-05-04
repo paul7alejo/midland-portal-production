@@ -21,24 +21,6 @@ function TopBar() {
 
   return (
     <div className="border-b border-sand bg-white px-4 py-2.5 md:px-8 flex items-center justify-end gap-5">
-      {/* Cart */}
-      <Link
-        href="/portal/checkout"
-        className="flex items-center gap-1.5 text-charcoal/60 hover:text-deep-teal transition-colors"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-        </svg>
-        {totalItems > 0 && (
-          <span className="bg-deep-teal text-white text-xs font-medium rounded-full h-5 w-5 flex items-center justify-center">
-            {totalItems}
-          </span>
-        )}
-      </Link>
-
-      {/* Divider */}
-      <div className="h-6 w-px bg-sand" />
-
       {/* User info */}
       <div className="flex items-center gap-3">
         <div className="h-8 w-8 rounded-full bg-deep-teal flex items-center justify-center text-white text-xs font-bold">
