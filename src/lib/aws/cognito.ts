@@ -64,7 +64,7 @@ export async function getCurrentUser(): Promise<PatientUser | null> {
       username: user.username,
       msid: attrs['custom:msid'],
       orgId: attrs['custom:org_id'],
-      name: attrs['custom:name'],
+      name: attrs['name'] ?? attrs['custom:name'],
       email: attrs.email,
     }
   } catch {
