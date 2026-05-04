@@ -167,11 +167,11 @@ export default function LandingPage() {
               </div>
             ) : (
               <div className="landing-field">
-                <label className="landing-label">Email address</label>
+                <label className="landing-label">Email or username</label>
                 <input
-                  type="email"
+                  type="text"
                   className="landing-input"
-                  placeholder="your.email@example.com"
+                  placeholder="admin@midlandsleep.co.nz or midland-admin"
                   value={email}
                   onChange={(e) => {
                     setEmail(e.target.value);
