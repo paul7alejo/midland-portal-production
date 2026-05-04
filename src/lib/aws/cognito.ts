@@ -54,6 +54,7 @@ export interface PatientUser {
   orgId: string | undefined
   name: string | undefined
   email: string | undefined
+  role: string | undefined
 }
 
 export async function getCurrentUser(): Promise<PatientUser | null> {
@@ -69,6 +70,7 @@ export async function getCurrentUser(): Promise<PatientUser | null> {
       orgId: attrs['custom:org_id'],
       name: attrs['name'] ?? attrs['custom:name'],
       email: attrs.email,
+      role: attrs['custom:role'],
     }
   } catch {
     return null

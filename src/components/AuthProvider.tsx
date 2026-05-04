@@ -9,12 +9,13 @@ import {
   getIdToken,
   type PatientUser,
 } from "@/lib/aws/cognito";
+import { isAdminIdentity } from "@/lib/admin-identity";
 
 interface AuthContextType {
   patient: PatientUser | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (identifier: string, password: string) => Promise<string | null>;
+  login: (identifier: string, password: string) => Promise<{ error: string | null; redirectTo: string }>;
   logout: () => void;
 }
 
@@ -33,7 +34,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = useCallback(
-    async (identifier: string, password: string): Promise<string | null> => {
+    async (identifier: string, password: string): Promise<{ error: string | null; redirectTo: string }> => {
       const result = await signIn(identifier, password);
       if (result.success) {
         const user = await getCurrentUser();
@@ -45,9 +46,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             headers: { Authorization: `Bearer ${token}` },
           });
         }
-        return null;
+        return { error: null, redirectTo: isAdminIdentity(user ?? {}) ? '/admin' : '/portal/dashboard' };
       }
-      return result.error;
+      return { error: result.error, redirectTo: '/portal/dashboard' };
     },
     []
   );

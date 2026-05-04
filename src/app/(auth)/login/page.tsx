@@ -41,14 +41,11 @@ export default function LandingPage() {
 
     try {
       const identifier = loginMethod === "msid" ? sleepId : email;
-      // login() returns null on success, or an error string on failure
-      const errorMsg = await login(identifier, password);
+      const { error: errorMsg, redirectTo } = await login(identifier, password);
 
       if (errorMsg === null) {
-        // Success — AuthProvider sets isAuthenticated, useEffect redirects
-        router.push("/portal/dashboard");
+        router.push(redirectTo);
       } else {
-        // Failed — show the error message from auth
         setError(errorMsg);
       }
     } catch {
