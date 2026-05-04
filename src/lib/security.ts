@@ -64,20 +64,22 @@ export async function verifyIdToken(token: string): Promise<void> {
 // ── getVerifiedUser ───────────────────────────────────────────────────────────
 
 interface CognitoIdPayload extends JWTPayload {
-  'custom:msid'?:   string
-  'custom:org_id'?: string
-  'custom:name'?:   string
-  'custom:role'?:   string
-  'custom:is_dev'?: string   // stored as 'true' | 'false' in Cognito
-  name?:            string
-  email?:           string
-  token_use?:       string
+  'custom:msid'?:     string
+  'custom:org_id'?:   string
+  'custom:name'?:     string
+  'custom:role'?:     string
+  'custom:is_dev'?:   string   // stored as 'true' | 'false' in Cognito
+  'cognito:username'?: string
+  name?:              string
+  email?:             string
+  token_use?:         string
 }
 
 // ── Admin claims (staff tokens may not carry msid/orgId) ─────────────────────
 
 export interface AdminClaims {
   sub: string
+  username: string
   name: string
   email: string
   role?: string
@@ -85,9 +87,16 @@ export interface AdminClaims {
 }
 
 const ADMIN_ALLOWED_ROLES = new Set(['clinic-staff', 'admin', 'staff'])
+const ADMIN_ALLOWED_USERNAMES = new Set(['midland-admin'])
+const ADMIN_ALLOWED_EMAILS = new Set(['admin@midlandsleep.co.nz'])
 
 export function isAuthorizedAdmin(claims: AdminClaims): boolean {
-  return ADMIN_ALLOWED_ROLES.has(claims.role ?? '') || claims.is_dev
+  return (
+    ADMIN_ALLOWED_ROLES.has(claims.role ?? '') ||
+    claims.is_dev ||
+    ADMIN_ALLOWED_USERNAMES.has(claims.username) ||
+    ADMIN_ALLOWED_EMAILS.has(claims.email)
+  )
 }
 
 // Reads the Cognito ID token from the `id_token` cookie (set by the admin
@@ -112,6 +121,7 @@ export async function getAdminUser(): Promise<AdminClaims | null> {
 
     return {
       sub,
+      username: payload['cognito:username'] ?? sub,
       name: name ?? 'Staff',
       email,
       role: payload['custom:role'],
