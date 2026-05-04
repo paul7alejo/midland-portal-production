@@ -1,6 +1,6 @@
 import 'server-only'
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb'
-import { DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand, ScanCommand } from '@aws-sdk/lib-dynamodb'
+import { DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand, ScanCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb'
 import { randomUUID } from 'crypto'
 import type { OrderChannel, OrderLine } from '@/types'
 
@@ -186,6 +186,49 @@ export async function appendAuditLog(entry: AuditEntry): Promise<void> {
       ...entry,
       timestamp_ms,
     },
+  }))
+}
+
+export async function countAuditEventsSince(
+  userId: string,
+  eventType: string,
+  sinceMs: number
+): Promise<number> {
+  const res = await docClient.send(new QueryCommand({
+    TableName: TABLES.AUDIT,
+    KeyConditionExpression: 'pk = :pk AND sk BETWEEN :skStart AND :skEnd',
+    FilterExpression: 'event_type = :eventType',
+    ExpressionAttributeValues: {
+      ':pk': `AUDIT#${userId}`,
+      ':skStart': `EVENT#${sinceMs}`,
+      ':skEnd': `EVENT#${Date.now()}`,
+      ':eventType': eventType,
+    },
+    Select: 'COUNT',
+  }))
+  return res.Count ?? 0
+}
+
+export async function updatePatientProfile(
+  pk: string,
+  fields: { name?: string; email?: string }
+): Promise<void> {
+  const entries = Object.entries(fields).filter(([, v]) => v !== undefined)
+  if (entries.length === 0) return
+  const ExpressionAttributeNames: Record<string, string> = {}
+  const ExpressionAttributeValues: Record<string, unknown> = {}
+  const setClauses: string[] = []
+  for (const [key, value] of entries) {
+    ExpressionAttributeNames[`#${key}`] = key
+    ExpressionAttributeValues[`:${key}`] = value
+    setClauses.push(`#${key} = :${key}`)
+  }
+  await docClient.send(new UpdateCommand({
+    TableName: TABLES.PATIENTS,
+    Key: { pk, sk: 'PROFILE' },
+    UpdateExpression: `SET ${setClauses.join(', ')}`,
+    ExpressionAttributeNames,
+    ExpressionAttributeValues,
   }))
 }
 
