@@ -32,19 +32,19 @@ export default function AdminSidebar() {
   return (
     <aside className="fixed left-0 top-0 h-screen w-64 bg-navy flex flex-col">
       {/* Logo */}
-      <div className="p-6 border-b border-white/10">
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-full bg-deep-teal flex items-center justify-center text-white font-display text-lg font-bold">
-            M
-          </div>
-          <div>
-            <p className="text-white font-display text-lg font-semibold">
-              Midland Sleep
-            </p>
-            <span className="inline-block bg-amber text-white text-xs font-medium px-2 py-0.5 rounded">
-              Admin
-            </span>
-          </div>
+      <div className="flex items-center gap-3 px-4 py-4 border-b border-white/10">
+        <img
+          src="/midland-logo.png"
+          alt="Midland Sleep"
+          className="h-10 w-10 rounded-md"
+        />
+        <div className="flex flex-col">
+          <span className="text-base font-semibold text-white">
+            Midland Sleep
+          </span>
+          <span className="text-xs text-amber-400 font-medium">
+            Admin
+          </span>
         </div>
       </div>
 
