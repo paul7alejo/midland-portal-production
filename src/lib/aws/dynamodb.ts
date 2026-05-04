@@ -15,7 +15,15 @@ const TABLES = {
 } as const
 
 const docClient = DynamoDBDocumentClient.from(
-  new DynamoDBClient({ region: process.env.DYNAMODB_REGION ?? 'ap-southeast-2' })
+  new DynamoDBClient({
+    region: process.env.DYNAMODB_REGION ?? 'ap-southeast-2',
+    ...(process.env.MIDLAND_ACCESS_KEY_ID && {
+      credentials: {
+        accessKeyId: process.env.MIDLAND_ACCESS_KEY_ID,
+        secretAccessKey: process.env.MIDLAND_SECRET_ACCESS_KEY!,
+      },
+    }),
+  })
 )
 
 // ── Record types ──────────────────────────────────────────────────────────────
