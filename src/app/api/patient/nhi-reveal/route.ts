@@ -42,6 +42,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: err.message }, { status: err.status });
     }
     console.error('patient/nhi-reveal POST ERROR:', err instanceof Error ? err.message : String(err));
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: "Internal server error",
+        detail: err instanceof Error ? err.message : String(err)
+      },
+      { status: 500 }
+    );
   }
 }
