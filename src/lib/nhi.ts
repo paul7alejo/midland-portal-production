@@ -15,6 +15,13 @@ const client = new SecretsManagerClient({
 })
 
 async function getSecret(): Promise<NHISecret> {
+  if (process.env.NHI_ENCRYPTION_KEY) {
+    return {
+      encryptionKey: process.env.NHI_ENCRYPTION_KEY,
+      hashSalt: process.env.NHI_HASH_SALT ?? process.env.NHI_ENCRYPTION_KEY,
+    }
+  }
+
   const now = Date.now()
   if (_cache && _cache.expiresAt > now) return _cache.value
 
