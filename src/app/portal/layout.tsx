@@ -1,7 +1,6 @@
 "use client";
 
 import { useAuth } from "@/components/AuthProvider";
-import { CartProvider, useCart } from "@/components/CartProvider";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import Link from "next/link";
@@ -9,7 +8,6 @@ import PortalSidebar from "@/components/layout/PortalSidebar";
 
 function TopBar() {
   const { patient, logout } = useAuth();
-  const { totalItems } = useCart();
   const router = useRouter();
 
   if (!patient) return null;
@@ -102,9 +100,5 @@ function PortalInner({ children }: { children: React.ReactNode }) {
 }
 
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <CartProvider>
-      <PortalInner>{children}</PortalInner>
-    </CartProvider>
-  );
+  return <PortalInner>{children}</PortalInner>;
 }
