@@ -29,7 +29,9 @@ export type SignInResult =
 
 export async function signIn(username: string, password: string): Promise<SignInResult> {
   try {
-    const result = await amplifySignIn({ username: normalizeMSID(username), password })
+    const trimmed = username.trim()
+    const normalized = trimmed.includes('@') ? trimmed : normalizeMSID(trimmed)
+    const result = await amplifySignIn({ username: normalized, password })
     if (!result.isSignedIn) {
       return { success: false, error: 'Sign-in requires an additional step' }
     }
