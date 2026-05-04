@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { signOut } from "@/lib/aws/cognito";
 import {
   LayoutDashboard,
   Users,
@@ -30,6 +31,18 @@ const navItems = [
 
 export default function AdminSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+
+  async function handleLogout() {
+    try {
+      await fetch('/api/auth/session', { method: 'DELETE' });
+      await signOut();
+    } catch {
+      // silent
+    } finally {
+      router.push('/login');
+    }
+  }
 
   return (
     <aside className="fixed left-0 top-0 h-screen w-64 bg-navy flex flex-col">
@@ -82,7 +95,10 @@ export default function AdminSidebar() {
           <p className="font-medium text-white text-base">Staff User</p>
           <p className="text-xs">admin@midlandsleep.co.nz</p>
         </div>
-        <button className="text-white/70 hover:text-white text-base transition-colors">
+        <button
+          onClick={handleLogout}
+          className="text-white/70 hover:text-white text-base transition-colors"
+        >
           Log out
         </button>
       </div>

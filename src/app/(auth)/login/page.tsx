@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { useRouter } from "next/navigation";
 import { getCurrentUser, configureCognito } from "@/lib/aws/cognito";
+import { isAdminIdentity } from "@/lib/admin-identity";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -19,20 +20,20 @@ export default function LandingPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const { login, isAuthenticated } = useAuth();
+  const { login, isAuthenticated, patient } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
     configureCognito();
     getCurrentUser().then((user) => {
-      if (user) router.replace('/portal/dashboard');
+      if (user) router.replace(isAdminIdentity(user) ? '/admin' : '/portal/dashboard');
     });
   }, []);
 
   // Redirect if already logged in
   useEffect(() => {
-    if (isAuthenticated) router.push("/portal/dashboard");
-  }, [isAuthenticated, router]);
+    if (isAuthenticated) router.replace(isAdminIdentity(patient ?? {}) ? '/admin' : '/portal/dashboard');
+  }, [isAuthenticated, patient, router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,7 +45,7 @@ export default function LandingPage() {
       const { error: errorMsg, redirectTo } = await login(identifier, password);
 
       if (errorMsg === null) {
-        router.push(redirectTo);
+        router.replace(redirectTo);
       } else {
         setError(errorMsg);
       }
