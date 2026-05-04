@@ -2,11 +2,9 @@
 
 import { useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
+import { usePatientData } from "@/hooks/usePatientData";
 import { cn } from "@/lib/utils";
-import {
-  DEMO_ENTITLEMENTS,
-  DEMO_MASKS,
-} from "@/lib/demoData";
+import { DEMO_MASKS } from "@/lib/demoData";
 
 const ITEM_LABELS: Record<string, string> = {
   cushion: "Mask cushion",
@@ -34,17 +32,19 @@ function formatDate(iso: string): string {
 
 export default function ReorderPage() {
   const { patient } = useAuth();
+  const { entitlement, loading } = usePatientData();
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [address, setAddress] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
 
+  if (loading) return <div className="p-8 text-charcoal/60">Loading...</div>;
   if (!patient) return null;
 
-  const entitlement = DEMO_ENTITLEMENTS[patient.userId] ?? [];
+  const items = entitlement?.items ?? [];
   const mask = DEMO_MASKS[patient.userId];
-  const eligibleItems = entitlement.filter((item) => item.status === "ELIGIBLE");
-  const notYetItems = entitlement.filter((item) => item.status === "NOT_YET");
+  const eligibleItems = items.filter((item) => item.status === "ELIGIBLE");
+  const notYetItems = items.filter((item) => item.status === "NOT_YET");
 
   const toggleItem = (itemType: string) => {
     setSelectedItems((prev) =>
