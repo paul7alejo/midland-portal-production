@@ -46,7 +46,7 @@ export default function DashboardPage() {
   const entitlement = entitlementData?.items ?? [];
   const maintenance = (patient as any).maintenance ?? [];
 
-  if (dataLoading) return <div className="p-8 text-charcoal/60 font-body">Loading your data...</div>;
+  if (dataLoading) return <div className="p-8 text-gray-700 font-body text-base">Loading your data...</div>;
 
   const canReorderNow = entitlement.some((item: any) => item.status === "ELIGIBLE");
   const overdueChecks = maintenance.filter((c: any) => c.status === "OVERDUE");
@@ -79,7 +79,7 @@ export default function DashboardPage() {
             <h2 className="font-display text-xl text-navy">My Equipment</h2>
             <Link
               href="/portal/equipment"
-              className="text-sm text-deep-teal hover:underline"
+              className="text-base text-deep-teal hover:underline font-medium"
             >
               View full details
             </Link>
@@ -164,24 +164,24 @@ export default function DashboardPage() {
 
           {canReorderNow ? (
             <div className="bg-seafoam-pale rounded-lg p-4 space-y-3">
-              <p className="text-charcoal font-medium flex items-center gap-2">
+              <p className="text-charcoal font-medium flex items-center gap-2 text-base">
                 <span className="text-seafoam">&#9989;</span>
                 You can request mask supplies
               </p>
               <Link
                 href="/portal/reorder"
-                className="inline-flex items-center gap-2 bg-deep-teal text-white px-5 py-2.5 rounded-full text-sm font-medium hover:bg-deep-teal/90 transition-colors"
+                className="inline-flex items-center gap-2 bg-deep-teal text-white px-5 py-2.5 rounded-full text-base font-medium hover:bg-deep-teal/90 transition-colors"
               >
                 Request Supplies
               </Link>
             </div>
           ) : (
             <div className="bg-sand-pale rounded-lg p-4 space-y-2">
-              <p className="text-charcoal font-medium">
+              <p className="text-charcoal font-medium text-base">
                 Your supplies are not yet available to reorder.
               </p>
               {entitlement.some((item) => item.next_eligible_date) && (
-                <p className="text-sm text-charcoal/70">
+                <p className="text-base text-gray-700">
                   Next eligible from{" "}
                   {formatDate(
                     entitlement
@@ -270,7 +270,7 @@ export default function DashboardPage() {
         {/* CARD 4 — NEED HELP */}
         <section className="bg-sand-pale border border-sand rounded-lg p-6">
           <h2 className="font-display text-lg text-navy mb-2">Need help?</h2>
-          <p className="text-sm text-charcoal/80">
+          <p className="text-base text-gray-700">
             Call Midland Sleep on {phoneLink} or email {emailLink}. We are open Monday to Friday, 8:30am to 5pm.
           </p>
         </section>

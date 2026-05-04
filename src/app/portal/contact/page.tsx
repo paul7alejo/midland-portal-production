@@ -35,7 +35,7 @@ export default function ContactPage() {
       <h1 className="font-display text-2xl font-bold text-navy mb-2">
         Contact Midland Sleep
       </h1>
-      <p className="text-sm text-charcoal/70 mb-8">
+      <p className="text-base text-gray-700 mb-8">
         We are here to help with your CPAP care.
       </p>
 
@@ -99,7 +99,7 @@ export default function ContactPage() {
               <h2 className="font-display text-xl text-navy">
                 Your message has been sent
               </h2>
-              <p className="text-sm text-charcoal/70">
+              <p className="text-base text-gray-700">
                 We will get back to you within 1-2 business days.
               </p>
               <button
@@ -108,7 +108,7 @@ export default function ContactPage() {
                   setCategory("");
                   setMessage("");
                 }}
-                className="text-sm text-deep-teal hover:underline mt-2"
+                className="text-base text-deep-teal hover:underline mt-2 font-medium"
               >
                 Send another message
               </button>
@@ -192,7 +192,7 @@ export default function ContactPage() {
                 <button
                   onClick={handleSubmit}
                   disabled={!category || !message.trim()}
-                  className="bg-deep-teal text-white px-6 py-2.5 rounded-full text-sm
+                  className="bg-deep-teal text-white px-6 py-2.5 rounded-full text-base
                              font-medium hover:bg-deep-teal/90 transition-colors
                              disabled:opacity-50 disabled:cursor-not-allowed"
                 >
