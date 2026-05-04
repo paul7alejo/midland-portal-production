@@ -171,7 +171,7 @@ export default function LandingPage() {
                 <input
                   type="text"
                   className="landing-input"
-                  placeholder="e.g. staff@midlandsleep.co.nz or midland-admin"
+                  placeholder="e.g. johndoe@clinic.com or johndoe"
                   value={email}
                   onChange={(e) => {
                     setEmail(e.target.value);

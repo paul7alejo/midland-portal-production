@@ -18,9 +18,11 @@ export function configureCognito(): void {
   })
 }
 
-// Strip everything non-digit: handles "MS-238872", "ms 238872", "238872"
-function normalizeMSID(input: string): string {
-  return input.replace(/\D/g, '')
+function normalizeUsername(input: string): string {
+  const raw = input.trim()
+  if (raw.includes('@')) return raw
+  if (/^\d+$/.test(raw) || /^ms-?\d/i.test(raw)) return raw.replace(/\D/g, '')
+  return raw
 }
 
 export type SignInResult =
@@ -29,8 +31,7 @@ export type SignInResult =
 
 export async function signIn(username: string, password: string): Promise<SignInResult> {
   try {
-    const trimmed = username.trim()
-    const normalized = trimmed.includes('@') ? trimmed : normalizeMSID(trimmed)
+    const normalized = normalizeUsername(username)
     const result = await amplifySignIn({ username: normalized, password })
     if (!result.isSignedIn) {
       return { success: false, error: 'Sign-in requires an additional step' }
