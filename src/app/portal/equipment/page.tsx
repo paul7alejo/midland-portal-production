@@ -31,45 +31,45 @@ export default function EquipmentPage() {
 
   return (
     <>
-      <h1 className="font-display text-3xl font-semibold text-navy mb-6">
+      <h1 className="font-display text-[34px] font-semibold text-navy mb-6">
         My Equipment
       </h1>
 
       <div className="space-y-6">
-        <section className="bg-white border border-sand rounded-lg p-6 space-y-3">
-          <h2 className="font-display text-xl text-navy">Current machine</h2>
+        <section className="bg-white border border-sand rounded-2xl p-6 space-y-3">
+          <h2 className="font-display text-[22px] font-semibold text-navy">Current machine</h2>
 
           {device ? (
-            <dl className="grid gap-3 md:grid-cols-2 text-base">
-              <div><dt className="text-xs uppercase text-gray-700 font-mono">Brand</dt><dd className="text-charcoal font-medium">{device.brand ?? "-"}</dd></div>
-              <div><dt className="text-xs uppercase text-gray-700 font-mono">Model</dt><dd className="text-charcoal font-medium">{device.name ?? device.model ?? "-"}</dd></div>
-              <div><dt className="text-xs uppercase text-gray-700 font-mono">Serial number</dt><dd className="text-charcoal font-mono">{device.serial_number ?? "-"}</dd></div>
-              <div><dt className="text-xs uppercase text-gray-700 font-mono">Set up</dt><dd className="text-charcoal">{formatDate(device.setup_date)}</dd></div>
-              <div><dt className="text-xs uppercase text-gray-700 font-mono">Funded by</dt><dd className="text-charcoal font-medium">{device.funding_stream ?? "-"}</dd></div>
+            <dl className="grid gap-3 md:grid-cols-2 text-[17px]">
+              <div><dt className="text-sm uppercase text-gray-600 font-mono">Brand</dt><dd className="text-charcoal font-medium">{device.brand ?? "-"}</dd></div>
+              <div><dt className="text-sm uppercase text-gray-600 font-mono">Model</dt><dd className="text-charcoal font-medium">{device.name ?? device.model ?? "-"}</dd></div>
+              <div><dt className="text-sm uppercase text-gray-600 font-mono">Serial number</dt><dd className="text-charcoal font-mono">{device.serial_number ?? "-"}</dd></div>
+              <div><dt className="text-sm uppercase text-gray-600 font-mono">Set up</dt><dd className="text-charcoal">{formatDate(device.setup_date)}</dd></div>
+              <div><dt className="text-sm uppercase text-gray-600 font-mono">Funded by</dt><dd className="text-charcoal font-medium">{device.funding_stream ?? "-"}</dd></div>
             </dl>
           ) : (
             <p className="text-base text-gray-700">No machine on file.</p>
           )}
         </section>
 
-        <section className="bg-white border border-sand rounded-lg p-6 space-y-3">
-          <h2 className="font-display text-xl text-navy">Current mask</h2>
+        <section className="bg-white border border-sand rounded-2xl p-6 space-y-3">
+          <h2 className="font-display text-[22px] font-semibold text-navy">Current mask</h2>
 
           {mask ? (
-            <dl className="grid gap-3 md:grid-cols-2 text-base">
-              <div><dt className="text-xs uppercase text-gray-700 font-mono">Brand</dt><dd className="text-charcoal font-medium">{mask.brand ?? "-"}</dd></div>
-              <div><dt className="text-xs uppercase text-gray-700 font-mono">Model</dt><dd className="text-charcoal font-medium">{mask.name ?? "-"}</dd></div>
-              <div><dt className="text-xs uppercase text-gray-700 font-mono">Type</dt><dd className="text-charcoal">{formatMaskType(mask.type)}</dd></div>
-              <div><dt className="text-xs uppercase text-gray-700 font-mono">Size</dt><dd className="text-charcoal font-medium">{mask.size ?? "-"}</dd></div>
-              <div><dt className="text-xs uppercase text-gray-700 font-mono">Fitted</dt><dd className="text-charcoal">{formatDate(mask.fitted_date)}</dd></div>
+            <dl className="grid gap-3 md:grid-cols-2 text-[17px]">
+              <div><dt className="text-sm uppercase text-gray-600 font-mono">Brand</dt><dd className="text-charcoal font-medium">{mask.brand ?? "-"}</dd></div>
+              <div><dt className="text-sm uppercase text-gray-600 font-mono">Model</dt><dd className="text-charcoal font-medium">{mask.name ?? "-"}</dd></div>
+              <div><dt className="text-sm uppercase text-gray-600 font-mono">Type</dt><dd className="text-charcoal">{formatMaskType(mask.type)}</dd></div>
+              <div><dt className="text-sm uppercase text-gray-600 font-mono">Size</dt><dd className="text-charcoal font-medium">{mask.size ?? "-"}</dd></div>
+              <div><dt className="text-sm uppercase text-gray-600 font-mono">Fitted</dt><dd className="text-charcoal">{formatDate(mask.fitted_date)}</dd></div>
             </dl>
           ) : (
             <p className="text-base text-gray-700">No mask on file.</p>
           )}
         </section>
 
-        <section className="bg-white border border-sand rounded-lg p-6 space-y-4">
-          <h2 className="font-display text-xl text-navy">Maintenance timeline</h2>
+        <section className="bg-white border border-sand rounded-2xl p-6 space-y-4">
+          <h2 className="font-display text-[22px] font-semibold text-navy">Maintenance timeline</h2>
           <p className="text-base text-gray-700">
             Maintenance records will appear here once connected to Midland Sleep records.
           </p>
@@ -78,8 +78,8 @@ export default function EquipmentPage() {
           </p>
         </section>
 
-        <section className="bg-white border border-sand rounded-lg p-6 border-dashed">
-          <h2 className="font-display text-xl text-navy mb-2">Previous equipment</h2>
+        <section className="bg-white border border-sand rounded-2xl p-6 border-dashed">
+          <h2 className="font-display text-[22px] font-semibold text-navy mb-2">Previous equipment</h2>
           <p className="text-base text-gray-700">
             Your machine and mask history will appear here in a future update.
           </p>

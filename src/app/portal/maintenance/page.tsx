@@ -77,7 +77,7 @@ export default function MaintenancePage() {
 
   return (
     <>
-      <h1 className="font-display text-3xl font-semibold text-navy mb-2">
+      <h1 className="font-display text-[34px] font-semibold text-navy mb-2">
         Maintenance
       </h1>
       <p className="text-base text-charcoal/70 mb-6">
@@ -88,14 +88,14 @@ export default function MaintenancePage() {
 
         {/* Machine info header */}
         {device && (
-          <div className="bg-white border border-sand rounded-lg p-4">
-            <p className="text-xs uppercase tracking-wide text-charcoal/60 font-mono mb-1">
+          <div className="bg-white border border-sand rounded-2xl p-4">
+            <p className="text-sm uppercase tracking-wide text-charcoal/70 font-mono mb-1">
               Your machine
             </p>
             <p className="text-charcoal font-medium">
               {device.brand} {device.name}
             </p>
-            <p className="text-xs text-charcoal/60">
+            <p className="text-sm text-charcoal/70">
               Set up {formatDate(device.setup_date)} - Serial: {device.serial_number}
             </p>
           </div>
@@ -110,13 +110,13 @@ export default function MaintenancePage() {
             <section
               key={check.check_type}
               className={cn(
-                "bg-white border rounded-lg p-6 space-y-4",
+                "bg-white border rounded-2xl p-6 space-y-4",
                 isOverdue ? "border-amber/40" : "border-sand"
               )}
             >
               <div className="flex justify-between items-start gap-3">
                 <div>
-                  <h2 className="font-display text-xl font-semibold text-navy">
+                  <h2 className="font-display text-[22px] font-semibold text-navy">
                     {check.label}
                   </h2>
                   <p className="text-base text-charcoal/70 mt-1">
@@ -127,7 +127,7 @@ export default function MaintenancePage() {
                 </div>
                 <span
                   className={cn(
-                    "inline-flex items-center rounded-full px-3 py-1 text-xs font-medium whitespace-nowrap",
+                    "inline-flex items-center rounded-full px-3 py-1 text-sm font-medium whitespace-nowrap",
                     isOverdue
                       ? "bg-amber/10 text-amber border border-amber/30"
                       : "bg-seafoam-pale text-charcoal border border-seafoam/30"
@@ -137,9 +137,9 @@ export default function MaintenancePage() {
                 </span>
               </div>
 
-              <dl className="grid gap-3 md:grid-cols-2 text-sm">
+              <dl className="grid gap-3 md:grid-cols-2 text-base">
                 <div>
-                  <dt className="text-xs uppercase tracking-wide text-charcoal/60 font-mono">
+                  <dt className="text-sm uppercase tracking-wide text-charcoal/70 font-mono">
                     Last completed
                   </dt>
                   <dd className="text-charcoal">
@@ -147,7 +147,7 @@ export default function MaintenancePage() {
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs uppercase tracking-wide text-charcoal/60 font-mono">
+                  <dt className="text-sm uppercase tracking-wide text-charcoal/70 font-mono">
                     Next due
                   </dt>
                   <dd className={cn("font-medium", isOverdue ? "text-amber" : "text-charcoal")}>
@@ -170,7 +170,7 @@ export default function MaintenancePage() {
               )}
 
               {!isOverdue && (
-                <p className="text-base text-charcoal/60">
+                <p className="text-base text-charcoal/70">
                   Nothing to do right now. We will remind you when this is due.
                 </p>
               )}
@@ -179,8 +179,8 @@ export default function MaintenancePage() {
         })}
 
         {maintenance.length === 0 && (
-          <div className="bg-white border border-sand rounded-lg p-6">
-            <p className="text-sm text-charcoal/60">
+          <div className="bg-white border border-sand rounded-2xl p-6">
+            <p className="text-base text-charcoal/70">
               No maintenance records on file.
             </p>
           </div>
@@ -188,7 +188,7 @@ export default function MaintenancePage() {
 
         {/* General info */}
         <section className="bg-sand-pale border border-sand rounded-lg p-6">
-          <h2 className="font-display text-xl font-semibold text-navy mb-2">
+          <h2 className="font-display text-[22px] font-semibold text-navy mb-2">
             About CPAP maintenance
           </h2>
           <div className="text-base text-charcoal/80 space-y-2">

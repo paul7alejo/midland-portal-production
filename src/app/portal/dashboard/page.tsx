@@ -67,16 +67,16 @@ export default function DashboardPage() {
   return (
     <>
       {/* Greeting — time-of-day, first name only */}
-      <h1 className="font-display text-3xl md:text-4xl font-bold text-navy mb-8">
+      <h1 className="font-display text-[34px] font-semibold text-navy mb-8">
         {getGreeting()}, {(patient.name ?? "Patient").split(" ")[0]}.
       </h1>
 
       <div className="space-y-6">
 
         {/* CARD 1 — MY EQUIPMENT */}
-        <section className="bg-white border border-sand rounded-lg p-6 space-y-4">
+        <section className="bg-white border border-sand rounded-2xl p-6 space-y-4">
           <div className="flex justify-between items-start">
-            <h2 className="font-display text-xl font-semibold text-navy">My Equipment</h2>
+            <h2 className="font-display text-[22px] font-semibold text-navy">My Equipment</h2>
             <Link
               href="/portal/equipment"
               className="text-base text-deep-teal hover:underline font-medium"
@@ -85,27 +85,27 @@ export default function DashboardPage() {
             </Link>
           </div>
 
-          <div className="grid gap-x-8 gap-y-4 md:grid-cols-2">
+          <div className="grid gap-x-8 gap-y-4 md:grid-cols-2 text-[17px]">
             <div>
-              <p className="text-xs uppercase tracking-wide text-charcoal/60 font-mono mb-1">Machine</p>
+              <p className="text-sm uppercase tracking-wide text-charcoal/70 font-mono mb-1">Machine</p>
               <p className="text-charcoal font-medium">
                 {device ? `${device.brand} ${device.name}` : "-"}
               </p>
             </div>
             <div>
-              <p className="text-xs uppercase tracking-wide text-charcoal/60 font-mono mb-1">Device ID</p>
+              <p className="text-sm uppercase tracking-wide text-charcoal/70 font-mono mb-1">Device ID</p>
               <p className="text-charcoal font-mono">
                 {device ? device.serial_number : "-"}
               </p>
             </div>
             <div>
-              <p className="text-xs uppercase tracking-wide text-charcoal/60 font-mono mb-1">Issued</p>
+              <p className="text-sm uppercase tracking-wide text-charcoal/70 font-mono mb-1">Issued</p>
               <p className="text-charcoal">
                 {device ? formatDate(device.setup_date) : "-"}
               </p>
             </div>
             <div>
-              <p className="text-xs uppercase tracking-wide text-charcoal/60 font-mono mb-1">Funded by</p>
+              <p className="text-sm uppercase tracking-wide text-charcoal/70 font-mono mb-1">Funded by</p>
               <p className="text-charcoal font-medium">
                 {(device?.funding_stream ?? (patient as any).funding_stream ?? "ACC") === "ACC" ? "ACC" : "Health NZ"}
               </p>
@@ -114,12 +114,12 @@ export default function DashboardPage() {
             {/* Safety check + Water chamber status badges */}
             {maintenance.map((check: any) => (
               <div key={check.check_type}>
-                <p className="text-xs uppercase tracking-wide text-charcoal/60 font-mono mb-1">
+                <p className="text-sm uppercase tracking-wide text-charcoal/70 font-mono mb-1">
                   {check.check_type === "safety_check" ? "Safety Check" : "Water Chamber"}
                 </p>
                 <span
                   className={cn(
-                    "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium",
+                    "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium",
                     check.status === "OVERDUE"
                       ? "bg-amber/10 text-amber border border-amber/30"
                       : check.status === "DUE"
@@ -138,19 +138,19 @@ export default function DashboardPage() {
 
             {/* Mask info */}
             <div>
-              <p className="text-xs uppercase tracking-wide text-charcoal/60 font-mono mb-1">Mask</p>
+              <p className="text-sm uppercase tracking-wide text-charcoal/70 font-mono mb-1">Mask</p>
               <p className="text-charcoal font-medium">
                 {mask ? `${mask.brand} ${mask.name} ${formatMaskType(mask.type)}` : "-"}
               </p>
             </div>
             <div>
-              <p className="text-xs uppercase tracking-wide text-charcoal/60 font-mono mb-1">Size</p>
+              <p className="text-sm uppercase tracking-wide text-charcoal/70 font-mono mb-1">Size</p>
               <p className="text-charcoal font-medium">
                 {mask ? mask.size : "-"}
               </p>
             </div>
             <div className="md:col-span-2">
-              <p className="text-xs uppercase tracking-wide text-charcoal/60 font-mono mb-1">Last Issued</p>
+              <p className="text-sm uppercase tracking-wide text-charcoal/70 font-mono mb-1">Last Issued</p>
               <p className="text-charcoal">
                 {mask ? formatDate(mask.fitted_date) : "-"}
               </p>
@@ -159,8 +159,8 @@ export default function DashboardPage() {
         </section>
 
         {/* CARD 2 — MY SUPPLIES STATUS */}
-        <section className="bg-white border border-sand rounded-lg p-6 space-y-4">
-          <h2 className="font-display text-xl font-semibold text-navy">My Supplies Status</h2>
+        <section className="bg-white border border-sand rounded-2xl p-6 space-y-4">
+          <h2 className="font-display text-[22px] font-semibold text-navy">My Supplies Status</h2>
 
           {canReorderNow ? (
             <div className="bg-seafoam-pale rounded-lg p-4 space-y-3">
@@ -201,15 +201,15 @@ export default function DashboardPage() {
                 key={item.item_type}
                 className="border border-sand rounded-md p-3 space-y-1"
               >
-                <p className="text-sm font-medium text-charcoal">
+                <p className="text-base font-medium text-charcoal">
                   {ITEM_LABELS[item.item_type]}
                 </p>
                 {item.status === "ELIGIBLE" ? (
-                  <p className="text-xs">
+                  <p className="text-sm">
                     <span className="text-seafoam font-medium">Available now</span>
                   </p>
                 ) : (
-                  <p className="text-xs text-charcoal/70">
+                  <p className="text-sm text-charcoal/70">
                     From{" "}
                     {item.next_eligible_date
                       ? formatDate(item.next_eligible_date)
@@ -223,8 +223,8 @@ export default function DashboardPage() {
 
         {/* CARD 3 — SAFETY AND MAINTENANCE */}
         {(overdueChecks.length > 0 || dueSoonChecks.length > 0) && (
-          <section className="bg-white border border-sand rounded-lg p-6 space-y-4">
-            <h2 className="font-display text-xl font-semibold text-navy">
+          <section className="bg-white border border-sand rounded-2xl p-6 space-y-4">
+            <h2 className="font-display text-[22px] font-semibold text-navy">
               Safety and maintenance
             </h2>
 
@@ -236,10 +236,10 @@ export default function DashboardPage() {
                 >
                   <span className="mt-1.5 h-2 w-2 rounded-full bg-amber shrink-0" />
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-charcoal">
+                    <p className="text-base font-medium text-charcoal">
                       {check.label} - Overdue
                     </p>
-                    <p className="text-xs text-charcoal/70 mt-0.5">
+                    <p className="text-sm text-charcoal/70 mt-0.5">
                       Due {formatDate(check.due_date)}. Please call Midland Sleep on{" "}
                       {phoneLink} to arrange this.
                     </p>
@@ -254,10 +254,10 @@ export default function DashboardPage() {
                 >
                   <span className="mt-1.5 h-2 w-2 rounded-full bg-sand shrink-0" />
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-charcoal">
+                    <p className="text-base font-medium text-charcoal">
                       {check.label} - Due soon
                     </p>
-                    <p className="text-xs text-charcoal/70 mt-0.5">
+                    <p className="text-sm text-charcoal/70 mt-0.5">
                       Due {formatDate(check.due_date)}. Midland will be in touch closer to the time.
                     </p>
                   </div>
@@ -268,8 +268,8 @@ export default function DashboardPage() {
         )}
 
         {/* CARD 4 — NEED HELP */}
-        <section className="bg-sand-pale border border-sand rounded-lg p-6">
-          <h2 className="font-display text-xl font-semibold text-navy mb-2">Need help?</h2>
+        <section className="bg-sand-pale border border-sand rounded-2xl p-6">
+          <h2 className="font-display text-[22px] font-semibold text-navy mb-2">Need help?</h2>
           <p className="text-base text-gray-700">
             Call Midland Sleep on {phoneLink} or email {emailLink}. We are open Monday to Friday, 8:30am to 5pm.
           </p>

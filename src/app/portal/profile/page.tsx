@@ -99,60 +99,60 @@ export default function ProfilePage() {
 
   return (
     <>
-      <h1 className="font-display text-3xl font-semibold text-navy mb-2">
+      <h1 className="font-display text-[34px] font-semibold text-navy mb-2">
         My profile
       </h1>
-      <p className="text-sm text-charcoal/70 mb-6">
+      <p className="text-base text-charcoal/70 mb-6">
         Your account details and preferences.
       </p>
 
       <div className="space-y-6">
 
         {/* SECTION 1 — Your Details */}
-        <section className="bg-white border border-sand rounded-lg p-6 space-y-4">
+        <section className="bg-white border border-sand rounded-2xl p-6 space-y-4">
           <div className="bg-seafoam-pale border border-seafoam/30 rounded-md px-4 py-3">
-            <p className="text-xs text-charcoal/80">
+            <p className="text-sm text-charcoal/80">
               Your information is handled in accordance with the Health Information Privacy Code 2020.
             </p>
           </div>
 
-          <h2 className="font-display text-xl text-navy">Your details</h2>
+          <h2 className="font-display text-[22px] font-semibold text-navy">Your details</h2>
 
           {profileLoading ? (
-            <p className="text-sm text-charcoal/60">Loading...</p>
+            <p className="text-base text-charcoal/70">Loading...</p>
           ) : profile ? (
-            <dl className="grid gap-4 md:grid-cols-2 text-sm">
+            <dl className="grid gap-4 md:grid-cols-2 text-[17px]">
               <div>
-                <dt className="text-xs uppercase tracking-wide text-charcoal/60 font-mono mb-1">
+                <dt className="text-sm uppercase tracking-wide text-charcoal/70 font-mono mb-1">
                   Full name
                 </dt>
                 <dd className="font-medium text-charcoal">{profile.name}</dd>
               </div>
               <div>
-                <dt className="text-xs uppercase tracking-wide text-charcoal/60 font-mono mb-1">
+                <dt className="text-sm uppercase tracking-wide text-charcoal/70 font-mono mb-1">
                   Email
                 </dt>
                 <dd className="text-charcoal">{profile.email}</dd>
               </div>
               <div>
-                <dt className="text-xs uppercase tracking-wide text-charcoal/60 font-mono mb-1">
+                <dt className="text-sm uppercase tracking-wide text-charcoal/70 font-mono mb-1">
                   Midland Sleep ID
                 </dt>
                 <dd className="font-mono text-charcoal">{profile.msid}</dd>
               </div>
             </dl>
           ) : (
-            <p className="text-sm text-charcoal/60">
+            <p className="text-base text-charcoal/70">
               Unable to load your details. Please try again later.
             </p>
           )}
         </section>
 
         {/* SECTION 2 — Portal ID Card */}
-        <section className="bg-navy rounded-lg p-6 space-y-4">
+        <section className="bg-navy rounded-2xl p-6 space-y-4">
           <div>
-            <h2 className="font-display text-xl text-cream">Portal ID card</h2>
-            <p className="text-sm text-cream/60 mt-1">
+            <h2 className="font-display text-[22px] font-semibold text-cream">Portal ID card</h2>
+            <p className="text-sm text-cream/70 mt-1">
               Use this ID when contacting Midland Sleep.
             </p>
           </div>
@@ -181,16 +181,16 @@ export default function ProfilePage() {
         </section>
 
         {/* SECTION 3 — NHI Number */}
-        <section className="bg-white border border-sand rounded-lg p-6 space-y-4">
+        <section className="bg-white border border-sand rounded-2xl p-6 space-y-4">
           <div>
-            <h2 className="font-display text-xl text-navy">NHI number</h2>
-            <p className="text-sm text-charcoal/70 mt-1">
+            <h2 className="font-display text-[22px] font-semibold text-navy">NHI number</h2>
+            <p className="text-base text-charcoal/70 mt-1">
               Your National Health Index number.
             </p>
           </div>
 
           <div className="bg-sand-pale rounded-md px-4 py-3">
-            <p className="text-xs uppercase tracking-wide text-charcoal/60 font-mono mb-1">
+            <p className="text-sm uppercase tracking-wide text-charcoal/70 font-mono mb-1">
               NHI
             </p>
             <p className="text-2xl font-mono text-charcoal font-medium tracking-widest">
@@ -220,16 +220,16 @@ export default function ProfilePage() {
             </button>
           )}
 
-          <p className="text-xs text-charcoal/60">
+          <p className="text-sm text-charcoal/70">
             Your NHI is encrypted. Access is logged for security.
           </p>
         </section>
 
         {/* SECTION 4 — Notification Preferences */}
-        <section className="bg-white border border-sand rounded-lg p-6 space-y-4">
+        <section className="bg-white border border-sand rounded-2xl p-6 space-y-4">
           <div>
-            <h2 className="font-display text-xl text-navy">Notification preferences</h2>
-            <p className="text-sm text-charcoal/70 mt-1">
+            <h2 className="font-display text-[22px] font-semibold text-navy">Notification preferences</h2>
+            <p className="text-base text-charcoal/70 mt-1">
               Manage how Midland Sleep contacts you.
             </p>
           </div>
@@ -244,11 +244,11 @@ export default function ProfilePage() {
                 className="flex items-center justify-between py-3 border-b border-sand last:border-0"
               >
                 <div>
-                  <p className="text-base font-medium text-charcoal/60">{label}</p>
-                  <p className="text-sm text-charcoal/50">{detail}</p>
+                  <p className="text-base font-medium text-charcoal/70">{label}</p>
+                  <p className="text-sm text-charcoal/60">{detail}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-charcoal/40 font-mono">Coming soon</span>
+                  <span className="text-xs text-charcoal/60 font-mono">Coming soon</span>
                   <div className="w-10 h-6 rounded-full bg-seafoam/40 flex items-center px-1 cursor-not-allowed">
                     <div className="w-4 h-4 rounded-full bg-white shadow-sm translate-x-4" />
                   </div>

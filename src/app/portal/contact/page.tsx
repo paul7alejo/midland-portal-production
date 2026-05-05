@@ -32,7 +32,7 @@ export default function ContactPage() {
 
   return (
     <>
-      <h1 className="font-display text-3xl font-semibold text-navy mb-2">
+      <h1 className="font-display text-[34px] font-semibold text-navy mb-2">
         Contact Midland Sleep
       </h1>
       <p className="text-base text-gray-700 mb-8">
@@ -43,12 +43,12 @@ export default function ContactPage() {
 
         {/* Left column — contact details */}
         <div className="space-y-6">
-          <section className="bg-white border border-sand rounded-lg p-6 space-y-4">
-            <h2 className="font-display text-xl text-navy">Get in touch</h2>
+          <section className="bg-white border border-sand rounded-2xl p-6 space-y-4">
+            <h2 className="font-display text-[22px] font-semibold text-navy">Get in touch</h2>
 
             <div className="space-y-3">
               <div>
-                <p className="text-xs uppercase tracking-wide text-charcoal/60 font-mono mb-1">
+                <p className="text-sm uppercase tracking-wide text-charcoal/70 font-mono mb-1">
                   Phone
                 </p>
                 <p className="text-lg font-medium text-charcoal">
@@ -57,7 +57,7 @@ export default function ContactPage() {
               </div>
 
               <div>
-                <p className="text-xs uppercase tracking-wide text-charcoal/60 font-mono mb-1">
+                <p className="text-sm uppercase tracking-wide text-charcoal/70 font-mono mb-1">
                   Email
                 </p>
                 <p className="text-charcoal">
@@ -66,7 +66,7 @@ export default function ContactPage() {
               </div>
 
               <div>
-                <p className="text-xs uppercase tracking-wide text-charcoal/60 font-mono mb-1">
+                <p className="text-sm uppercase tracking-wide text-charcoal/70 font-mono mb-1">
                   Hours
                 </p>
                 <p className="text-charcoal">
@@ -75,13 +75,13 @@ export default function ContactPage() {
               </div>
 
               <div>
-                <p className="text-xs uppercase tracking-wide text-charcoal/60 font-mono mb-1">
+                <p className="text-sm uppercase tracking-wide text-charcoal/70 font-mono mb-1">
                   Address
                 </p>
                 <p className="text-charcoal">
                   Midland Sleep Ltd
                 </p>
-                <p className="text-sm text-charcoal/70">
+                <p className="text-base text-charcoal/70">
                   Waikato, New Zealand
                 </p>
               </div>
@@ -92,11 +92,11 @@ export default function ContactPage() {
         {/* Right column — contact form */}
         <div>
           {isSubmitted ? (
-            <div className="bg-seafoam-pale border border-seafoam/30 rounded-lg p-6 text-center space-y-3">
+            <div className="bg-seafoam-pale border border-seafoam/30 rounded-2xl p-6 text-center space-y-3">
               <div className="h-12 w-12 rounded-full bg-seafoam/20 flex items-center justify-center mx-auto">
                 <span className="text-seafoam text-xl">&#10003;</span>
               </div>
-              <h2 className="font-display text-xl text-navy">
+              <h2 className="font-display text-[22px] font-semibold text-navy">
                 Your message has been sent
               </h2>
               <p className="text-base text-gray-700">
@@ -117,15 +117,15 @@ export default function ContactPage() {
             <div className="space-y-4">
               {/* Privacy notice — HIPC Rule 3 */}
               <div className="bg-sky-blue border border-deep-teal/10 rounded-lg px-4 py-3">
-                <p className="text-xs text-charcoal/80">
+                <p className="text-sm text-charcoal/80">
                   Your message will be received by Midland Sleep staff. We handle
                   your information in accordance with the Health Information
                   Privacy Code 2020.
                 </p>
               </div>
 
-              <div className="bg-white border border-sand rounded-lg p-6 space-y-4">
-                <h2 className="font-display text-xl text-navy">Send a message</h2>
+              <div className="bg-white border border-sand rounded-2xl p-6 space-y-4">
+                <h2 className="font-display text-[22px] font-semibold text-navy">Send a message</h2>
 
                 {/* Name — pre-filled, read-only */}
                 <div>
@@ -136,7 +136,7 @@ export default function ContactPage() {
                     type="text"
                     value={patient.name}
                     readOnly
-                    className="w-full px-3 py-2 border border-sand rounded-md
+                    className="w-full px-3 py-3 border border-sand rounded-md
                                bg-cream text-charcoal text-base cursor-not-allowed"
                   />
                 </div>
@@ -153,7 +153,7 @@ export default function ContactPage() {
                     id="category"
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
-                    className="w-full px-3 py-2 border border-sand rounded-md
+                    className="w-full px-3 py-3 border border-sand rounded-md
                                bg-white text-charcoal text-base
                                focus:outline-none focus:ring-2 focus:ring-deep-teal
                                focus:border-transparent"
@@ -181,10 +181,10 @@ export default function ContactPage() {
                     onChange={(e) => setMessage(e.target.value)}
                     placeholder="How can we help?"
                     rows={4}
-                    className="w-full px-3 py-2 border border-sand rounded-md
+                    className="w-full px-3 py-3 border border-sand rounded-md
                                focus:outline-none focus:ring-2 focus:ring-deep-teal
                                focus:border-transparent bg-white text-charcoal
-                               placeholder:text-charcoal/40 text-base min-h-[100px]"
+                               placeholder:text-charcoal/40 text-base min-h-[120px]"
                   />
                 </div>
 

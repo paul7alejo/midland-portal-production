@@ -70,18 +70,18 @@ export default function ReorderPage() {
           <div className="h-16 w-16 rounded-full bg-seafoam-pale flex items-center justify-center mx-auto">
             <span className="text-seafoam text-2xl">&#10003;</span>
           </div>
-          <h1 className="font-display text-2xl font-bold text-navy">
+          <h1 className="font-display text-[34px] font-semibold text-navy">
             Your request has been received
           </h1>
           <p className="text-charcoal/70">
             We will review your request and dispatch your supplies shortly.
             You will receive a confirmation at your email address.
           </p>
-          <div className="bg-white border border-sand rounded-lg p-4 text-left mt-6">
-            <h2 className="text-sm font-medium text-charcoal mb-2">Items requested</h2>
+          <div className="bg-white border border-sand rounded-2xl p-4 text-left mt-6">
+            <h2 className="text-base font-semibold text-charcoal mb-2">Items requested</h2>
             <ul className="space-y-1">
               {selectedItems.map((itemType) => (
-                <li key={itemType} className="text-sm text-charcoal/80">
+                <li key={itemType} className="text-base text-charcoal/80">
                   {ITEM_LABELS[itemType]}
                 </li>
               ))}
@@ -92,7 +92,7 @@ export default function ReorderPage() {
               setIsSubmitted(false);
               setSelectedItems([]);
             }}
-            className="text-sm text-deep-teal hover:underline mt-4"
+            className="text-base text-deep-teal hover:underline mt-4"
           >
             Make another request
           </button>
@@ -103,11 +103,11 @@ export default function ReorderPage() {
 
   return (
     <>
-      <h1 className="font-display text-3xl font-semibold text-navy mb-2">
+      <h1 className="font-display text-[34px] font-semibold text-navy mb-2">
         Request Supplies
       </h1>
       {mask && (
-        <p className="text-sm text-charcoal/70 mb-6">
+        <p className="text-base text-charcoal/70 mb-6">
           Based on your current mask:{" "}
           <span className="font-medium text-charcoal">
             {mask.brand} {mask.name}
@@ -117,7 +117,7 @@ export default function ReorderPage() {
 
       {/* Privacy notice — HIPC Rule 3: must appear ABOVE any data collection */}
       <div className="bg-sky-blue border border-deep-teal/10 rounded-lg px-4 py-3 mb-6">
-        <p className="text-xs text-charcoal/80">
+        <p className="text-sm text-charcoal/80">
           Your request will be reviewed by Midland Sleep staff. We collect your
           delivery address to dispatch supplies. Your information is handled in
           accordance with the Health Information Privacy Code 2020.
@@ -125,7 +125,7 @@ export default function ReorderPage() {
       </div>
 
       {eligibleItems.length === 0 ? (
-        <div className="bg-sand-pale border border-sand rounded-lg p-6 text-center">
+        <div className="bg-sand-pale border border-sand rounded-2xl p-6 text-center">
           <p className="text-charcoal font-medium mb-2">
             No supplies are available to request right now
           </p>
@@ -140,7 +140,7 @@ export default function ReorderPage() {
         <div className="space-y-6">
           {/* Eligible items */}
           <div>
-            <h2 className="text-base font-semibold text-charcoal mb-3">
+            <h2 className="text-[22px] font-semibold text-charcoal mb-3">
               Available supplies
             </h2>
             <div className="grid gap-3 md:grid-cols-2">
@@ -151,7 +151,7 @@ export default function ReorderPage() {
                     key={item.item_type}
                     onClick={() => toggleItem(item.item_type)}
                     className={cn(
-                      "border rounded-lg p-4 text-left transition-colors",
+                      "border rounded-2xl p-5 text-left transition-colors",
                       isSelected
                         ? "border-deep-teal bg-seafoam-pale/50"
                         : "border-sand bg-white hover:border-deep-teal/30"
@@ -159,10 +159,10 @@ export default function ReorderPage() {
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="text-base font-medium text-charcoal">
+                        <p className="text-[17px] font-medium text-charcoal">
                           {ITEM_LABELS[item.item_type]}
                         </p>
-                        <p className="text-sm text-charcoal/60 mt-1">
+                        <p className="text-base text-charcoal/70 mt-1">
                           {ITEM_DESCRIPTIONS[item.item_type]}
                         </p>
                       </div>
@@ -179,7 +179,7 @@ export default function ReorderPage() {
                         )}
                       </div>
                     </div>
-                    <span className="inline-block mt-2 text-xs text-seafoam font-medium">
+                    <span className="inline-block mt-2 text-sm text-seafoam font-medium">
                       Available
                     </span>
                   </button>
@@ -191,7 +191,7 @@ export default function ReorderPage() {
           {/* Not-yet items */}
           {notYetItems.length > 0 && (
             <div>
-              <h2 className="text-base font-medium text-charcoal/60 mb-3">
+              <h2 className="text-lg font-medium text-charcoal/70 mb-3">
                 Not yet available
               </h2>
               <div className="grid gap-3 md:grid-cols-2">
@@ -200,13 +200,13 @@ export default function ReorderPage() {
                     key={item.item_type}
                     className="border border-sand rounded-lg p-4 opacity-60"
                   >
-                    <p className="text-base font-medium text-charcoal">
+                    <p className="text-[17px] font-medium text-charcoal">
                       {ITEM_LABELS[item.item_type]}
                     </p>
-                    <p className="text-sm text-charcoal/60 mt-1">
+                    <p className="text-base text-charcoal/70 mt-1">
                       {ITEM_DESCRIPTIONS[item.item_type]}
                     </p>
-                    <span className="inline-block mt-2 text-xs text-charcoal/50">
+                    <span className="inline-block mt-2 text-sm text-charcoal/70">
                       From{" "}
                       {item.next_eligible_date
                         ? formatDate(item.next_eligible_date)
@@ -232,10 +232,10 @@ export default function ReorderPage() {
               onChange={(e) => setAddress(e.target.value)}
               placeholder="Enter your delivery address"
               rows={4}
-              className="w-full px-3 py-2 border border-sand rounded-md
+              className="w-full px-3 py-3 border border-sand rounded-md
                          focus:outline-none focus:ring-2 focus:ring-deep-teal
                          focus:border-transparent bg-white text-charcoal
-                         placeholder:text-charcoal/40 text-base min-h-[100px]"
+                         placeholder:text-charcoal/40 text-base min-h-[120px]"
             />
           </div>
 

@@ -68,7 +68,7 @@ export default function PortalSidebar() {
     return (
       <div
         key={item.href}
-        className="flex items-center gap-3 px-4 py-3 text-base font-medium text-slate-500 cursor-not-allowed"
+        className="flex items-center gap-3 px-4 py-3.5 text-base font-medium text-slate-400 cursor-not-allowed"
       >
         <NavIcon name={item.icon} />
         <span>{item.label}</span>
@@ -80,9 +80,9 @@ export default function PortalSidebar() {
       key={item.href}
       href={item.href}
       className={cn(
-        "flex items-center gap-3 px-4 py-3 text-base font-medium transition-colors",
+        "flex items-center gap-3 px-4 py-3.5 text-base font-medium transition-colors",
         isActive
-          ? "bg-[#0B5C6C]/15 text-white border-l-[3px] border-[#0B5C6C]"
+          ? "bg-[#0B5C6C]/25 text-white border-l-4 border-[#0B5C6C]"
           : "text-slate-300 hover:bg-white/5 hover:text-white"
       )}
     >
