@@ -162,6 +162,14 @@ const STATUS_CONFIG: Record<PatientStatus, { label: string; classes: string }> =
   },
 };
 
+const ACTION_CONFIG: Record<PatientStatus, { label: string; disabled: boolean }> = {
+  eligible:         { label: "Create order",   disabled: false },
+  not_eligible:     { label: "Not eligible",   disabled: true  },
+  overdue:          { label: "Start outreach", disabled: false },
+  needs_outreach:   { label: "Call patient",   disabled: false },
+  safety_check_due: { label: "Book check",     disabled: false },
+};
+
 const totalPatients = PATIENTS.length;
 const eligibleNow = PATIENTS.filter((p) => p.status === "eligible").length;
 const needsOutreach = PATIENTS.filter(
@@ -269,6 +277,7 @@ export default function AdminPatientsPage() {
             <tbody className="divide-y divide-gray-100">
               {PATIENTS.map((patient) => {
                 const statusCfg = STATUS_CONFIG[patient.status];
+                const actionCfg = ACTION_CONFIG[patient.status];
                 return (
                   <tr
                     key={patient.id}
@@ -320,11 +329,15 @@ export default function AdminPatientsPage() {
                     <td className="px-5 py-5 text-center">
                       <button
                         type="button"
-                        className="bg-[#0B5C6C] text-white text-base font-medium
-                                   px-5 py-2.5 rounded-lg min-h-[44px] min-w-[80px]
-                                   hover:bg-[#0B5C6C]/90 transition-colors"
+                        disabled={actionCfg.disabled}
+                        onClick={actionCfg.disabled ? undefined : () => console.log(actionCfg.label, patient)}
+                        className={
+                          actionCfg.disabled
+                            ? "bg-gray-200 text-gray-500 cursor-not-allowed rounded-lg px-4 py-2 min-h-[44px] text-base font-medium whitespace-nowrap"
+                            : "bg-[#0B5C6C] text-white text-base font-medium rounded-lg px-4 py-2 min-h-[44px] hover:bg-[#0B5C6C]/90 transition-colors whitespace-nowrap"
+                        }
                       >
-                        View
+                        {actionCfg.label}
                       </button>
                     </td>
                   </tr>
