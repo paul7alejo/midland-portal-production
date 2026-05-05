@@ -44,15 +44,19 @@ export default function PortalSidebar() {
     <aside className="fixed inset-y-0 left-0 z-30 w-64 bg-navy flex flex-col">
 
       {/* Brand */}
-      <div className="px-5 py-6 flex items-center gap-3">
-        <img src="/midland-logo.png" alt="Midland Sleep" height={36} className="w-auto" />
-        <div>
-          <p className="text-white font-display text-lg font-semibold leading-tight">
+      <div className="flex items-center gap-3 px-4 py-5">
+        <img
+          src="/midland-logo.png"
+          alt="Midland Sleep"
+          className="h-10 w-10 object-contain rounded-lg bg-white shrink-0"
+        />
+        <div className="min-w-0">
+          <div className="text-base font-semibold text-white whitespace-nowrap">
             Midland Sleep
-          </p>
-          <p className="text-white/50 text-xs font-mono uppercase tracking-wider">
+          </div>
+          <div className="text-xs uppercase tracking-[0.18em] text-slate-300 whitespace-nowrap">
             Patient Portal
-          </p>
+          </div>
         </div>
       </div>
 
