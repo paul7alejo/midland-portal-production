@@ -301,13 +301,13 @@ export default function AdminPatientsPage() {
                     </td>
                     <td className="px-5 py-5">
                       <span className="text-base font-mono text-gray-700">
-                        {patient.msid}
+                        {patient.msid.replace(/^MS-/, "")}
                       </span>
                     </td>
                     <td className="px-5 py-5">
                       <a
                         href={`tel:${patient.phone.replace(/\s/g, "")}`}
-                        className="text-base text-gray-700 hover:text-[#0B5C6C] transition-colors"
+                        className="text-base text-gray-700 hover:text-[#0B5C6C] transition-colors whitespace-nowrap"
                       >
                         {patient.phone}
                       </a>
