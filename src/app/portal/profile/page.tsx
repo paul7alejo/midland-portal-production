@@ -99,7 +99,7 @@ export default function ProfilePage() {
 
   return (
     <>
-      <h1 className="font-display text-2xl font-bold text-navy mb-2">
+      <h1 className="font-display text-3xl font-semibold text-navy mb-2">
         My profile
       </h1>
       <p className="text-sm text-charcoal/70 mb-6">
@@ -212,8 +212,8 @@ export default function ProfilePage() {
             <button
               onClick={handleRevealNhi}
               disabled={nhiState.status === "loading"}
-              className="bg-deep-teal text-white px-5 py-2 rounded-full text-sm font-medium
-                         hover:bg-deep-teal/90 transition-colors
+              className="bg-[#0B5C6C] text-white px-6 py-3 rounded-lg text-base font-medium
+                         min-h-[48px] hover:bg-[#0B5C6C]/90 transition-colors
                          disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {nhiState.status === "loading" ? "Revealing..." : "Reveal NHI"}
@@ -244,8 +244,8 @@ export default function ProfilePage() {
                 className="flex items-center justify-between py-3 border-b border-sand last:border-0"
               >
                 <div>
-                  <p className="text-sm font-medium text-charcoal/40">{label}</p>
-                  <p className="text-xs text-charcoal/30">{detail}</p>
+                  <p className="text-base font-medium text-charcoal/60">{label}</p>
+                  <p className="text-sm text-charcoal/50">{detail}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-charcoal/40 font-mono">Coming soon</span>

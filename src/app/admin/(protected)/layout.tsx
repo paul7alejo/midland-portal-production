@@ -10,7 +10,7 @@ export default async function AdminLayout({
   const user = await getAdminUser();
 
   if (!user || !isAuthorizedAdmin(user)) {
-    redirect("/login?reason=unauthorized");
+    redirect("/admin/login?reason=unauthorized");
   }
 
   return (

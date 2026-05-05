@@ -103,7 +103,7 @@ export default function ReorderPage() {
 
   return (
     <>
-      <h1 className="font-display text-2xl font-bold text-navy mb-2">
+      <h1 className="font-display text-3xl font-semibold text-navy mb-2">
         Request Supplies
       </h1>
       {mask && (
@@ -140,7 +140,7 @@ export default function ReorderPage() {
         <div className="space-y-6">
           {/* Eligible items */}
           <div>
-            <h2 className="text-sm font-medium text-charcoal mb-3">
+            <h2 className="text-base font-semibold text-charcoal mb-3">
               Available supplies
             </h2>
             <div className="grid gap-3 md:grid-cols-2">
@@ -159,10 +159,10 @@ export default function ReorderPage() {
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="text-sm font-medium text-charcoal">
+                        <p className="text-base font-medium text-charcoal">
                           {ITEM_LABELS[item.item_type]}
                         </p>
-                        <p className="text-xs text-charcoal/60 mt-1">
+                        <p className="text-sm text-charcoal/60 mt-1">
                           {ITEM_DESCRIPTIONS[item.item_type]}
                         </p>
                       </div>
@@ -191,7 +191,7 @@ export default function ReorderPage() {
           {/* Not-yet items */}
           {notYetItems.length > 0 && (
             <div>
-              <h2 className="text-sm font-medium text-charcoal/60 mb-3">
+              <h2 className="text-base font-medium text-charcoal/60 mb-3">
                 Not yet available
               </h2>
               <div className="grid gap-3 md:grid-cols-2">
@@ -200,10 +200,10 @@ export default function ReorderPage() {
                     key={item.item_type}
                     className="border border-sand rounded-lg p-4 opacity-60"
                   >
-                    <p className="text-sm font-medium text-charcoal">
+                    <p className="text-base font-medium text-charcoal">
                       {ITEM_LABELS[item.item_type]}
                     </p>
-                    <p className="text-xs text-charcoal/60 mt-1">
+                    <p className="text-sm text-charcoal/60 mt-1">
                       {ITEM_DESCRIPTIONS[item.item_type]}
                     </p>
                     <span className="inline-block mt-2 text-xs text-charcoal/50">
@@ -222,7 +222,7 @@ export default function ReorderPage() {
           <div>
             <label
               htmlFor="address"
-              className="block text-sm font-medium text-charcoal mb-1"
+              className="block text-base font-medium text-charcoal mb-1"
             >
               Delivery address
             </label>
@@ -231,11 +231,11 @@ export default function ReorderPage() {
               value={address}
               onChange={(e) => setAddress(e.target.value)}
               placeholder="Enter your delivery address"
-              rows={3}
+              rows={4}
               className="w-full px-3 py-2 border border-sand rounded-md
                          focus:outline-none focus:ring-2 focus:ring-deep-teal
                          focus:border-transparent bg-white text-charcoal
-                         placeholder:text-charcoal/40 text-sm"
+                         placeholder:text-charcoal/40 text-base min-h-[100px]"
             />
           </div>
 
@@ -243,8 +243,8 @@ export default function ReorderPage() {
           <button
             onClick={handleSubmit}
             disabled={selectedItems.length === 0 || !address.trim() || isSubmitting}
-            className="bg-deep-teal text-white px-6 py-2.5 rounded-full text-sm
-                       font-medium hover:bg-deep-teal/90 transition-colors
+            className="bg-[#0B5C6C] text-white px-6 py-3 rounded-lg text-base
+                       font-medium min-h-[48px] hover:bg-[#0B5C6C]/90 transition-colors
                        disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isSubmitting ? "Sending..." : "Send request"}

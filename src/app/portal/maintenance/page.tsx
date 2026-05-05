@@ -77,10 +77,10 @@ export default function MaintenancePage() {
 
   return (
     <>
-      <h1 className="font-display text-2xl font-bold text-navy mb-2">
+      <h1 className="font-display text-3xl font-semibold text-navy mb-2">
         Maintenance
       </h1>
-      <p className="text-sm text-charcoal/70 mb-6">
+      <p className="text-base text-charcoal/70 mb-6">
         Keeping your CPAP equipment safe and effective.
       </p>
 
@@ -116,10 +116,10 @@ export default function MaintenancePage() {
             >
               <div className="flex justify-between items-start gap-3">
                 <div>
-                  <h2 className="font-display text-xl text-navy">
+                  <h2 className="font-display text-xl font-semibold text-navy">
                     {check.label}
                   </h2>
-                  <p className="text-sm text-charcoal/70 mt-1">
+                  <p className="text-base text-charcoal/70 mt-1">
                     {isSafetyCheck
                       ? "Annual electrical safety check required for all CPAP machines."
                       : "Mask and cushion should be checked regularly for hygiene and fit."}
@@ -158,19 +158,19 @@ export default function MaintenancePage() {
 
               {isOverdue && (
                 <div className="bg-sand-pale border border-amber/20 rounded-md p-3">
-                  <p className="text-sm text-charcoal">
+                  <p className="text-base text-charcoal">
                     {isSafetyCheck
                       ? "This check is overdue. Please contact Midland Sleep to arrange an appointment."
                       : "Your mask is due for a check. Please contact Midland Sleep to arrange a review."}
                   </p>
-                  <p className="text-sm text-charcoal/80 mt-2">
+                  <p className="text-base text-charcoal/80 mt-2">
                     Call {phoneLink} or email {emailLink}
                   </p>
                 </div>
               )}
 
               {!isOverdue && (
-                <p className="text-sm text-charcoal/60">
+                <p className="text-base text-charcoal/60">
                   Nothing to do right now. We will remind you when this is due.
                 </p>
               )}
@@ -188,10 +188,10 @@ export default function MaintenancePage() {
 
         {/* General info */}
         <section className="bg-sand-pale border border-sand rounded-lg p-6">
-          <h2 className="font-display text-lg text-navy mb-2">
+          <h2 className="font-display text-xl font-semibold text-navy mb-2">
             About CPAP maintenance
           </h2>
-          <div className="text-sm text-charcoal/80 space-y-2">
+          <div className="text-base text-charcoal/80 space-y-2">
             <p>
               <span className="font-medium text-charcoal">Safety checks</span> are
               required annually for all CPAP machines. These involve an electrical

@@ -31,7 +31,7 @@ export default function EquipmentPage() {
 
   return (
     <>
-      <h1 className="font-display text-2xl font-bold text-navy mb-6">
+      <h1 className="font-display text-3xl font-semibold text-navy mb-6">
         My Equipment
       </h1>
 

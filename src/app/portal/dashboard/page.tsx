@@ -76,7 +76,7 @@ export default function DashboardPage() {
         {/* CARD 1 — MY EQUIPMENT */}
         <section className="bg-white border border-sand rounded-lg p-6 space-y-4">
           <div className="flex justify-between items-start">
-            <h2 className="font-display text-xl text-navy">My Equipment</h2>
+            <h2 className="font-display text-xl font-semibold text-navy">My Equipment</h2>
             <Link
               href="/portal/equipment"
               className="text-base text-deep-teal hover:underline font-medium"
@@ -160,7 +160,7 @@ export default function DashboardPage() {
 
         {/* CARD 2 — MY SUPPLIES STATUS */}
         <section className="bg-white border border-sand rounded-lg p-6 space-y-4">
-          <h2 className="font-display text-xl text-navy">My Supplies Status</h2>
+          <h2 className="font-display text-xl font-semibold text-navy">My Supplies Status</h2>
 
           {canReorderNow ? (
             <div className="bg-seafoam-pale rounded-lg p-4 space-y-3">
@@ -170,7 +170,7 @@ export default function DashboardPage() {
               </p>
               <Link
                 href="/portal/reorder"
-                className="inline-flex items-center gap-2 bg-deep-teal text-white px-5 py-2.5 rounded-full text-base font-medium hover:bg-deep-teal/90 transition-colors"
+                className="inline-flex items-center gap-2 bg-[#0B5C6C] text-white px-6 py-3 rounded-lg text-base font-medium min-h-[48px] hover:bg-[#0B5C6C]/90 transition-colors"
               >
                 Request Supplies
               </Link>
@@ -224,7 +224,7 @@ export default function DashboardPage() {
         {/* CARD 3 — SAFETY AND MAINTENANCE */}
         {(overdueChecks.length > 0 || dueSoonChecks.length > 0) && (
           <section className="bg-white border border-sand rounded-lg p-6 space-y-4">
-            <h2 className="font-display text-xl text-navy">
+            <h2 className="font-display text-xl font-semibold text-navy">
               Safety and maintenance
             </h2>
 
@@ -269,7 +269,7 @@ export default function DashboardPage() {
 
         {/* CARD 4 — NEED HELP */}
         <section className="bg-sand-pale border border-sand rounded-lg p-6">
-          <h2 className="font-display text-lg text-navy mb-2">Need help?</h2>
+          <h2 className="font-display text-xl font-semibold text-navy mb-2">Need help?</h2>
           <p className="text-base text-gray-700">
             Call Midland Sleep on {phoneLink} or email {emailLink}. We are open Monday to Friday, 8:30am to 5pm.
           </p>

@@ -32,7 +32,7 @@ export default function ContactPage() {
 
   return (
     <>
-      <h1 className="font-display text-2xl font-bold text-navy mb-2">
+      <h1 className="font-display text-3xl font-semibold text-navy mb-2">
         Contact Midland Sleep
       </h1>
       <p className="text-base text-gray-700 mb-8">
@@ -129,7 +129,7 @@ export default function ContactPage() {
 
                 {/* Name — pre-filled, read-only */}
                 <div>
-                  <label className="block text-sm font-medium text-charcoal mb-1">
+                  <label className="block text-base font-medium text-charcoal mb-1">
                     Name
                   </label>
                   <input
@@ -137,7 +137,7 @@ export default function ContactPage() {
                     value={patient.name}
                     readOnly
                     className="w-full px-3 py-2 border border-sand rounded-md
-                               bg-cream text-charcoal text-sm cursor-not-allowed"
+                               bg-cream text-charcoal text-base cursor-not-allowed"
                   />
                 </div>
 
@@ -145,7 +145,7 @@ export default function ContactPage() {
                 <div>
                   <label
                     htmlFor="category"
-                    className="block text-sm font-medium text-charcoal mb-1"
+                    className="block text-base font-medium text-charcoal mb-1"
                   >
                     What is this about?
                   </label>
@@ -154,7 +154,7 @@ export default function ContactPage() {
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
                     className="w-full px-3 py-2 border border-sand rounded-md
-                               bg-white text-charcoal text-sm
+                               bg-white text-charcoal text-base
                                focus:outline-none focus:ring-2 focus:ring-deep-teal
                                focus:border-transparent"
                   >
@@ -171,7 +171,7 @@ export default function ContactPage() {
                 <div>
                   <label
                     htmlFor="message"
-                    className="block text-sm font-medium text-charcoal mb-1"
+                    className="block text-base font-medium text-charcoal mb-1"
                   >
                     Message
                   </label>
@@ -184,7 +184,7 @@ export default function ContactPage() {
                     className="w-full px-3 py-2 border border-sand rounded-md
                                focus:outline-none focus:ring-2 focus:ring-deep-teal
                                focus:border-transparent bg-white text-charcoal
-                               placeholder:text-charcoal/40 text-sm"
+                               placeholder:text-charcoal/40 text-base min-h-[100px]"
                   />
                 </div>
 
@@ -192,8 +192,8 @@ export default function ContactPage() {
                 <button
                   onClick={handleSubmit}
                   disabled={!category || !message.trim()}
-                  className="bg-deep-teal text-white px-6 py-2.5 rounded-full text-base
-                             font-medium hover:bg-deep-teal/90 transition-colors
+                  className="bg-[#0B5C6C] text-white px-6 py-3 rounded-lg text-base
+                             font-medium min-h-[48px] hover:bg-[#0B5C6C]/90 transition-colors
                              disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Send message

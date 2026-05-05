@@ -45,9 +45,7 @@ export default function PortalSidebar() {
 
       {/* Brand */}
       <div className="px-5 py-6 flex items-center gap-3">
-        <div className="h-10 w-10 rounded-full bg-deep-teal flex items-center justify-center text-white font-display text-lg font-bold">
-          M
-        </div>
+        <img src="/midland-logo.png" alt="Midland Sleep" height={36} className="w-auto" />
         <div>
           <p className="text-white font-display text-lg font-semibold leading-tight">
             Midland Sleep
@@ -66,7 +64,7 @@ export default function PortalSidebar() {
     return (
       <div
         key={item.href}
-        className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm text-white/30 cursor-not-allowed"
+        className="flex items-center gap-3 px-4 py-3 text-base font-medium text-slate-500 cursor-not-allowed"
       >
         <NavIcon name={item.icon} />
         <span>{item.label}</span>
@@ -78,10 +76,10 @@ export default function PortalSidebar() {
       key={item.href}
       href={item.href}
       className={cn(
-        "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-colors",
+        "flex items-center gap-3 px-4 py-3 text-base font-medium transition-colors",
         isActive
-          ? "bg-white/10 text-white border-l-2 border-seafoam font-medium"
-          : "text-white/70 hover:bg-white/5 hover:text-white"
+          ? "bg-[#0B5C6C]/15 text-white border-l-[3px] border-[#0B5C6C]"
+          : "text-slate-300 hover:bg-white/5 hover:text-white"
       )}
     >
       <NavIcon name={item.icon} />
