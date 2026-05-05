@@ -1,5 +1,7 @@
 "use client";
 
+import "../../landing-styles.css";
+
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
@@ -14,22 +16,17 @@ export default function AdminLoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const { login, isAuthenticated, patient } = useAuth();
+  const { login } = useAuth();
   const router = useRouter();
 
-  // Redirect already-authenticated admins straight to /admin
+  // Fresh Cognito check only — do not read stale AuthProvider cache here,
+  // as the cache may still hold the user who just logged out.
   useEffect(() => {
     configureCognito();
     getCurrentUser().then((user) => {
       if (user && isAdminIdentity(user)) router.replace("/admin");
     });
   }, []);
-
-  useEffect(() => {
-    if (isAuthenticated && isAdminIdentity(patient ?? {})) {
-      router.replace("/admin");
-    }
-  }, [isAuthenticated, patient, router]);
 
   const isFormValid = email.length > 0 && password.length > 0;
 
@@ -57,69 +54,75 @@ export default function AdminLoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-navy flex items-center justify-center px-4">
-      <div className="w-full max-w-sm space-y-6">
-        {/* Logo */}
-        <div className="flex items-center gap-3 justify-center">
-          <Image
-            src="/midland-logo.png"
-            alt="Midland Sleep"
-            width={40}
-            height={40}
-            className="rounded-md"
-          />
-          <div>
-            <p className="text-white text-lg font-semibold leading-tight">Midland Sleep</p>
-            <p className="text-amber-400 text-xs font-medium uppercase tracking-wider">Staff Portal</p>
+    <div className="landing-page">
+      {/* Hero */}
+      <div className="landing-hero">
+        <div className="landing-glow landing-glow--top-right" />
+        <div className="landing-glow landing-glow--bottom-left" />
+
+        <header className="landing-header">
+          <div className="landing-logo-group">
+            <Image
+              src="/midland-logo.png"
+              alt="Midland Sleep"
+              width={48}
+              height={48}
+              className="landing-logo-img"
+              style={{ width: "48px", height: "48px" }}
+              priority
+            />
+            <div>
+              <h2 className="landing-logo-text">Midland Sleep</h2>
+              <span className="landing-logo-sub">Staff Portal</span>
+            </div>
           </div>
+        </header>
+
+        <div className="landing-hero-content">
+          <h1 className="landing-hero-title">Staff sign in</h1>
+          <p className="landing-hero-subtitle">
+            Secure access for Midland Sleep clinical and admin staff.
+          </p>
         </div>
+      </div>
 
-        {/* Card */}
-        <div className="bg-white rounded-xl shadow-lg p-8 space-y-5">
-          <h1 className="text-2xl font-bold text-navy">Staff sign in</h1>
-
+      {/* Login card */}
+      <main className="landing-main">
+        <div className="landing-card">
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-md px-4 py-3">
-              <p className="text-base text-red-700">{error}</p>
+            <div className="landing-error">
+              <p>{error}</p>
             </div>
           )}
 
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-base font-medium text-gray-700 mb-1">
-                Email or username
-              </label>
+          <form onSubmit={handleLogin}>
+            <div className="landing-field">
+              <label className="landing-label">Email or staff username</label>
               <input
                 type="text"
                 autoComplete="username"
+                className="landing-input"
+                placeholder="e.g. johndoe@clinic.com or johndoe"
                 value={email}
                 onChange={(e) => { setEmail(e.target.value); if (error) setError(""); }}
-                placeholder="e.g. johndoe@clinic.com or johndoe"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-base
-                           focus:outline-none focus:ring-2 focus:ring-[#0B5C6C] focus:border-transparent
-                           placeholder:text-gray-400"
               />
             </div>
 
-            <div>
-              <label className="block text-base font-medium text-gray-700 mb-1">
-                Password
-              </label>
-              <div className="relative">
+            <div className="landing-field">
+              <label className="landing-label">Password</label>
+              <div className="landing-password-wrap">
                 <input
                   type={showPassword ? "text" : "password"}
                   autoComplete="current-password"
+                  className="landing-input"
+                  placeholder="Enter your password"
                   value={password}
                   onChange={(e) => { setPassword(e.target.value); if (error) setError(""); }}
-                  placeholder="Enter your password"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-base
-                             focus:outline-none focus:ring-2 focus:ring-[#0B5C6C] focus:border-transparent
-                             placeholder:text-gray-400 pr-16"
                 />
                 <button
                   type="button"
+                  className="landing-password-toggle"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-medium text-gray-500 hover:text-gray-700"
                 >
                   {showPassword ? "Hide" : "Show"}
                 </button>
@@ -128,24 +131,39 @@ export default function AdminLoginPage() {
 
             <button
               type="submit"
+              className="landing-submit"
               disabled={isLoading || !isFormValid}
-              className="w-full bg-[#0B5C6C] text-white text-base font-medium
-                         py-3 rounded-lg min-h-[48px] transition-colors
-                         hover:bg-[#0B5C6C]/90
-                         disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isLoading ? "Signing in…" : "Sign in"}
+              {isLoading ? (
+                <span className="landing-spinner-wrap">
+                  <svg width="16" height="16" viewBox="0 0 24 24" className="landing-spinner">
+                    <circle cx="12" cy="12" r="10" stroke="white" strokeWidth="3" fill="none" opacity="0.3" />
+                    <path d="M12 2a10 10 0 019.95 9" stroke="white" strokeWidth="3" fill="none" strokeLinecap="round" />
+                  </svg>
+                  Signing in...
+                </span>
+              ) : (
+                "Sign in"
+              )}
             </button>
           </form>
-        </div>
 
-        <p className="text-center text-white/40 text-sm">
-          Patient portal?{" "}
-          <a href="/login" className="text-white/60 underline hover:text-white">
-            Sign in here
-          </a>
+          <div className="landing-card-footer">
+            <a href="/login" className="landing-card-link">
+              Patient portal
+            </a>
+          </div>
+        </div>
+      </main>
+
+      <footer className="landing-footer">
+        <div className="landing-footer-divider" />
+        <p className="landing-footer-text">
+          Midland Sleep Ltd · Waikato, New Zealand
+          <br />
+          <span className="landing-footer-credit">Portal by OneOfZero Systems</span>
         </p>
-      </div>
+      </footer>
     </div>
   );
 }

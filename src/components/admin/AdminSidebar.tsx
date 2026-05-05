@@ -40,7 +40,7 @@ export default function AdminSidebar() {
     } catch {
       // silent
     } finally {
-      router.push('/admin/login');
+      router.replace('/admin/login');
     }
   }
 
