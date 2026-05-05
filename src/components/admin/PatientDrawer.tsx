@@ -31,6 +31,7 @@ interface DrawerPatient {
     lastIssued: string;
   };
   entitlement: EntitlementItem[];
+  funding: DrawerFunding;
   orders: DrawerOrder[];
   nhiMasked: string;
   // nhiActual is never logged — only displayed after explicit reveal with audit trail
@@ -42,6 +43,16 @@ interface EntitlementItem {
   lastReorder: string;
   nextEligible: string;
   usageVsCap: string;
+}
+
+interface DrawerFunding {
+  annualAllowance: number;
+  usedAmount: number;
+  remainingAmount: number;
+  fundingPeriodStart: string;
+  fundingPeriodEnd: string;
+  suggestedItemsRemaining: string[];
+  fundingNote?: string;
 }
 
 interface DrawerOrder {
@@ -101,6 +112,15 @@ const DEMO_DATA: Record<string, DrawerPatient> = {
       { id: "ORD-001", date: "1 May 2026",   items: "Mask cushion + Headgear", status: "Pending",   dispatched: "—" },
       { id: "ORD-005", date: "12 Nov 2025",  items: "Mask cushion + Headgear", status: "Completed", dispatched: "15 Nov 2025" },
     ],
+    funding: {
+      annualAllowance: 150,
+      usedAmount: 70,
+      remainingAmount: 80,
+      fundingPeriodStart: "1 Jan 2026",
+      fundingPeriodEnd: "31 Dec 2026",
+      suggestedItemsRemaining: ["Mask cushion", "Filters"],
+      fundingNote: "Patient has remaining allowance. Full mask kit may exceed balance.",
+    },
     nhiMasked: "ZZZ****",
     nhiActual: "ZZZ1234",
   },
@@ -136,6 +156,15 @@ function makeFallbackPatient(msid: string, name: string): DrawerPatient {
       { item: "Headgear",     lastReorder: "—", nextEligible: "—", usageVsCap: "—" },
       { item: "Filters",      lastReorder: "—", nextEligible: "—", usageVsCap: "—" },
     ],
+    funding: {
+      annualAllowance: 150,
+      usedAmount: 0,
+      remainingAmount: 150,
+      fundingPeriodStart: "—",
+      fundingPeriodEnd: "—",
+      suggestedItemsRemaining: [],
+      fundingNote: undefined,
+    },
     orders: [],
     nhiMasked: "ZZZ****",
     nhiActual: "ZZZ0000",
@@ -226,18 +255,85 @@ function EquipmentTab({ patient }: { patient: DrawerPatient }) {
 }
 
 function EntitlementTab({ patient }: { patient: DrawerPatient }) {
+  const { funding } = patient;
+  const remainingColor =
+    funding.remainingAmount > 75
+      ? "text-emerald-700"
+      : funding.remainingAmount > 0
+      ? "text-amber-700"
+      : "text-gray-500";
+
   return (
-    <div className="space-y-3">
-      {patient.entitlement.map((item) => (
-        <div key={item.item} className="bg-gray-50 rounded-xl p-4 space-y-3">
-          <p className="text-base font-semibold text-gray-800">{item.item}</p>
-          <dl className="grid grid-cols-3 gap-3">
-            <FieldRow label="Last reorder"  value={item.lastReorder} />
-            <FieldRow label="Next eligible" value={item.nextEligible} />
-            <FieldRow label="Usage / cap"   value={item.usageVsCap} />
-          </dl>
+    <div className="space-y-5">
+      {/* Funding summary */}
+      <div className="bg-gray-50 rounded-xl p-4 space-y-4">
+        <dl className="grid grid-cols-3 gap-4">
+          <div>
+            <dt className="text-sm font-medium text-gray-500 uppercase tracking-wide">Annual allowance</dt>
+            <dd className="text-base font-semibold text-gray-800 mt-0.5">${funding.annualAllowance}</dd>
+          </div>
+          <div>
+            <dt className="text-sm font-medium text-gray-500 uppercase tracking-wide">Used to date</dt>
+            <dd className="text-base font-semibold text-gray-800 mt-0.5">${funding.usedAmount}</dd>
+          </div>
+          <div>
+            <dt className="text-sm font-medium text-gray-500 uppercase tracking-wide">Remaining</dt>
+            <dd className={`text-base font-semibold mt-0.5 ${remainingColor}`}>${funding.remainingAmount}</dd>
+          </div>
+        </dl>
+        <FieldRow
+          label="Funding period"
+          value={`${funding.fundingPeriodStart} – ${funding.fundingPeriodEnd}`}
+        />
+      </div>
+
+      {/* Suggested remaining items */}
+      {funding.suggestedItemsRemaining.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-gray-500 uppercase tracking-wide">Can still supply</p>
+          <div className="flex flex-wrap gap-2">
+            {funding.suggestedItemsRemaining.map((item) => (
+              <span
+                key={item}
+                className="inline-block text-sm font-medium px-3 py-1 rounded-full border border-[#0B5C6C] text-[#0B5C6C] bg-[#0B5C6C]/5"
+              >
+                {item}
+              </span>
+            ))}
+          </div>
         </div>
-      ))}
+      )}
+
+      {/* Funding note */}
+      {funding.fundingNote && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+          <p className="text-sm text-amber-800">{funding.fundingNote}</p>
+        </div>
+      )}
+
+      {/* Staff-only notice */}
+      <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3">
+        <p className="text-sm text-gray-600">
+          Funding balance is visible to staff only and is not shown to patients.
+        </p>
+      </div>
+
+      <hr className="border-gray-200" />
+
+      {/* Per-item entitlement cards */}
+      <div className="space-y-3">
+        <p className="text-sm font-medium text-gray-500 uppercase tracking-wide">Item entitlement</p>
+        {patient.entitlement.map((item) => (
+          <div key={item.item} className="bg-gray-50 rounded-xl p-4 space-y-3">
+            <p className="text-base font-semibold text-gray-800">{item.item}</p>
+            <dl className="grid grid-cols-3 gap-3">
+              <FieldRow label="Last reorder"  value={item.lastReorder} />
+              <FieldRow label="Next eligible" value={item.nextEligible} />
+              <FieldRow label="Usage / cap"   value={item.usageVsCap} />
+            </dl>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
