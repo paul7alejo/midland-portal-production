@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { PatientDrawer } from "@/components/admin/PatientDrawer";
 
 type OrderStatus = "Pending" | "Approved" | "Dispatched" | "Completed";
 type TabKey = OrderStatus;
@@ -71,6 +72,9 @@ function EmptyState({ tab }: { tab: TabKey }) {
 export default function AdminOrdersPage() {
   const [activeTab, setActiveTab] = useState<TabKey>("Pending");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerMsid, setDrawerMsid] = useState<string | null>(null);
+  const [drawerName, setDrawerName] = useState<string | undefined>(undefined);
 
   const visibleOrders = ALL_ORDERS.filter((o) => o.status === activeTab);
 
@@ -112,7 +116,9 @@ export default function AdminOrdersPage() {
   }
 
   function handleViewPatient(order: Order) {
-    console.log("view patient", order);
+    setDrawerMsid(order.msid);
+    setDrawerName(order.patient);
+    setDrawerOpen(true);
   }
 
   function handleDecline(order: Order) {
@@ -292,6 +298,13 @@ export default function AdminOrdersPage() {
           </div>
         )}
       </div>
+
+      <PatientDrawer
+        isOpen={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        msid={drawerMsid}
+        patientName={drawerName}
+      />
     </div>
   );
 }

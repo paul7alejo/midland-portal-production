@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { PatientDrawer } from "@/components/admin/PatientDrawer";
 
 type FundingType = "ACC" | "Private";
 type PatientStatus = "eligible" | "not_eligible" | "overdue" | "needs_outreach" | "safety_check_due";
@@ -196,6 +197,15 @@ function SummaryCard({
 
 export default function AdminPatientsPage() {
   const [search, setSearch] = useState("");
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerMsid, setDrawerMsid] = useState<string | null>(null);
+  const [drawerName, setDrawerName] = useState<string | undefined>(undefined);
+
+  function openDrawer(msid: string, name: string) {
+    setDrawerMsid(msid);
+    setDrawerName(name);
+    setDrawerOpen(true);
+  }
 
   return (
     <div className="space-y-8">
@@ -326,19 +336,28 @@ export default function AdminPatientsPage() {
                         {statusCfg.label}
                       </span>
                     </td>
-                    <td className="px-5 py-5 text-center">
-                      <button
-                        type="button"
-                        disabled={actionCfg.disabled}
-                        onClick={actionCfg.disabled ? undefined : () => console.log(actionCfg.label, patient)}
-                        className={
-                          actionCfg.disabled
-                            ? "bg-gray-200 text-gray-500 cursor-not-allowed rounded-lg px-4 py-2 min-h-[44px] text-base font-medium whitespace-nowrap"
-                            : "bg-[#0B5C6C] text-white text-base font-medium rounded-lg px-4 py-2 min-h-[44px] hover:bg-[#0B5C6C]/90 transition-colors whitespace-nowrap"
-                        }
-                      >
-                        {actionCfg.label}
-                      </button>
+                    <td className="px-5 py-5">
+                      <div className="flex items-center gap-2 flex-wrap justify-center">
+                        <button
+                          type="button"
+                          disabled={actionCfg.disabled}
+                          onClick={actionCfg.disabled ? undefined : () => console.log(actionCfg.label, patient)}
+                          className={
+                            actionCfg.disabled
+                              ? "bg-gray-200 text-gray-500 cursor-not-allowed rounded-lg px-4 py-2 min-h-[44px] text-base font-medium whitespace-nowrap"
+                              : "bg-[#0B5C6C] text-white text-base font-medium rounded-lg px-4 py-2 min-h-[44px] hover:bg-[#0B5C6C]/90 transition-colors whitespace-nowrap"
+                          }
+                        >
+                          {actionCfg.label}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openDrawer(patient.msid, patient.name)}
+                          className="border border-[#0B5C6C] text-[#0B5C6C] text-base font-medium rounded-lg px-4 py-2 min-h-[44px] hover:bg-[#0B5C6C]/5 transition-colors whitespace-nowrap"
+                        >
+                          View
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -347,6 +366,13 @@ export default function AdminPatientsPage() {
           </table>
         </div>
       </div>
+
+      <PatientDrawer
+        isOpen={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        msid={drawerMsid}
+        patientName={drawerName}
+      />
     </div>
   );
 }
