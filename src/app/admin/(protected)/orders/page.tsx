@@ -45,8 +45,10 @@ const ALL_ORDERS: Order[] = [
   },
 ];
 
+const pendingCount = ALL_ORDERS.filter((o) => o.status === "Pending").length;
+
 const TABS: { key: TabKey; label: string; badge?: number }[] = [
-  { key: "Pending", label: "Pending", badge: 8 },
+  { key: "Pending", label: "Pending", badge: pendingCount },
   { key: "Approved", label: "Approved" },
   { key: "Dispatched", label: "Dispatched" },
   { key: "Completed", label: "Completed" },
