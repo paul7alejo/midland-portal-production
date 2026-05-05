@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { signOut } from "@/lib/aws/cognito";
 import {
   LayoutDashboard,
@@ -31,7 +31,6 @@ const navItems = [
 
 export default function AdminSidebar() {
   const pathname = usePathname();
-  const router = useRouter();
 
   async function handleLogout() {
     try {
@@ -40,7 +39,7 @@ export default function AdminSidebar() {
     } catch {
       // silent
     } finally {
-      router.replace('/admin/login');
+      window.location.replace('/admin/login');
     }
   }
 
