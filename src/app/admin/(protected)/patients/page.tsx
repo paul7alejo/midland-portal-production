@@ -742,18 +742,18 @@ export default function AdminPatientsPage() {
       {/* Table */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1100px] border-collapse">
+          <table className="w-full min-w-[860px] border-collapse">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="text-left px-5 py-4 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Patient Name</th>
-                <th className="text-left px-5 py-4 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">MSID</th>
-                <th className="text-left px-5 py-4 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Phone</th>
-                <th className="text-left px-5 py-4 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Funding</th>
-                <th className="text-left px-5 py-4 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Last Order</th>
-                <th className="text-left px-5 py-4 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Next Eligible</th>
-                <th className="text-left px-5 py-4 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Status</th>
-                <th className="text-left px-5 py-4 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Remaining Funding</th>
-                <th className="sticky right-0 z-10 bg-gray-50 border-l border-gray-200 px-5 py-4 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">
+                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Patient Name</th>
+                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">MSID</th>
+                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Phone</th>
+                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Funding</th>
+                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Last Order</th>
+                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Next Eligible</th>
+                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Status</th>
+                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Remaining Funding</th>
+                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">
                   Action
                 </th>
               </tr>
@@ -776,52 +776,52 @@ export default function AdminPatientsPage() {
                       ? "bg-teal-50 text-teal-700 border border-teal-200"
                       : "bg-purple-50 text-purple-700 border border-purple-200";
                   return (
-                    <tr key={patient.id} className="hover:bg-gray-50 transition-colors" style={{ minHeight: "64px" }}>
-                      <td className="px-5 py-5">
-                        <span className="text-base font-semibold text-navy">{patient.name}</span>
+                    <tr key={patient.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3">
+                        <span className="text-sm font-semibold text-navy">{patient.name}</span>
                       </td>
-                      <td className="px-5 py-5">
-                        <span className="text-base font-mono text-gray-700">
+                      <td className="px-4 py-3">
+                        <span className="text-sm font-mono text-gray-700">
                           {patient.msid.replace(/^MS-/, "")}
                         </span>
                       </td>
-                      <td className="px-5 py-5">
+                      <td className="px-4 py-3">
                         <a
                           href={`tel:${patient.phone.replace(/\s/g, "")}`}
-                          className="text-base text-gray-700 hover:text-[#0B5C6C] transition-colors whitespace-nowrap"
+                          className="text-sm text-gray-700 hover:text-[#0B5C6C] transition-colors whitespace-nowrap"
                         >
                           {patient.phone}
                         </a>
                       </td>
-                      <td className="px-5 py-5">
+                      <td className="px-4 py-3">
                         <span className={`inline-block text-sm font-medium px-2.5 py-1 rounded-full ${fundingCls}`}>
                           {patient.funding}
                         </span>
                       </td>
-                      <td className="px-5 py-5">
-                        <span className="text-base text-gray-700 whitespace-nowrap">{patient.lastOrder}</span>
+                      <td className="px-4 py-3">
+                        <span className="text-sm text-gray-700 whitespace-nowrap">{patient.lastOrder}</span>
                       </td>
-                      <td className="px-5 py-5">
-                        <span className="text-base text-gray-700 whitespace-nowrap">{patient.nextEligible}</span>
+                      <td className="px-4 py-3">
+                        <span className="text-sm text-gray-700 whitespace-nowrap">{patient.nextEligible}</span>
                       </td>
-                      <td className="px-5 py-5">
+                      <td className="px-4 py-3">
                         <span className={`inline-flex items-center text-sm font-medium px-3 py-1.5 rounded-full whitespace-nowrap ${statusCfg.classes}`}>
                           {statusCfg.label}
                         </span>
                       </td>
-                      <td className="px-5 py-5">
+                      <td className="px-4 py-3">
                         <FundingBadge amount={patient.remainingAmount} />
                       </td>
-                      <td className="sticky right-0 z-10 bg-white border-l border-gray-200 px-5 py-5">
-                        <div className="flex items-center gap-2 flex-wrap justify-center">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <button
                             type="button"
                             disabled={actionCfg.disabled}
                             onClick={actionCfg.disabled ? undefined : () => console.log(actionCfg.label, patient)}
                             className={
                               actionCfg.disabled
-                                ? "bg-gray-200 text-gray-500 cursor-not-allowed rounded-lg px-4 py-2 min-h-[44px] text-base font-medium whitespace-nowrap"
-                                : "bg-[#0B5C6C] text-white text-base font-medium rounded-lg px-4 py-2 min-h-[44px] hover:bg-[#0B5C6C]/90 transition-colors whitespace-nowrap"
+                                ? "bg-gray-200 text-gray-500 cursor-not-allowed rounded-lg px-3 py-2 min-h-[40px] text-sm font-medium whitespace-nowrap"
+                                : "bg-[#0B5C6C] text-white text-sm font-medium rounded-lg px-3 py-2 min-h-[40px] hover:bg-[#0B5C6C]/90 transition-colors whitespace-nowrap"
                             }
                           >
                             {actionCfg.label}
@@ -829,7 +829,7 @@ export default function AdminPatientsPage() {
                           <button
                             type="button"
                             onClick={() => openDrawer(patient.msid, patient.name)}
-                            className="border border-[#0B5C6C] text-[#0B5C6C] text-base font-medium rounded-lg px-4 py-2 min-h-[44px] hover:bg-[#0B5C6C]/5 transition-colors whitespace-nowrap"
+                            className="border border-[#0B5C6C] text-[#0B5C6C] text-sm font-medium rounded-lg px-3 py-2 min-h-[40px] hover:bg-[#0B5C6C]/5 transition-colors whitespace-nowrap"
                           >
                             View
                           </button>
