@@ -387,11 +387,25 @@ function NotesTab({
   setNoteText,
   savedNotes,
   onSave,
+  editingNoteId,
+  editText,
+  setEditText,
+  onStartEdit,
+  onCancelEdit,
+  onCommitEdit,
+  onDelete,
 }: {
   noteText: string;
   setNoteText: (v: string) => void;
   savedNotes: Note[];
   onSave: () => void;
+  editingNoteId: string | null;
+  editText: string;
+  setEditText: (v: string) => void;
+  onStartEdit: (noteId: string, text: string) => void;
+  onCancelEdit: () => void;
+  onCommitEdit: () => void;
+  onDelete: (noteId: string) => void;
 }) {
   return (
     <div className="space-y-5">
@@ -425,11 +439,61 @@ function NotesTab({
         <div className="space-y-3">
           <h4 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Saved notes</h4>
           {savedNotes.map((note) => (
-            <div key={note.id} className="bg-gray-50 rounded-xl p-4 space-y-1">
-              <p className="text-base text-gray-800">{note.text}</p>
-              <p className="text-sm text-gray-500">
-                {note.author} · {note.timestamp}
-              </p>
+            <div key={note.id} className="bg-gray-50 rounded-xl p-4 space-y-2">
+              {editingNoteId === note.id ? (
+                <div className="space-y-2">
+                  <textarea
+                    value={editText}
+                    onChange={(e) => setEditText(e.target.value)}
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base text-gray-800
+                               focus:outline-none focus:ring-2 focus:ring-[#0B5C6C] focus:border-transparent"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={onCommitEdit}
+                      disabled={!editText.trim()}
+                      className="bg-[#0B5C6C] text-white text-sm font-medium px-4 py-2 rounded-lg min-h-[36px]
+                                 hover:bg-[#0B5C6C]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Save
+                    </button>
+                    <button
+                      type="button"
+                      onClick={onCancelEdit}
+                      className="text-sm font-medium text-gray-600 hover:text-gray-800 px-4 py-2 min-h-[36px] transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <p className="text-base text-gray-800">{note.text}</p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-gray-500">
+                      {note.author} · {note.timestamp}
+                    </p>
+                    <div className="flex gap-3">
+                      <button
+                        type="button"
+                        onClick={() => onStartEdit(note.id, note.text)}
+                        className="text-sm font-medium text-[#0B5C6C] hover:text-[#0B5C6C]/80 transition-colors"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onDelete(note.id)}
+                        className="text-sm font-medium text-red-500 hover:text-red-700 transition-colors"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           ))}
         </div>
@@ -500,8 +564,10 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName }: PatientDra
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [nhiVisible, setNhiVisible]   = useState(false);
   const [nhiReason, setNhiReason]     = useState("");
-  const [noteText, setNoteText]       = useState("");
-  const [savedNotes, setSavedNotes]   = useState<Note[]>([]);
+  const [noteText, setNoteText]           = useState("");
+  const [notesByMsid, setNotesByMsid]     = useState<Record<string, Note[]>>({});
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editText, setEditText]           = useState("");
   const nhiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const demoData = msid ? (DEMO_DATA[msid] ?? null) : null;
@@ -522,9 +588,17 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName }: PatientDra
       setNhiVisible(false);
       setNhiReason("");
       setActiveTab("overview");
+      setEditingNoteId(null);
+      setEditText("");
       if (nhiTimerRef.current) clearTimeout(nhiTimerRef.current);
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    setNoteText("");
+    setEditingNoteId(null);
+    setEditText("");
+  }, [msid]);
 
   useEffect(() => {
     return () => { if (nhiTimerRef.current) clearTimeout(nhiTimerRef.current); };
@@ -547,18 +621,51 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName }: PatientDra
     nhiTimerRef.current = setTimeout(() => setNhiVisible(false), 30000);
   }
 
+  const currentNotes: Note[] = patient ? (notesByMsid[patient.msid] ?? []) : [];
+
   function handleSaveNote() {
-    if (!noteText.trim()) return;
-    setSavedNotes((prev) => [
-      {
-        id: String(Date.now()),
-        text: noteText.trim(),
-        author: "Staff (demo)",
-        timestamp: new Date().toLocaleString("en-NZ"),
-      },
-      ...prev,
-    ]);
+    if (!noteText.trim() || !patient) return;
+    const key = patient.msid;
+    const newNote: Note = {
+      id: String(Date.now()),
+      text: noteText.trim(),
+      author: "Staff (demo)",
+      timestamp: new Date().toLocaleString("en-NZ"),
+    };
+    setNotesByMsid((prev) => ({ ...prev, [key]: [newNote, ...(prev[key] ?? [])] }));
     setNoteText("");
+  }
+
+  function handleStartEdit(noteId: string, text: string) {
+    setEditingNoteId(noteId);
+    setEditText(text);
+  }
+
+  function handleCancelEdit() {
+    setEditingNoteId(null);
+    setEditText("");
+  }
+
+  function handleCommitEdit() {
+    if (!editingNoteId || !patient || !editText.trim()) return;
+    const key = patient.msid;
+    setNotesByMsid((prev) => ({
+      ...prev,
+      [key]: (prev[key] ?? []).map((n) =>
+        n.id === editingNoteId ? { ...n, text: editText.trim() } : n
+      ),
+    }));
+    setEditingNoteId(null);
+    setEditText("");
+  }
+
+  function handleDeleteNote(noteId: string) {
+    if (!patient) return;
+    const key = patient.msid;
+    setNotesByMsid((prev) => ({
+      ...prev,
+      [key]: (prev[key] ?? []).filter((n) => n.id !== noteId),
+    }));
   }
 
   return (
@@ -640,8 +747,15 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName }: PatientDra
                 <NotesTab
                   noteText={noteText}
                   setNoteText={setNoteText}
-                  savedNotes={savedNotes}
+                  savedNotes={currentNotes}
                   onSave={handleSaveNote}
+                  editingNoteId={editingNoteId}
+                  editText={editText}
+                  setEditText={setEditText}
+                  onStartEdit={handleStartEdit}
+                  onCancelEdit={handleCancelEdit}
+                  onCommitEdit={handleCommitEdit}
+                  onDelete={handleDeleteNote}
                 />
               )}
               {activeTab === "nhi" && (

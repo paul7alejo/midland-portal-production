@@ -1,12 +1,17 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { PatientDrawer } from "@/components/admin/PatientDrawer";
+import { cn } from "@/lib/utils";
 
-type FundingType   = "ACC" | "Private";
-type PatientStatus = "eligible" | "not_eligible" | "overdue" | "needs_outreach" | "safety_check_due";
-type SortColumn    = "lastOrder" | "nextEligible" | "remainingAmount";
-type SortDir       = "asc" | "desc";
+type FundingType       = "ACC" | "Private" | "Health NZ";
+type PatientStatus     = "eligible" | "not_eligible" | "overdue" | "needs_outreach" | "safety_check_due";
+type RemainingRange    = "zero" | "low" | "mid" | "high";
+type NextEligibleRange = "now" | "30days" | "90days" | "later";
+type SortOption        =
+  | "lastOrder_newest" | "lastOrder_oldest"
+  | "nextEligible_soonest"
+  | "remaining_highest" | "remaining_lowest";
 
 interface Patient {
   id: string;
@@ -226,11 +231,11 @@ const PATIENTS: Patient[] = [
 ];
 
 const STATUS_CONFIG: Record<PatientStatus, { label: string; classes: string }> = {
-  eligible:         { label: "Eligible",          classes: "bg-emerald-100 text-emerald-800 border border-emerald-200" },
-  not_eligible:     { label: "Not eligible",       classes: "bg-gray-100 text-gray-600 border border-gray-200" },
-  overdue:          { label: "Overdue",            classes: "bg-amber-100 text-amber-800 border border-amber-200" },
-  needs_outreach:   { label: "Needs outreach",     classes: "bg-orange-100 text-orange-800 border border-orange-200" },
-  safety_check_due: { label: "Safety check due",   classes: "bg-amber-100 text-amber-800 border border-amber-200" },
+  eligible:         { label: "Eligible",        classes: "bg-emerald-100 text-emerald-800 border border-emerald-200" },
+  not_eligible:     { label: "Not eligible",     classes: "bg-gray-100 text-gray-600 border border-gray-200" },
+  overdue:          { label: "Overdue",          classes: "bg-amber-100 text-amber-800 border border-amber-200" },
+  needs_outreach:   { label: "Needs outreach",   classes: "bg-orange-100 text-orange-800 border border-orange-200" },
+  safety_check_due: { label: "Safety check due", classes: "bg-amber-100 text-amber-800 border border-amber-200" },
 };
 
 const ACTION_CONFIG: Record<PatientStatus, { label: string; disabled: boolean }> = {
@@ -241,7 +246,6 @@ const ACTION_CONFIG: Record<PatientStatus, { label: string; disabled: boolean }>
   safety_check_due: { label: "Book check",     disabled: false },
 };
 
-// Month-name → number map for locale-safe date sorting ("12 Nov 2025" format)
 const MONTH_NUM: Record<string, number> = {
   Jan: 1, Feb: 2, Mar: 3, Apr: 4,  May: 5,  Jun: 6,
   Jul: 7, Aug: 8, Sep: 9, Oct: 10, Nov: 11, Dec: 12,
@@ -250,10 +254,16 @@ function parseDateForSort(s: string): number {
   const [d, m, y] = s.split(" ");
   return parseInt(y) * 10000 + (MONTH_NUM[m] ?? 0) * 100 + parseInt(d);
 }
+function parseToDate(s: string): Date | null {
+  const [d, m, y] = s.split(" ");
+  const mo = MONTH_NUM[m];
+  if (!mo) return null;
+  return new Date(parseInt(y), mo - 1, parseInt(d));
+}
 
-const totalPatients  = PATIENTS.length;
-const eligibleNow    = PATIENTS.filter((p) => p.status === "eligible").length;
-const needsOutreach  = PATIENTS.filter((p) => p.status === "needs_outreach" || p.status === "overdue").length;
+const totalPatients   = PATIENTS.length;
+const eligibleNow     = PATIENTS.filter((p) => p.status === "eligible").length;
+const needsOutreach   = PATIENTS.filter((p) => p.status === "needs_outreach" || p.status === "overdue").length;
 const safetyChecksDue = PATIENTS.filter((p) => p.status === "safety_check_due").length;
 
 function SummaryCard({ label, value, accent }: { label: string; value: number; accent?: string }) {
@@ -267,11 +277,9 @@ function SummaryCard({ label, value, accent }: { label: string; value: number; a
 
 function FundingBadge({ amount }: { amount: number }) {
   const cls =
-    amount > 75
-      ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-      : amount > 0
-      ? "bg-amber-50 text-amber-700 border border-amber-200"
-      : "bg-gray-100 text-gray-500 border border-gray-200";
+    amount > 75  ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
+    amount > 0   ? "bg-amber-50 text-amber-700 border border-amber-200" :
+                   "bg-gray-100 text-gray-500 border border-gray-200";
   return (
     <span className={`inline-block text-sm font-medium px-2.5 py-1 rounded-full whitespace-nowrap ${cls}`}>
       ${amount} left
@@ -279,34 +287,258 @@ function FundingBadge({ amount }: { amount: number }) {
   );
 }
 
-function SortableHeader({
-  label, column, active, dir, onSort,
-}: {
-  label: string;
-  column: SortColumn;
-  active: boolean;
-  dir: SortDir;
-  onSort: (c: SortColumn) => void;
-}) {
+// ─── Filter option data ────────────────────────────────────────────────────────
+
+const STATUS_OPTIONS: { value: PatientStatus; label: string }[] = [
+  { value: "eligible",         label: "Eligible" },
+  { value: "needs_outreach",   label: "Needs outreach" },
+  { value: "safety_check_due", label: "Safety check due" },
+  { value: "overdue",          label: "Overdue" },
+  { value: "not_eligible",     label: "Not eligible" },
+];
+
+const FUNDING_OPTIONS: { value: FundingType; label: string }[] = [
+  { value: "ACC",       label: "ACC" },
+  { value: "Health NZ", label: "Health NZ" },
+  { value: "Private",   label: "Private" },
+];
+
+const REMAINING_OPTIONS: { value: RemainingRange; label: string }[] = [
+  { value: "zero", label: "$0 left" },
+  { value: "low",  label: "$1–$49 left" },
+  { value: "mid",  label: "$50–$99 left" },
+  { value: "high", label: "$100+ left" },
+];
+
+const NEXT_ELIG_OPTIONS: { value: NextEligibleRange; label: string }[] = [
+  { value: "now",    label: "Eligible now" },
+  { value: "30days", label: "Next 30 days" },
+  { value: "90days", label: "Next 90 days" },
+  { value: "later",  label: "Later" },
+];
+
+const SORT_OPTIONS: { value: SortOption; label: string }[] = [
+  { value: "lastOrder_newest",     label: "Last order newest" },
+  { value: "lastOrder_oldest",     label: "Last order oldest" },
+  { value: "nextEligible_soonest", label: "Next eligible soonest" },
+  { value: "remaining_highest",    label: "Remaining funding highest" },
+  { value: "remaining_lowest",     label: "Remaining funding lowest" },
+];
+
+// ─── FilterPanel ──────────────────────────────────────────────────────────────
+
+interface FilterPanelProps {
+  isOpen: boolean;
+  onClose: () => void;
+  statusFilters: Set<PatientStatus>;
+  setStatusFilters: (s: Set<PatientStatus>) => void;
+  fundingFilters: Set<FundingType>;
+  setFundingFilters: (s: Set<FundingType>) => void;
+  remainingRange: RemainingRange | null;
+  setRemainingRange: (r: RemainingRange | null) => void;
+  nextEligRange: NextEligibleRange | null;
+  setNextEligRange: (r: NextEligibleRange | null) => void;
+  activeSortOption: SortOption | null;
+  setActiveSortOption: (s: SortOption | null) => void;
+  resultCount: number;
+  onClearAll: () => void;
+}
+
+function FilterPanel({
+  isOpen, onClose,
+  statusFilters, setStatusFilters,
+  fundingFilters, setFundingFilters,
+  remainingRange, setRemainingRange,
+  nextEligRange, setNextEligRange,
+  activeSortOption, setActiveSortOption,
+  resultCount, onClearAll,
+}: FilterPanelProps) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    if (isOpen) document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [isOpen, onClose]);
+
+  function toggleStatus(v: PatientStatus) {
+    const next = new Set(statusFilters);
+    next.has(v) ? next.delete(v) : next.add(v);
+    setStatusFilters(next);
+  }
+  function toggleFunding(v: FundingType) {
+    const next = new Set(fundingFilters);
+    next.has(v) ? next.delete(v) : next.add(v);
+    setFundingFilters(next);
+  }
+
+  const sectionCls = "space-y-1 pb-5 border-b border-gray-100 last:border-0 last:pb-0";
+  const legendCls  = "block text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3";
+  const rowCls     = "flex items-center gap-3 min-h-[44px] cursor-pointer select-none";
+  const inputCls   = "h-5 w-5 rounded accent-[#0B5C6C] cursor-pointer shrink-0";
+  const labelCls   = "text-base text-gray-700";
+
   return (
-    <button type="button" onClick={() => onSort(column)} className="flex items-center gap-1 group">
-      {label}
-      <span className={active ? "text-[#0B5C6C]" : "text-gray-400 group-hover:text-gray-600"}>
-        {active ? (dir === "asc" ? "↑" : "↓") : "↕"}
-      </span>
-    </button>
+    <>
+      <div
+        className={cn(
+          "fixed inset-0 bg-black/40 z-40 transition-opacity duration-300",
+          isOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+        )}
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Filter & Sort"
+        className={cn(
+          "fixed inset-y-0 right-0 z-50 w-full sm:w-[420px] bg-white shadow-2xl flex flex-col transition-transform duration-300",
+          isOpen ? "translate-x-0" : "translate-x-full"
+        )}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-5 border-b border-gray-200 shrink-0">
+          <h2 className="text-xl font-semibold text-navy">Filter &amp; Sort</h2>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={onClearAll}
+              className="text-base text-[#0B5C6C] hover:underline font-medium min-h-[44px] px-3"
+            >
+              Clear all
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close"
+              className="p-2 rounded-lg hover:bg-gray-100 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
+            >
+              <svg className="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {/* Scrollable body */}
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+
+          {/* Status */}
+          <div className={sectionCls}>
+            <span className={legendCls}>Status</span>
+            {STATUS_OPTIONS.map((opt) => (
+              <label key={opt.value} className={rowCls}>
+                <input
+                  type="checkbox"
+                  checked={statusFilters.has(opt.value)}
+                  onChange={() => toggleStatus(opt.value)}
+                  className={inputCls}
+                />
+                <span className={labelCls}>{opt.label}</span>
+              </label>
+            ))}
+          </div>
+
+          {/* Funding */}
+          <div className={sectionCls}>
+            <span className={legendCls}>Funding</span>
+            {FUNDING_OPTIONS.map((opt) => (
+              <label key={opt.value} className={rowCls}>
+                <input
+                  type="checkbox"
+                  checked={fundingFilters.has(opt.value)}
+                  onChange={() => toggleFunding(opt.value)}
+                  className={inputCls}
+                />
+                <span className={labelCls}>{opt.label}</span>
+              </label>
+            ))}
+          </div>
+
+          {/* Remaining Funding */}
+          <div className={sectionCls}>
+            <span className={legendCls}>Remaining Funding</span>
+            {REMAINING_OPTIONS.map((opt) => (
+              <label key={opt.value} className={rowCls}>
+                <input
+                  type="radio"
+                  name="remainingRange"
+                  checked={remainingRange === opt.value}
+                  onChange={() => setRemainingRange(opt.value)}
+                  onClick={() => { if (remainingRange === opt.value) setRemainingRange(null); }}
+                  className={inputCls}
+                />
+                <span className={labelCls}>{opt.label}</span>
+              </label>
+            ))}
+          </div>
+
+          {/* Next Eligible */}
+          <div className={sectionCls}>
+            <span className={legendCls}>Next Eligible</span>
+            {NEXT_ELIG_OPTIONS.map((opt) => (
+              <label key={opt.value} className={rowCls}>
+                <input
+                  type="radio"
+                  name="nextEligRange"
+                  checked={nextEligRange === opt.value}
+                  onChange={() => setNextEligRange(opt.value)}
+                  onClick={() => { if (nextEligRange === opt.value) setNextEligRange(null); }}
+                  className={inputCls}
+                />
+                <span className={labelCls}>{opt.label}</span>
+              </label>
+            ))}
+          </div>
+
+          {/* Sort */}
+          <div className={sectionCls}>
+            <span className={legendCls}>Sort</span>
+            {SORT_OPTIONS.map((opt) => (
+              <label key={opt.value} className={rowCls}>
+                <input
+                  type="radio"
+                  name="sortOption"
+                  checked={activeSortOption === opt.value}
+                  onChange={() => setActiveSortOption(opt.value)}
+                  onClick={() => { if (activeSortOption === opt.value) setActiveSortOption(null); }}
+                  className={inputCls}
+                />
+                <span className={labelCls}>{opt.label}</span>
+              </label>
+            ))}
+          </div>
+
+        </div>
+
+        {/* Footer */}
+        <div className="shrink-0 border-t border-gray-200 px-6 py-4 flex items-center justify-between gap-4 bg-white">
+          <p className="text-base font-medium text-gray-600">{resultCount} patients found</p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="bg-[#0B5C6C] text-white text-base font-medium px-6 py-2.5 rounded-lg min-h-[44px] hover:bg-[#0B5C6C]/90 transition-colors"
+          >
+            Show patients
+          </button>
+        </div>
+      </div>
+    </>
   );
 }
 
+// ─── Main page ────────────────────────────────────────────────────────────────
+
 export default function AdminPatientsPage() {
-  const [search,        setSearch]        = useState("");
-  const [sortCol,       setSortCol]       = useState<SortColumn | null>(null);
-  const [sortDir,       setSortDir]       = useState<SortDir>("asc");
-  const [statusFilter,  setStatusFilter]  = useState<PatientStatus | "all">("all");
-  const [fundingFilter, setFundingFilter] = useState<FundingType | "all">("all");
-  const [drawerOpen,    setDrawerOpen]    = useState(false);
-  const [drawerMsid,    setDrawerMsid]    = useState<string | null>(null);
-  const [drawerName,    setDrawerName]    = useState<string | undefined>(undefined);
+  const [search,           setSearch]           = useState("");
+  const [statusFilters,    setStatusFilters]    = useState<Set<PatientStatus>>(new Set());
+  const [fundingFilters,   setFundingFilters]   = useState<Set<FundingType>>(new Set());
+  const [remainingRange,   setRemainingRange]   = useState<RemainingRange | null>(null);
+  const [nextEligRange,    setNextEligRange]    = useState<NextEligibleRange | null>(null);
+  const [activeSortOption, setActiveSortOption] = useState<SortOption | null>(null);
+  const [filterPanelOpen,  setFilterPanelOpen]  = useState(false);
+  const [drawerOpen,       setDrawerOpen]       = useState(false);
+  const [drawerMsid,       setDrawerMsid]       = useState<string | null>(null);
+  const [drawerName,       setDrawerName]       = useState<string | undefined>(undefined);
 
   function openDrawer(msid: string, name: string) {
     setDrawerMsid(msid);
@@ -314,13 +546,12 @@ export default function AdminPatientsPage() {
     setDrawerOpen(true);
   }
 
-  function handleSort(column: SortColumn) {
-    if (sortCol === column) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortCol(column);
-      setSortDir("asc");
-    }
+  function clearAllFilters() {
+    setStatusFilters(new Set());
+    setFundingFilters(new Set());
+    setRemainingRange(null);
+    setNextEligRange(null);
+    setActiveSortOption(null);
   }
 
   const displayedPatients = useMemo(() => {
@@ -332,29 +563,95 @@ export default function AdminPatientsPage() {
         (p) => p.name.toLowerCase().includes(q) || p.msid.toLowerCase().includes(q)
       );
     }
-
-    if (statusFilter !== "all") {
-      result = result.filter((p) => p.status === statusFilter);
+    if (statusFilters.size > 0) {
+      result = result.filter((p) => statusFilters.has(p.status));
     }
-
-    if (fundingFilter !== "all") {
-      result = result.filter((p) => p.funding === fundingFilter);
+    if (fundingFilters.size > 0) {
+      result = result.filter((p) => fundingFilters.has(p.funding));
     }
-
-    if (sortCol) {
-      result.sort((a, b) => {
-        const aVal = sortCol === "remainingAmount" ? a.remainingAmount : parseDateForSort(a[sortCol]);
-        const bVal = sortCol === "remainingAmount" ? b.remainingAmount : parseDateForSort(b[sortCol]);
-        return sortDir === "asc" ? aVal - bVal : bVal - aVal;
+    if (remainingRange) {
+      result = result.filter((p) => {
+        const r = p.remainingAmount;
+        if (remainingRange === "zero") return r === 0;
+        if (remainingRange === "low")  return r >= 1  && r <= 49;
+        if (remainingRange === "mid")  return r >= 50 && r <= 99;
+        return r >= 100;
       });
     }
-
+    if (nextEligRange) {
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const d30 = new Date(today); d30.setDate(d30.getDate() + 30);
+      const d90 = new Date(today); d90.setDate(d90.getDate() + 90);
+      result = result.filter((p) => {
+        const d = parseToDate(p.nextEligible);
+        if (!d) return false;
+        if (nextEligRange === "now")    return d <= today;
+        if (nextEligRange === "30days") return d > today && d <= d30;
+        if (nextEligRange === "90days") return d > today && d <= d90;
+        return d > d90;
+      });
+    }
+    if (activeSortOption) {
+      result.sort((a, b) => {
+        switch (activeSortOption) {
+          case "lastOrder_newest":     return parseDateForSort(b.lastOrder)    - parseDateForSort(a.lastOrder);
+          case "lastOrder_oldest":     return parseDateForSort(a.lastOrder)    - parseDateForSort(b.lastOrder);
+          case "nextEligible_soonest": return parseDateForSort(a.nextEligible) - parseDateForSort(b.nextEligible);
+          case "remaining_highest":    return b.remainingAmount - a.remainingAmount;
+          case "remaining_lowest":     return a.remainingAmount - b.remainingAmount;
+          default:                     return 0;
+        }
+      });
+    }
     return result;
-  }, [search, statusFilter, fundingFilter, sortCol, sortDir]);
+  }, [search, statusFilters, fundingFilters, remainingRange, nextEligRange, activeSortOption]);
 
-  const selectCls =
-    "px-3 py-2.5 border border-gray-300 rounded-lg text-base bg-white text-gray-700 " +
-    "focus:outline-none focus:ring-2 focus:ring-[#0B5C6C] focus:border-transparent";
+  const activeFilterCount =
+    statusFilters.size +
+    fundingFilters.size +
+    (remainingRange    ? 1 : 0) +
+    (nextEligRange     ? 1 : 0) +
+    (activeSortOption  ? 1 : 0);
+
+  const filterChips: { key: string; label: string; onRemove: () => void }[] = [
+    ...[...statusFilters].map((s) => ({
+      key: `s-${s}`,
+      label: STATUS_CONFIG[s].label,
+      onRemove: () => { const n = new Set(statusFilters); n.delete(s); setStatusFilters(n); },
+    })),
+    ...[...fundingFilters].map((f) => ({
+      key: `f-${f}`,
+      label: f,
+      onRemove: () => { const n = new Set(fundingFilters); n.delete(f); setFundingFilters(n); },
+    })),
+    ...(remainingRange ? [{
+      key: "rem",
+      label: remainingRange === "zero" ? "$0 left"
+           : remainingRange === "low"  ? "$1–$49"
+           : remainingRange === "mid"  ? "$50–$99"
+           : "$100+",
+      onRemove: () => setRemainingRange(null),
+    }] : []),
+    ...(nextEligRange ? [{
+      key: "elig",
+      label: nextEligRange === "now"    ? "Eligible now"
+           : nextEligRange === "30days" ? "Next 30 days"
+           : nextEligRange === "90days" ? "Next 90 days"
+           : "Later",
+      onRemove: () => setNextEligRange(null),
+    }] : []),
+    ...(activeSortOption ? [{
+      key: "sort",
+      label: `Sort: ${
+        activeSortOption === "lastOrder_newest"     ? "Newest first"     :
+        activeSortOption === "lastOrder_oldest"     ? "Oldest first"     :
+        activeSortOption === "nextEligible_soonest" ? "Eligible soonest" :
+        activeSortOption === "remaining_highest"    ? "Highest balance"  :
+                                                      "Lowest balance"
+      }`,
+      onRemove: () => setActiveSortOption(null),
+    }] : []),
+  ];
 
   return (
     <div className="space-y-8">
@@ -372,7 +669,7 @@ export default function AdminPatientsPage() {
         <SummaryCard label="Safety Checks Due" value={safetyChecksDue} accent="text-amber-700" />
       </div>
 
-      {/* Search + filter bar */}
+      {/* Search + Filter & Sort button */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <svg
@@ -392,65 +689,71 @@ export default function AdminPatientsPage() {
           />
         </div>
 
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value as PatientStatus | "all")}
-          className={selectCls}
+        <button
+          type="button"
+          onClick={() => setFilterPanelOpen(true)}
+          className="flex items-center gap-2 px-4 py-2.5 border border-gray-300 rounded-lg text-base
+                     bg-white text-gray-700 hover:border-[#0B5C6C] min-h-[44px] whitespace-nowrap transition-colors"
         >
-          <option value="all">All statuses</option>
-          <option value="eligible">Eligible</option>
-          <option value="not_eligible">Not eligible</option>
-          <option value="overdue">Overdue</option>
-          <option value="needs_outreach">Needs outreach</option>
-          <option value="safety_check_due">Safety check due</option>
-        </select>
-
-        <select
-          value={fundingFilter}
-          onChange={(e) => setFundingFilter(e.target.value as FundingType | "all")}
-          className={selectCls}
-        >
-          <option value="all">All funding</option>
-          <option value="ACC">ACC</option>
-          <option value="Private">Private</option>
-        </select>
+          Filter &amp; Sort
+          {activeFilterCount > 0 && (
+            <span className="inline-flex items-center justify-center rounded-full bg-[#0B5C6C] text-white
+                             text-xs font-semibold px-2 py-0.5 min-w-[22px]">
+              {activeFilterCount}
+            </span>
+          )}
+        </button>
 
         <span className="text-base text-gray-500 whitespace-nowrap">
           {displayedPatients.length} of {PATIENTS.length}
         </span>
       </div>
 
+      {/* Applied filter chips */}
+      {filterChips.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {filterChips.map((chip) => (
+            <span
+              key={chip.key}
+              className="inline-flex items-center gap-1.5 bg-[#0B5C6C]/10 text-[#0B5C6C] text-sm font-medium
+                         px-3 py-1.5 rounded-full"
+            >
+              {chip.label}
+              <button
+                type="button"
+                onClick={chip.onRemove}
+                aria-label={`Remove ${chip.label} filter`}
+                className="hover:text-[#0B5C6C]/60 transition-colors leading-none"
+              >
+                ×
+              </button>
+            </span>
+          ))}
+          <button
+            type="button"
+            onClick={clearAllFilters}
+            className="text-sm text-gray-500 hover:text-gray-700 underline px-1"
+          >
+            Clear all
+          </button>
+        </div>
+      )}
+
       {/* Table */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
+          <table className="w-full min-w-[1100px] border-collapse">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="text-left px-5 py-4 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">
-                  Patient Name
-                </th>
-                <th className="text-left px-5 py-4 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">
-                  MSID
-                </th>
-                <th className="text-left px-5 py-4 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">
-                  Phone
-                </th>
-                <th className="text-left px-5 py-4 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">
-                  Funding
-                </th>
-                <th className="text-left px-5 py-4 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">
-                  <SortableHeader label="Last Order" column="lastOrder" active={sortCol === "lastOrder"} dir={sortDir} onSort={handleSort} />
-                </th>
-                <th className="text-left px-5 py-4 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">
-                  <SortableHeader label="Next Eligible" column="nextEligible" active={sortCol === "nextEligible"} dir={sortDir} onSort={handleSort} />
-                </th>
-                <th className="text-left px-5 py-4 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">
-                  Status
-                </th>
-                <th className="text-left px-5 py-4 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">
-                  <SortableHeader label="Remaining Funding" column="remainingAmount" active={sortCol === "remainingAmount"} dir={sortDir} onSort={handleSort} />
-                </th>
-                <th className="px-5 py-4 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">
+                <th className="text-left px-5 py-4 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Patient Name</th>
+                <th className="text-left px-5 py-4 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">MSID</th>
+                <th className="text-left px-5 py-4 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Phone</th>
+                <th className="text-left px-5 py-4 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Funding</th>
+                <th className="text-left px-5 py-4 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Last Order</th>
+                <th className="text-left px-5 py-4 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Next Eligible</th>
+                <th className="text-left px-5 py-4 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Status</th>
+                <th className="text-left px-5 py-4 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Remaining Funding</th>
+                <th className="sticky right-0 z-10 bg-gray-50 border-l border-gray-200 px-5 py-4 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">
                   Action
                 </th>
               </tr>
@@ -466,12 +769,14 @@ export default function AdminPatientsPage() {
                 displayedPatients.map((patient) => {
                   const statusCfg = STATUS_CONFIG[patient.status];
                   const actionCfg = ACTION_CONFIG[patient.status];
+                  const fundingCls =
+                    patient.funding === "ACC"
+                      ? "bg-blue-50 text-blue-700 border border-blue-200"
+                      : patient.funding === "Health NZ"
+                      ? "bg-teal-50 text-teal-700 border border-teal-200"
+                      : "bg-purple-50 text-purple-700 border border-purple-200";
                   return (
-                    <tr
-                      key={patient.id}
-                      className="hover:bg-gray-50 transition-colors"
-                      style={{ minHeight: "64px" }}
-                    >
+                    <tr key={patient.id} className="hover:bg-gray-50 transition-colors" style={{ minHeight: "64px" }}>
                       <td className="px-5 py-5">
                         <span className="text-base font-semibold text-navy">{patient.name}</span>
                       </td>
@@ -489,13 +794,7 @@ export default function AdminPatientsPage() {
                         </a>
                       </td>
                       <td className="px-5 py-5">
-                        <span
-                          className={`inline-block text-sm font-medium px-2.5 py-1 rounded-full ${
-                            patient.funding === "ACC"
-                              ? "bg-blue-50 text-blue-700 border border-blue-200"
-                              : "bg-purple-50 text-purple-700 border border-purple-200"
-                          }`}
-                        >
+                        <span className={`inline-block text-sm font-medium px-2.5 py-1 rounded-full ${fundingCls}`}>
                           {patient.funding}
                         </span>
                       </td>
@@ -513,7 +812,7 @@ export default function AdminPatientsPage() {
                       <td className="px-5 py-5">
                         <FundingBadge amount={patient.remainingAmount} />
                       </td>
-                      <td className="px-5 py-5">
+                      <td className="sticky right-0 z-10 bg-white border-l border-gray-200 px-5 py-5">
                         <div className="flex items-center gap-2 flex-wrap justify-center">
                           <button
                             type="button"
@@ -544,6 +843,23 @@ export default function AdminPatientsPage() {
           </table>
         </div>
       </div>
+
+      <FilterPanel
+        isOpen={filterPanelOpen}
+        onClose={() => setFilterPanelOpen(false)}
+        statusFilters={statusFilters}
+        setStatusFilters={setStatusFilters}
+        fundingFilters={fundingFilters}
+        setFundingFilters={setFundingFilters}
+        remainingRange={remainingRange}
+        setRemainingRange={setRemainingRange}
+        nextEligRange={nextEligRange}
+        setNextEligRange={setNextEligRange}
+        activeSortOption={activeSortOption}
+        setActiveSortOption={setActiveSortOption}
+        resultCount={displayedPatients.length}
+        onClearAll={clearAllFilters}
+      />
 
       <PatientDrawer
         isOpen={drawerOpen}
