@@ -5,7 +5,7 @@ import "../../landing-styles.css";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
-import { configureCognito, getCurrentUser } from "@/lib/aws/cognito";
+import { configureCognito, getCurrentUser, getIdToken } from "@/lib/aws/cognito";
 import { isAdminIdentity } from "@/lib/admin-identity";
 import Image from "next/image";
 
@@ -21,10 +21,26 @@ export default function AdminLoginPage() {
 
   // Fresh Cognito check only — do not read stale AuthProvider cache here,
   // as the cache may still hold the user who just logged out.
+  // Must refresh the id_token cookie before navigating to /admin so the
+  // server-side layout's getAdminUser() finds a valid cookie. Without this,
+  // an expired cookie causes a redirect loop even when the Cognito session
+  // is still alive (Amplify auto-refreshes via refresh token).
   useEffect(() => {
     configureCognito();
-    getCurrentUser().then((user) => {
-      if (user && isAdminIdentity(user)) router.replace("/admin");
+    getCurrentUser().then(async (user) => {
+      if (!user || !isAdminIdentity(user)) return;
+      try {
+        const token = await getIdToken();
+        if (!token) return;
+        const res = await fetch('/api/auth/session', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        router.replace("/admin");
+      } catch {
+        // session refresh failed — stay on login page
+      }
     });
   }, []);
 
