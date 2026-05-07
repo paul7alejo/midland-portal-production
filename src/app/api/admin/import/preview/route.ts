@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminUser, isAuthorizedAdmin } from '@/lib/security';
-import { previewImport } from '@/lib/csv-import/patient-import';
+import { previewImport, detectDuplicates } from '@/lib/csv-import/patient-import';
 
 export async function POST(request: NextRequest) {
   const user = await getAdminUser();
@@ -21,6 +21,17 @@ export async function POST(request: NextRequest) {
   }
 
   const preview = previewImport(csv);
+  const { reviewRows, dupNhiGroupCount, dupSerialGroupCount, dupContactWarnCount } =
+    detectDuplicates([...preview.valid, ...preview.invalid]);
+
+  const hasBlockers =
+    preview.invalid.length > 0 ||
+    reviewRows.some(r => r.severity === 'review' || r.severity === 'error');
+  const hasWarnings = reviewRows.some(r => r.severity === 'warning');
+  const readiness: 'ready' | 'review_required' | 'not_ready' =
+    hasBlockers ? 'not_ready' :
+    hasWarnings ? 'review_required' :
+                  'ready';
 
   return NextResponse.json({
     totalRows: preview.totalRows,
@@ -29,5 +40,10 @@ export async function POST(request: NextRequest) {
     valid: preview.valid,
     invalid: preview.invalid,
     errorSummary: preview.errorSummary,
+    reviewRows,
+    readiness,
+    dupNhiGroupCount,
+    dupSerialGroupCount,
+    dupContactWarnCount,
   });
 }

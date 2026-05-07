@@ -41,6 +41,7 @@ export interface ParsedPatient {
     size: string
   }
   importErrors: string[]
+  rowNumber?: number
 }
 
 function parseCSVLine(line: string): string[] {
@@ -129,6 +130,7 @@ export function parsePatientCSV(csvText: string): ParsedPatient[] {
         size: row['mask_size'] ?? '',
       },
       importErrors: errors,
+      rowNumber: i + 2,
     });
   }
 
@@ -193,4 +195,117 @@ export function previewImport(csvText: string): {
     totalRows: rows.length,
     errorSummary: [...new Set(errorSummary)],
   };
+}
+
+// ─── Duplicate detection ──────────────────────────────────────────────────────
+
+export type IssueSeverity = 'error' | 'warning' | 'review'
+
+export type IssueType =
+  | 'duplicate_nhi'
+  | 'duplicate_serial'
+  | 'duplicate_email'
+  | 'duplicate_phone'
+
+export interface ReviewRow {
+  rowNumber: number
+  name: string
+  maskedNhi: string
+  machineSerial: string
+  issueType: IssueType
+  issueDetail: string
+  severity: IssueSeverity
+}
+
+export function detectDuplicates(allRows: ParsedPatient[]): {
+  reviewRows: ReviewRow[]
+  dupNhiGroupCount: number
+  dupSerialGroupCount: number
+  dupContactWarnCount: number
+} {
+  const nhiMap    = new Map<string, number[]>()
+  const serialMap = new Map<string, number[]>()
+  const emailMap  = new Map<string, number[]>()
+  const phoneMap  = new Map<string, number[]>()
+
+  allRows.forEach((row, i) => {
+    const n = row.rowNumber ?? (i + 2)
+    if (row.nhi)            nhiMap.set(row.nhi.toUpperCase(),               [...(nhiMap.get(row.nhi.toUpperCase())               ?? []), n])
+    if (row.machine.serial) serialMap.set(row.machine.serial.trim(),        [...(serialMap.get(row.machine.serial.trim())        ?? []), n])
+    if (row.email)          emailMap.set(row.email.toLowerCase().trim(),    [...(emailMap.get(row.email.toLowerCase().trim())    ?? []), n])
+    if (row.phone)          phoneMap.set(row.phone.replace(/\s+/g, ''),     [...(phoneMap.get(row.phone.replace(/\s+/g, ''))     ?? []), n])
+  })
+
+  const reviewRows: ReviewRow[] = []
+
+  allRows.forEach((row, i) => {
+    const n = row.rowNumber ?? (i + 2)
+    const maskedNhi = row.nhi ? row.nhi.slice(0, 3) + '****' : '—'
+
+    if (row.nhi) {
+      const rows = nhiMap.get(row.nhi.toUpperCase()) ?? []
+      if (rows.length > 1) {
+        const others = rows.filter(r => r !== n)
+        reviewRows.push({
+          rowNumber: n, name: row.fullName, maskedNhi,
+          machineSerial: row.machine.serial,
+          issueType: 'duplicate_nhi',
+          issueDetail: `NHI also appears on row${others.length > 1 ? 's' : ''} ${others.join(', ')}`,
+          severity: 'review',
+        })
+      }
+    }
+
+    if (row.machine.serial) {
+      const rows = serialMap.get(row.machine.serial.trim()) ?? []
+      if (rows.length > 1) {
+        const others = rows.filter(r => r !== n)
+        reviewRows.push({
+          rowNumber: n, name: row.fullName, maskedNhi,
+          machineSerial: row.machine.serial,
+          issueType: 'duplicate_serial',
+          issueDetail: `Serial also appears on row${others.length > 1 ? 's' : ''} ${others.join(', ')}`,
+          severity: 'review',
+        })
+      }
+    }
+
+    if (row.email) {
+      const rows = emailMap.get(row.email.toLowerCase().trim()) ?? []
+      if (rows.length > 1) {
+        const others = rows.filter(r => r !== n)
+        reviewRows.push({
+          rowNumber: n, name: row.fullName, maskedNhi,
+          machineSerial: row.machine.serial,
+          issueType: 'duplicate_email',
+          issueDetail: `Email also appears on row${others.length > 1 ? 's' : ''} ${others.join(', ')}`,
+          severity: 'warning',
+        })
+      }
+    }
+
+    if (row.phone) {
+      const rows = phoneMap.get(row.phone.replace(/\s+/g, '')) ?? []
+      if (rows.length > 1) {
+        const others = rows.filter(r => r !== n)
+        reviewRows.push({
+          rowNumber: n, name: row.fullName, maskedNhi,
+          machineSerial: row.machine.serial,
+          issueType: 'duplicate_phone',
+          issueDetail: `Phone also appears on row${others.length > 1 ? 's' : ''} ${others.join(', ')}`,
+          severity: 'warning',
+        })
+      }
+    }
+  })
+
+  let dupNhiGroupCount = 0
+  nhiMap.forEach(rows => { if (rows.length > 1) dupNhiGroupCount++ })
+
+  let dupSerialGroupCount = 0
+  serialMap.forEach(rows => { if (rows.length > 1) dupSerialGroupCount++ })
+
+  const dupContactWarnCount = reviewRows.filter(r => r.severity === 'warning').length
+
+  return { reviewRows, dupNhiGroupCount, dupSerialGroupCount, dupContactWarnCount }
 }

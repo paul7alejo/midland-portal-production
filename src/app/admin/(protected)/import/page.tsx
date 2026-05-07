@@ -1,13 +1,18 @@
 "use client";
 
 import { useState, useRef } from "react";
-import type { ParsedPatient } from "@/lib/csv-import/patient-import";
+import type { ParsedPatient, ReviewRow } from "@/lib/csv-import/patient-import";
 
 type PreviewResult = {
   valid: ParsedPatient[];
   invalid: ParsedPatient[];
   totalRows: number;
   errorSummary: string[];
+  reviewRows: ReviewRow[];
+  readiness: 'ready' | 'review_required' | 'not_ready';
+  dupNhiGroupCount: number;
+  dupSerialGroupCount: number;
+  dupContactWarnCount: number;
 };
 type ActiveTab = "valid" | "invalid";
 
@@ -111,7 +116,75 @@ function downloadErrorReport(rows: ParsedPatient[]): void {
   triggerDownload(blob, "import-error-report.csv");
 }
 
+function downloadReviewReport(reviewRows: ReviewRow[]): void {
+  const headers = ["row","name","masked_nhi","machine_serial","issue_type","issue_detail","severity"];
+  const data = reviewRows.map((r) => [
+    String(r.rowNumber),
+    r.name,
+    r.maskedNhi,
+    r.machineSerial,
+    r.issueType,
+    r.issueDetail,
+    r.severity,
+  ]);
+  triggerDownload(buildCsvBlob(headers, data), "import-review-report.csv");
+}
+
 // ─── UI components ────────────────────────────────────────────────────────────
+
+const READINESS: Record<PreviewResult["readiness"], { label: string; leftBorder: string; badge: string; note: string | null }> = {
+  ready: {
+    label: "Ready for import preparation",
+    leftBorder: "border-l-emerald-500",
+    badge: "bg-emerald-100 text-emerald-800",
+    note: null,
+  },
+  review_required: {
+    label: "Review required",
+    leftBorder: "border-l-amber-500",
+    badge: "bg-amber-100 text-amber-800",
+    note: null,
+  },
+  not_ready: {
+    label: "Not ready for import",
+    leftBorder: "border-l-red-500",
+    badge: "bg-red-100 text-red-800",
+    note: "Resolve duplicate NHI or serial conflicts and fix all invalid rows before import.",
+  },
+};
+
+function ReadinessPanel({ result }: { result: PreviewResult }) {
+  const cfg = READINESS[result.readiness];
+  const reviewCount = result.reviewRows.filter((r) => r.severity === "review").length;
+  const stats: { label: string; value: number; color?: string }[] = [
+    { label: "Total rows",        value: result.totalRows },
+    { label: "Valid rows",        value: result.valid.length,          color: result.valid.length          > 0 ? "text-emerald-700" : undefined },
+    { label: "Invalid rows",      value: result.invalid.length,        color: result.invalid.length        > 0 ? "text-red-600"     : undefined },
+    { label: "Review required",   value: reviewCount,                   color: reviewCount                  > 0 ? "text-red-600"     : undefined },
+    { label: "Dup NHI groups",    value: result.dupNhiGroupCount,       color: result.dupNhiGroupCount      > 0 ? "text-red-600"     : undefined },
+    { label: "Dup serial groups", value: result.dupSerialGroupCount,    color: result.dupSerialGroupCount   > 0 ? "text-red-600"     : undefined },
+    { label: "Contact warnings",  value: result.dupContactWarnCount,    color: result.dupContactWarnCount   > 0 ? "text-amber-600"   : undefined },
+  ];
+  return (
+    <div className={`bg-white border border-gray-200 border-l-4 ${cfg.leftBorder} rounded-xl p-5 space-y-4`}>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Import readiness</p>
+        <span className={`text-xs font-semibold px-3 py-1 rounded-full ${cfg.badge}`}>{cfg.label}</span>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {stats.map(({ label, value, color }) => (
+          <div key={label} className="flex flex-col">
+            <span className={`text-2xl font-bold ${color ?? "text-gray-800"}`}>{value}</span>
+            <span className="text-xs text-gray-500 mt-0.5">{label}</span>
+          </div>
+        ))}
+      </div>
+      {cfg.note && (
+        <p className="text-xs text-red-700 border-t border-gray-100 pt-3">{cfg.note}</p>
+      )}
+    </div>
+  );
+}
 
 function SummaryCard({
   label,
@@ -272,6 +345,11 @@ export default function AdminImportPage() {
         invalid: data.invalid,
         totalRows: data.totalRows,
         errorSummary: data.errorSummary,
+        reviewRows: data.reviewRows ?? [],
+        readiness: data.readiness ?? 'ready',
+        dupNhiGroupCount: data.dupNhiGroupCount ?? 0,
+        dupSerialGroupCount: data.dupSerialGroupCount ?? 0,
+        dupContactWarnCount: data.dupContactWarnCount ?? 0,
       });
       setActiveTab("valid");
     } catch {
@@ -398,6 +476,9 @@ export default function AdminImportPage() {
       {result !== null && (
         <div className="space-y-5">
 
+          {/* Import readiness panel */}
+          <ReadinessPanel result={result} />
+
           {/* Summary cards */}
           <div className="grid grid-cols-3 gap-4">
             <SummaryCard label="Total rows" value={result.totalRows} />
@@ -412,6 +493,48 @@ export default function AdminImportPage() {
               accent={result.invalid.length > 0 ? "text-red-600" : "text-gray-500"}
             />
           </div>
+
+          {/* Rows needing review */}
+          {result.reviewRows.length > 0 && (
+            <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-200">
+                <h2 className="text-base font-semibold text-gray-800">Rows needing review</h2>
+                <p className="text-sm text-gray-500 mt-0.5">Resolve these issues before import.</p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[640px] border-collapse text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-200">
+                      {["Row", "Name", "NHI", "Serial", "Issue", "Detail", "Severity"].map((col) => (
+                        <th key={col} className="text-left px-4 py-3 font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap text-xs">
+                          {col}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {result.reviewRows.map((row, i) => (
+                      <tr key={i} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-4 py-3 text-gray-600 tabular-nums">{row.rowNumber}</td>
+                        <td className="px-4 py-3 font-medium text-gray-800 whitespace-nowrap">{row.name || "—"}</td>
+                        <td className="px-4 py-3 font-mono text-gray-700">{row.maskedNhi}</td>
+                        <td className="px-4 py-3 font-mono text-gray-700">{row.machineSerial || "—"}</td>
+                        <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{row.issueType.replace(/_/g, " ")}</td>
+                        <td className="px-4 py-3 text-gray-600">{row.issueDetail}</td>
+                        <td className="px-4 py-3">
+                          {row.severity === "review" ? (
+                            <span className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700">Review</span>
+                          ) : (
+                            <span className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Warning</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           {/* CSV cleanup tools */}
           <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-4">
@@ -440,6 +563,11 @@ export default function AdminImportPage() {
                 label={`Download error report (${result.invalid.length})`}
                 onClick={() => downloadErrorReport(result.invalid)}
                 disabled={result.invalid.length === 0}
+              />
+              <DownloadButton
+                label={`Download review report (${result.reviewRows.length})`}
+                onClick={() => downloadReviewReport(result.reviewRows)}
+                disabled={result.reviewRows.length === 0}
               />
             </div>
           </div>
