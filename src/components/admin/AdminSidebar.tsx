@@ -14,6 +14,7 @@ import {
   FileText,
   BarChart3,
   Settings,
+  Upload,
 } from "lucide-react";
 
 const navItems = [
@@ -25,6 +26,7 @@ const navItems = [
   { href: "/admin/entitlement", label: "Entitlement", icon: Gift },
   { href: "/admin/outreach", label: "Outreach", icon: Mail },
   { href: "/admin/audit", label: "Audit Log", icon: FileText },
+  { href: "/admin/import", label: "Import", icon: Upload },
   { href: "/admin/reports", label: "Reports", icon: BarChart3 },
   { href: "/admin/config", label: "Config", icon: Settings },
 ];
