@@ -199,6 +199,10 @@ function FieldRow({ label, value }: { label: string; value: ReactNode }) {
 function OverviewTab({ patient }: { patient: DrawerPatient }) {
   return (
     <dl className="grid gap-5 sm:grid-cols-2">
+      <div className="sm:col-span-2">
+        <dt className="text-sm font-medium text-gray-500 uppercase tracking-wide">MSID</dt>
+        <dd className="font-mono text-base text-[#0B5C6C] mt-0.5">{patient.msid}</dd>
+      </div>
       <FieldRow label="Date of birth" value={patient.dob} />
       <FieldRow label="Phone" value={patient.phone} />
       <FieldRow label="Email" value={patient.email} />
@@ -214,6 +218,14 @@ function OverviewTab({ patient }: { patient: DrawerPatient }) {
         }
       />
       <FieldRow label="Registration date" value={patient.registrationDate} />
+      <FieldRow
+        label="Machine"
+        value={`${patient.machine.brand} ${patient.machine.model}`}
+      />
+      <FieldRow
+        label="Mask"
+        value={`${patient.mask.brand} ${patient.mask.model} (${patient.mask.size})`}
+      />
     </dl>
   );
 }
@@ -686,7 +698,7 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName }: PatientDra
         aria-modal="true"
         aria-label={patient?.name ?? "Patient details"}
         className={cn(
-          "fixed inset-y-0 right-0 z-50 w-full sm:w-[560px] bg-white shadow-2xl flex flex-col transition-transform duration-300",
+          "fixed inset-y-0 right-0 z-50 w-full sm:w-[680px] bg-white shadow-2xl flex flex-col transition-transform duration-300",
           isOpen ? "translate-x-0" : "translate-x-full"
         )}
       >
