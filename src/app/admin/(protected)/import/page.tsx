@@ -7,10 +7,107 @@ import type { ParsedPatient } from "@/lib/csv-import/patient-import";
 type PreviewResult = ReturnType<typeof previewImport>;
 type ActiveTab = "valid" | "invalid";
 
+// ─── Template headers ─────────────────────────────────────────────────────────
+
+const TEMPLATE_HEADERS =
+  "full_name,nhi,date_of_birth,email,phone,address," +
+  "machine_brand,machine_model,machine_serial,machine_setup_date," +
+  "mask_brand,mask_model,mask_size,funded_by";
+
+const TEMPLATE_HEADERS_ARRAY = TEMPLATE_HEADERS.split(",");
+
+// ─── CSV utilities ────────────────────────────────────────────────────────────
+
+function escapeCSV(value: string): string {
+  const s = value ?? "";
+  if (s.includes(",") || s.includes('"') || s.includes("\n") || s.includes("\r")) {
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+  return s;
+}
+
+function buildCsvBlob(headers: string[], rows: string[][]): Blob {
+  const lines = [
+    headers.map(escapeCSV).join(","),
+    ...rows.map((row) => row.map(escapeCSV).join(",")),
+  ];
+  return new Blob([lines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
+}
+
+function triggerDownload(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ─── NHI masking ─────────────────────────────────────────────────────────────
+
 function maskNhi(nhi: string): string {
   if (!nhi) return "—";
   return nhi.slice(0, 3) + "****";
 }
+
+// ─── Patient row → CSV array (raw NHI — for valid/invalid exports only) ──────
+
+function patientToRow(row: ParsedPatient): string[] {
+  return [
+    row.fullName,
+    row.nhi,           // raw NHI included in data exports for staff import use
+    row.dateOfBirth,
+    row.email,
+    row.phone,
+    row.address,
+    row.machine.brand,
+    row.machine.model,
+    row.machine.serial,
+    row.machine.setupDate,
+    row.mask.brand,
+    row.mask.model,
+    row.mask.size,
+    row.machine.fundedBy,
+  ];
+}
+
+// ─── Download handlers ────────────────────────────────────────────────────────
+
+function downloadTemplate(): void {
+  const blob = buildCsvBlob(TEMPLATE_HEADERS_ARRAY, []);
+  triggerDownload(blob, "midland-patient-import-template.csv");
+}
+
+function downloadValidRows(rows: ParsedPatient[]): void {
+  const blob = buildCsvBlob(
+    TEMPLATE_HEADERS_ARRAY,
+    rows.map(patientToRow)
+  );
+  triggerDownload(blob, "import-valid-rows.csv");
+}
+
+function downloadInvalidRows(rows: ParsedPatient[]): void {
+  const headers = [...TEMPLATE_HEADERS_ARRAY, "errors"];
+  const data = rows.map((row) => [...patientToRow(row), row.importErrors.join("; ")]);
+  const blob = buildCsvBlob(headers, data);
+  triggerDownload(blob, "import-invalid-rows.csv");
+}
+
+function downloadErrorReport(rows: ParsedPatient[]): void {
+  // NHI is masked in this report — raw NHI must never appear here
+  const headers = ["row", "name", "masked_nhi", "machine_serial", "errors"];
+  const data = rows.map((row, i) => [
+    String(i + 1),
+    row.fullName,
+    maskNhi(row.nhi),           // masked only
+    row.machine.serial,
+    row.importErrors.join("; "),
+  ]);
+  const blob = buildCsvBlob(headers, data);
+  triggerDownload(blob, "import-error-report.csv");
+}
+
+// ─── UI components ────────────────────────────────────────────────────────────
 
 function SummaryCard({
   label,
@@ -31,9 +128,7 @@ function SummaryCard({
 
 function ValidTable({ rows }: { rows: ParsedPatient[] }) {
   if (rows.length === 0) {
-    return (
-      <p className="text-sm text-gray-500 py-8 text-center">No valid rows.</p>
-    );
+    return <p className="text-sm text-gray-500 py-8 text-center">No valid rows.</p>;
   }
   return (
     <div className="overflow-x-auto">
@@ -70,9 +165,7 @@ function ValidTable({ rows }: { rows: ParsedPatient[] }) {
 
 function InvalidTable({ rows }: { rows: ParsedPatient[] }) {
   if (rows.length === 0) {
-    return (
-      <p className="text-sm text-gray-500 py-8 text-center">No invalid rows.</p>
-    );
+    return <p className="text-sm text-gray-500 py-8 text-center">No invalid rows.</p>;
   }
   return (
     <div className="overflow-x-auto">
@@ -95,9 +188,7 @@ function InvalidTable({ rows }: { rows: ParsedPatient[] }) {
               <td className="px-4 py-3 font-medium text-gray-800 whitespace-nowrap">{row.fullName || "—"}</td>
               <td className="px-4 py-3 font-mono text-gray-700">{maskNhi(row.nhi)}</td>
               <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{row.dateOfBirth || "—"}</td>
-              <td className="px-4 py-3 text-red-700">
-                {row.importErrors.join(" · ")}
-              </td>
+              <td className="px-4 py-3 text-red-700">{row.importErrors.join(" · ")}</td>
             </tr>
           ))}
         </tbody>
@@ -106,11 +197,41 @@ function InvalidTable({ rows }: { rows: ParsedPatient[] }) {
   );
 }
 
+// ─── Download button ──────────────────────────────────────────────────────────
+
+function DownloadButton({
+  label,
+  onClick,
+  disabled,
+}: {
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="inline-flex items-center gap-2 border border-gray-300 text-gray-700 text-sm font-medium
+                 px-4 py-2 rounded-lg min-h-[36px] hover:border-[#0B5C6C] hover:text-[#0B5C6C]
+                 transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-white"
+    >
+      <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+      </svg>
+      {label}
+    </button>
+  );
+}
+
+// ─── Main page ────────────────────────────────────────────────────────────────
+
 export default function AdminImportPage() {
-  const [csvText,    setCsvText]    = useState("");
-  const [fileName,   setFileName]   = useState<string | null>(null);
-  const [result,     setResult]     = useState<PreviewResult | null>(null);
-  const [activeTab,  setActiveTab]  = useState<ActiveTab>("valid");
+  const [csvText,   setCsvText]   = useState("");
+  const [fileName,  setFileName]  = useState<string | null>(null);
+  const [result,    setResult]    = useState<PreviewResult | null>(null);
+  const [activeTab, setActiveTab] = useState<ActiveTab>("valid");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -151,7 +272,7 @@ export default function AdminImportPage() {
         <p className="text-base text-gray-600 mt-1">Preview CSV before committing — Midland Sleep</p>
       </div>
 
-      {/* Warning banner */}
+      {/* Warning banner — always visible */}
       <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
         <p className="text-sm text-amber-800 font-medium">
           Preview only — no data will be written to the system.
@@ -213,7 +334,7 @@ export default function AdminImportPage() {
           />
         </div>
 
-        {/* Action buttons */}
+        {/* Action buttons + template download */}
         <div className="flex items-center gap-3 flex-wrap">
           <button
             type="button"
@@ -233,6 +354,8 @@ export default function AdminImportPage() {
           >
             Clear
           </button>
+          <div className="h-6 w-px bg-gray-200 hidden sm:block" />
+          <DownloadButton label="Download blank template" onClick={downloadTemplate} />
         </div>
       </div>
 
@@ -255,6 +378,37 @@ export default function AdminImportPage() {
             />
           </div>
 
+          {/* CSV cleanup tools */}
+          <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-4">
+            <div>
+              <h2 className="text-base font-semibold text-gray-800">CSV cleanup tools</h2>
+              <p className="text-sm text-gray-500 mt-0.5">
+                Download processed files for review or re-import. NHI is masked in the error report.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <DownloadButton
+                label="Download blank template"
+                onClick={downloadTemplate}
+              />
+              <DownloadButton
+                label={`Download valid rows (${result.valid.length})`}
+                onClick={() => downloadValidRows(result.valid)}
+                disabled={result.valid.length === 0}
+              />
+              <DownloadButton
+                label={`Download invalid rows (${result.invalid.length})`}
+                onClick={() => downloadInvalidRows(result.invalid)}
+                disabled={result.invalid.length === 0}
+              />
+              <DownloadButton
+                label={`Download error report (${result.invalid.length})`}
+                onClick={() => downloadErrorReport(result.invalid)}
+                disabled={result.invalid.length === 0}
+              />
+            </div>
+          </div>
+
           {/* Tab bar + table */}
           <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
             <div className="border-b border-gray-200">
@@ -267,7 +421,7 @@ export default function AdminImportPage() {
                       key={tab}
                       type="button"
                       onClick={() => setActiveTab(tab)}
-                      className={`flex items-center gap-2 px-5 py-3.5 text-sm font-medium border-b-2 transition-colors capitalize ${
+                      className={`flex items-center gap-2 px-5 py-3.5 text-sm font-medium border-b-2 transition-colors ${
                         isActive
                           ? "border-[#0B5C6C] text-[#0B5C6C]"
                           : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
@@ -286,7 +440,6 @@ export default function AdminImportPage() {
                 })}
               </nav>
             </div>
-
             <div className="p-4">
               {activeTab === "valid"
                 ? <ValidTable rows={result.valid} />
