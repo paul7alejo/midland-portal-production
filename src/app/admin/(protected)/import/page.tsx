@@ -1,10 +1,14 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { previewImport } from "@/lib/csv-import/patient-import";
 import type { ParsedPatient } from "@/lib/csv-import/patient-import";
 
-type PreviewResult = ReturnType<typeof previewImport>;
+type PreviewResult = {
+  valid: ParsedPatient[];
+  invalid: ParsedPatient[];
+  totalRows: number;
+  errorSummary: string[];
+};
 type ActiveTab = "valid" | "invalid";
 
 // ─── Template headers ─────────────────────────────────────────────────────────
@@ -228,10 +232,12 @@ function DownloadButton({
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function AdminImportPage() {
-  const [csvText,   setCsvText]   = useState("");
-  const [fileName,  setFileName]  = useState<string | null>(null);
-  const [result,    setResult]    = useState<PreviewResult | null>(null);
-  const [activeTab, setActiveTab] = useState<ActiveTab>("valid");
+  const [csvText,      setCsvText]      = useState("");
+  const [fileName,     setFileName]     = useState<string | null>(null);
+  const [result,       setResult]       = useState<PreviewResult | null>(null);
+  const [activeTab,    setActiveTab]    = useState<ActiveTab>("valid");
+  const [isPreviewing, setIsPreviewing] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -246,11 +252,33 @@ export default function AdminImportPage() {
     reader.readAsText(file);
   }
 
-  function handlePreview() {
+  async function handlePreview() {
     if (!csvText.trim()) return;
-    const preview = previewImport(csvText);
-    setResult(preview);
-    setActiveTab("valid");
+    setIsPreviewing(true);
+    setPreviewError(null);
+    try {
+      const res = await fetch('/api/admin/import/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ csv: csvText }),
+      });
+      if (!res.ok) {
+        setPreviewError('Validation failed. Try again.');
+        return;
+      }
+      const data = await res.json();
+      setResult({
+        valid: data.valid,
+        invalid: data.invalid,
+        totalRows: data.totalRows,
+        errorSummary: data.errorSummary,
+      });
+      setActiveTab("valid");
+    } catch {
+      setPreviewError('Validation failed. Try again.');
+    } finally {
+      setIsPreviewing(false);
+    }
   }
 
   function handleClear() {
@@ -261,7 +289,7 @@ export default function AdminImportPage() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
-  const canPreview = csvText.trim().length > 0;
+  const canPreview = csvText.trim().length > 0 && !isPreviewing;
   const canClear   = csvText.length > 0 || result !== null;
 
   return (
@@ -278,6 +306,13 @@ export default function AdminImportPage() {
           Preview only — no data will be written to the system.
         </p>
       </div>
+
+      {/* Error banner */}
+      {previewError && (
+        <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+          <p className="text-sm text-red-700 font-medium">{previewError}</p>
+        </div>
+      )}
 
       {/* Input card */}
       <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-5">
@@ -343,7 +378,7 @@ export default function AdminImportPage() {
             className="bg-[#0B5C6C] text-white text-sm font-medium px-5 py-2.5 rounded-lg min-h-[40px]
                        hover:bg-[#0B5C6C]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Preview CSV
+            {isPreviewing ? 'Previewing…' : 'Preview CSV'}
           </button>
           <button
             type="button"
