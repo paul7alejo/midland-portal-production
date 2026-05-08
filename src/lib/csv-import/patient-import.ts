@@ -130,7 +130,7 @@ export function parsePatientCSV(csvText: string): ParsedPatient[] {
         size: row['mask_size'] ?? '',
       },
       importErrors: errors,
-      rowNumber: i + 2,
+      rowNumber: i + 1,
     });
   }
 
@@ -229,7 +229,7 @@ export function detectDuplicates(allRows: ParsedPatient[]): {
   const phoneMap  = new Map<string, number[]>()
 
   allRows.forEach((row, i) => {
-    const n = row.rowNumber ?? (i + 2)
+    const n = row.rowNumber ?? (i + 1)
     if (row.nhi)            nhiMap.set(row.nhi.toUpperCase(),               [...(nhiMap.get(row.nhi.toUpperCase())               ?? []), n])
     if (row.machine.serial) serialMap.set(row.machine.serial.trim(),        [...(serialMap.get(row.machine.serial.trim())        ?? []), n])
     if (row.email)          emailMap.set(row.email.toLowerCase().trim(),    [...(emailMap.get(row.email.toLowerCase().trim())    ?? []), n])
@@ -239,7 +239,7 @@ export function detectDuplicates(allRows: ParsedPatient[]): {
   const reviewRows: ReviewRow[] = []
 
   allRows.forEach((row, i) => {
-    const n = row.rowNumber ?? (i + 2)
+    const n = row.rowNumber ?? (i + 1)
     const maskedNhi = row.nhi ? row.nhi.slice(0, 3) + '****' : '—'
 
     if (row.nhi) {
