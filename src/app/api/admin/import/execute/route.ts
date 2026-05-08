@@ -1,9 +1,89 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminUser, isAuthorizedAdmin } from '@/lib/security';
-import { previewImport, detectDuplicates } from '@/lib/csv-import/patient-import';
+import {
+  previewImport,
+  detectDuplicates,
+  generateMSID,
+  type ParsedPatient,
+} from '@/lib/csv-import/patient-import';
 import { buildManifest, computePreflightState } from '@/lib/csv-import/import-preflight';
+import {
+  getDeviceBySerialNumber,
+  getPatientByMSID,
+  getPatientByNhiHash,
+  putImportedDevice,
+  putImportedMask,
+  putImportedPatient,
+  type DeviceRecord,
+  type MaskRecord,
+  type PatientRecord,
+} from '@/lib/aws/dynamodb';
+import { encryptNHI, hashNHIForSearch } from '@/lib/nhi';
+import { randomUUID } from 'crypto';
 
 type Readiness = 'ready' | 'review_required' | 'not_ready';
+
+const ORG_ID = 'midland-sleep';
+
+type CreatedImportRow = {
+  rowNumber: number;
+  name: string;
+  patientId: string;
+  portalId: string;
+  deviceId: string;
+  maskId?: string;
+  machineSerial: string;
+};
+
+type ReportedImportRow = {
+  rowNumber: number;
+  name: string;
+  machineSerial: string;
+  reason: string;
+};
+
+function getRowNumber(row: ParsedPatient): number {
+  return row.rowNumber ?? 0;
+}
+
+function getMachineName(row: ParsedPatient): string {
+  const name = `${row.machine.brand} ${row.machine.model}`.trim();
+  return name || row.machine.model || row.machine.brand || 'CPAP machine';
+}
+
+function getMaskName(row: ParsedPatient): string {
+  const name = `${row.mask.brand} ${row.mask.model}`.trim();
+  return name || row.mask.model || row.mask.brand || 'CPAP mask';
+}
+
+function hasMaskData(row: ParsedPatient): boolean {
+  return Boolean(row.mask.brand.trim() || row.mask.model.trim() || row.mask.size.trim());
+}
+
+function inferMaskType(row: ParsedPatient): MaskRecord['type'] {
+  const value = `${row.mask.model} ${row.mask.size}`.toLowerCase();
+  if (value.includes('pillow')) return 'nasal_pillows';
+  if (value.includes('full') || value.includes('face')) return 'full_face';
+  return 'nasal';
+}
+
+async function generateUniquePortalId(): Promise<string> {
+  for (let i = 0; i < 10; i++) {
+    const portalId = generateMSID();
+    const existing = await getPatientByMSID(portalId, ORG_ID);
+    if (!existing) return portalId;
+  }
+  throw new Error('Unable to allocate patient portal ID');
+}
+
+function toReportedRow(row: ParsedPatient, reason: string): ReportedImportRow {
+  return {
+    rowNumber: getRowNumber(row),
+    name: row.fullName,
+    machineSerial: row.machine.serial,
+    reason,
+  };
+}
 
 function getReadiness(params: {
   invalidCount: number;
@@ -70,7 +150,7 @@ export async function POST(request: NextRequest) {
   if (!csv.trim()) {
     return NextResponse.json({ error: 'No CSV data provided' }, { status: 400 });
   }
-  if (mode !== 'dry_run') {
+  if (mode !== 'dry_run' && mode !== 'execute') {
     return NextResponse.json({ error: 'Unsupported import mode' }, { status: 400 });
   }
 
@@ -99,9 +179,6 @@ export async function POST(request: NextRequest) {
       reviewRows,
     });
 
-    const wouldCreate = preflightState === 'passed' ? preview.valid.length : 0;
-    const wouldFail = preview.invalid.length;
-    const wouldSkip = preflightState === 'passed' ? 0 : reviewRows.length;
     const blockReasons = getBlockReasons({
       invalidCount: preview.invalid.length,
       dupNhiGroupCount,
@@ -109,27 +186,194 @@ export async function POST(request: NextRequest) {
       dupContactWarnCount,
     });
 
+    if (mode === 'dry_run') {
+      const wouldCreate = preflightState === 'passed' ? preview.valid.length : 0;
+      const wouldFail = preview.invalid.length;
+      const wouldSkip = preflightState === 'passed' ? 0 : reviewRows.length;
+
+      return NextResponse.json({
+        mode: 'dry_run',
+        importEnabled: false,
+        message: 'Dry run only. No patient records were created or updated.',
+        summary: {
+          totalRows: preview.totalRows,
+          validRows: preview.valid.length,
+          invalidRows: preview.invalid.length,
+          reviewRows: reviewRows.length,
+          duplicateNhiGroups: dupNhiGroupCount,
+          duplicateSerialGroups: dupSerialGroupCount,
+          contactWarnings: dupContactWarnCount,
+          readiness,
+          preflightState,
+          wouldCreate,
+          wouldSkip,
+          wouldFail,
+        },
+        blocked: preflightState === 'blocked',
+        blockReasons,
+        manifest,
+      });
+    }
+
+    if (preflightState !== 'passed') {
+      const failedRows = preview.invalid.map((row) =>
+        toReportedRow(row, row.importErrors.join('; ') || 'Invalid row'),
+      );
+      const skippedRows = manifest
+        .filter((row) => row.validationStatus === 'valid' && row.preflightStatus !== 'passed')
+        .map((row) => ({
+          rowNumber: row.rowNumber,
+          name: row.name,
+          machineSerial: row.machineSerial,
+          reason: row.issues || 'Preflight review required',
+        }));
+
+      return NextResponse.json(
+        {
+          mode: 'execute',
+          importBatchId: null,
+          message: 'Import preflight did not pass. No records were created.',
+          summary: {
+            totalRows: preview.totalRows,
+            validRows: preview.valid.length,
+            invalidRows: preview.invalid.length,
+            created: 0,
+            skipped: skippedRows.length,
+            failed: failedRows.length,
+            preflightState,
+          },
+          createdRows: [],
+          skippedRows,
+          failedRows,
+        },
+        { status: 400 },
+      );
+    }
+
+    const importBatchId = randomUUID();
+    const createdAt = new Date().toISOString();
+    const createdBy = user.email || user.username || user.sub;
+    const createdRows: CreatedImportRow[] = [];
+    const skippedRows: ReportedImportRow[] = [];
+    const failedRows: ReportedImportRow[] = [];
+
+    for (const row of preview.valid) {
+      try {
+        const normalizedNhi = row.nhi.toUpperCase();
+        const nhiHash = await hashNHIForSearch(normalizedNhi);
+        const existingPatient = await getPatientByNhiHash(nhiHash, ORG_ID);
+        if (existingPatient) {
+          skippedRows.push(toReportedRow(row, 'Patient with matching NHI already exists'));
+          continue;
+        }
+
+        const serialNumber = row.machine.serial.trim();
+        const existingDevice = await getDeviceBySerialNumber(serialNumber, ORG_ID);
+        if (existingDevice) {
+          skippedRows.push(toReportedRow(row, 'Device with matching serial number already exists'));
+          continue;
+        }
+
+        const patientId = randomUUID();
+        const deviceId = randomUUID();
+        const portalId = await generateUniquePortalId();
+        const rowNumber = getRowNumber(row);
+        const importMetadata = {
+          import_batch_id: importBatchId,
+          import_row_number: rowNumber,
+          import_source: 'admin_csv' as const,
+          import_status: 'imported' as const,
+          review_status: 'pending_review' as const,
+          created_at: createdAt,
+          created_by: createdBy,
+        };
+
+        const patientRecord: PatientRecord = {
+          pk: `USER#${patientId}`,
+          sk: 'PROFILE',
+          patient_id: patientId,
+          portal_id: portalId,
+          org_id: ORG_ID,
+          name: row.fullName,
+          email: row.email,
+          date_of_birth: row.dateOfBirth,
+          phone: row.phone,
+          address: row.address,
+          funded_by: row.machine.fundedBy,
+          nhi_encrypted: await encryptNHI(normalizedNhi),
+          nhi_hash: nhiHash,
+          ...importMetadata,
+        };
+        const deviceRecord: DeviceRecord = {
+          pk: `DEVICE#${deviceId}`,
+          sk: `PATIENT#${patientId}`,
+          org_id: ORG_ID,
+          device_id: deviceId,
+          patient_id: patientId,
+          name: getMachineName(row),
+          brand: row.machine.brand,
+          model: row.machine.model,
+          serial_number: serialNumber,
+          setup_date: row.machine.setupDate,
+          funded_by: row.machine.fundedBy,
+          ...importMetadata,
+        };
+
+        await putImportedPatient(patientRecord);
+        await putImportedDevice(deviceRecord);
+
+        const createdRow: CreatedImportRow = {
+          rowNumber,
+          name: row.fullName,
+          patientId,
+          portalId,
+          deviceId,
+          machineSerial: serialNumber,
+        };
+
+        if (hasMaskData(row)) {
+          const maskId = randomUUID();
+          const maskRecord: MaskRecord = {
+            pk: `MASK#${maskId}`,
+            sk: `PATIENT#${patientId}`,
+            org_id: ORG_ID,
+            mask_id: maskId,
+            patient_id: patientId,
+            name: getMaskName(row),
+            brand: row.mask.brand,
+            model: row.mask.model,
+            type: inferMaskType(row),
+            size: row.mask.size,
+            fitted_date: row.machine.setupDate,
+            ...importMetadata,
+          };
+
+          await putImportedMask(maskRecord);
+          createdRow.maskId = maskId;
+        }
+
+        createdRows.push(createdRow);
+      } catch {
+        failedRows.push(toReportedRow(row, 'Failed to import row'));
+      }
+    }
+
     return NextResponse.json({
-      mode: 'dry_run',
-      importEnabled: false,
-      message: 'Dry run only. No patient records were created or updated.',
+      mode: 'execute',
+      importBatchId,
+      message: `Import complete. Created ${createdRows.length} row${createdRows.length === 1 ? '' : 's'}.`,
       summary: {
         totalRows: preview.totalRows,
         validRows: preview.valid.length,
         invalidRows: preview.invalid.length,
-        reviewRows: reviewRows.length,
-        duplicateNhiGroups: dupNhiGroupCount,
-        duplicateSerialGroups: dupSerialGroupCount,
-        contactWarnings: dupContactWarnCount,
-        readiness,
+        created: createdRows.length,
+        skipped: skippedRows.length,
+        failed: failedRows.length,
         preflightState,
-        wouldCreate,
-        wouldSkip,
-        wouldFail,
       },
-      blocked: preflightState === 'blocked',
-      blockReasons,
-      manifest,
+      createdRows,
+      skippedRows,
+      failedRows,
     });
   } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

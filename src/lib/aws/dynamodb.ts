@@ -1,6 +1,7 @@
 import 'server-only'
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb'
 import { DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand, ScanCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb'
+import type { NativeAttributeValue } from '@aws-sdk/lib-dynamodb'
 import { randomUUID } from 'crypto'
 import type { OrderChannel, OrderLine } from '@/types'
 
@@ -36,8 +37,19 @@ export interface PatientRecord {
   org_id: string
   name: string
   email: string
+  date_of_birth?: string
+  phone?: string
+  address?: string
+  funded_by?: string
   nhi_encrypted?: string
   nhi_hash?: string
+  import_batch_id?: string
+  import_row_number?: number
+  import_source?: 'admin_csv'
+  import_status?: 'imported'
+  review_status?: 'pending_review'
+  created_at?: string
+  created_by?: string
 }
 
 export interface DeviceRecord {
@@ -52,6 +64,14 @@ export interface DeviceRecord {
   serial_number: string
   setup_date: string
   image_url?: string
+  funded_by?: string
+  import_batch_id?: string
+  import_row_number?: number
+  import_source?: 'admin_csv'
+  import_status?: 'imported'
+  review_status?: 'pending_review'
+  created_at?: string
+  created_by?: string
 }
 
 export interface MaskRecord {
@@ -62,10 +82,18 @@ export interface MaskRecord {
   patient_id: string
   name: string
   brand: string
+  model?: string
   type: 'full_face' | 'nasal' | 'nasal_pillows'
   size: string
   fitted_date: string
   image_url?: string
+  import_batch_id?: string
+  import_row_number?: number
+  import_source?: 'admin_csv'
+  import_status?: 'imported'
+  review_status?: 'pending_review'
+  created_at?: string
+  created_by?: string
 }
 
 export interface EntitlementRecord {
@@ -116,6 +144,54 @@ export async function getPatientByMSID(msid: string, orgId: string): Promise<Pat
     Limit: 1,
   }))
   return (res.Items?.[0] as PatientRecord) ?? null
+}
+
+export async function getPatientByNhiHash(
+  nhiHash: string,
+  orgId: string
+): Promise<Pick<PatientRecord, 'pk' | 'sk' | 'patient_id' | 'portal_id' | 'org_id'> | null> {
+  let ExclusiveStartKey: Record<string, NativeAttributeValue> | undefined
+
+  do {
+    const res = await docClient.send(new ScanCommand({
+      TableName: TABLES.PATIENTS,
+      FilterExpression: 'nhi_hash = :nhiHash AND org_id = :orgId',
+      ExpressionAttributeValues: { ':nhiHash': nhiHash, ':orgId': orgId },
+      ProjectionExpression: 'pk, sk, patient_id, portal_id, org_id',
+      ExclusiveStartKey,
+    }))
+    const item = res.Items?.[0] as
+      | Pick<PatientRecord, 'pk' | 'sk' | 'patient_id' | 'portal_id' | 'org_id'>
+      | undefined
+    if (item) return item
+    ExclusiveStartKey = res.LastEvaluatedKey
+  } while (ExclusiveStartKey)
+
+  return null
+}
+
+export async function getDeviceBySerialNumber(
+  serialNumber: string,
+  orgId: string
+): Promise<Pick<DeviceRecord, 'pk' | 'sk' | 'device_id' | 'patient_id' | 'org_id' | 'serial_number'> | null> {
+  let ExclusiveStartKey: Record<string, NativeAttributeValue> | undefined
+
+  do {
+    const res = await docClient.send(new ScanCommand({
+      TableName: TABLES.DEVICES,
+      FilterExpression: 'serial_number = :serialNumber AND org_id = :orgId',
+      ExpressionAttributeValues: { ':serialNumber': serialNumber, ':orgId': orgId },
+      ProjectionExpression: 'pk, sk, device_id, patient_id, org_id, serial_number',
+      ExclusiveStartKey,
+    }))
+    const item = res.Items?.[0] as
+      | Pick<DeviceRecord, 'pk' | 'sk' | 'device_id' | 'patient_id' | 'org_id' | 'serial_number'>
+      | undefined
+    if (item) return item
+    ExclusiveStartKey = res.LastEvaluatedKey
+  } while (ExclusiveStartKey)
+
+  return null
 }
 
 export async function getPatientDevices(patientId: string, orgId: string): Promise<DeviceRecord[]> {
@@ -173,6 +249,30 @@ export async function createOrder(order: NewOrder): Promise<string> {
     },
   }))
   return id
+}
+
+export async function putImportedPatient(record: PatientRecord): Promise<void> {
+  await docClient.send(new PutCommand({
+    TableName: TABLES.PATIENTS,
+    Item: record,
+    ConditionExpression: 'attribute_not_exists(pk)',
+  }))
+}
+
+export async function putImportedDevice(record: DeviceRecord): Promise<void> {
+  await docClient.send(new PutCommand({
+    TableName: TABLES.DEVICES,
+    Item: record,
+    ConditionExpression: 'attribute_not_exists(pk)',
+  }))
+}
+
+export async function putImportedMask(record: MaskRecord): Promise<void> {
+  await docClient.send(new PutCommand({
+    TableName: TABLES.MASKS,
+    Item: record,
+    ConditionExpression: 'attribute_not_exists(pk)',
+  }))
 }
 
 // PutItem only — UpdateItem and DeleteItem are intentionally not exposed for this table
