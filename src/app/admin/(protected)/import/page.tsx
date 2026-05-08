@@ -17,6 +17,16 @@ type PreviewResult = {
   dupContactWarnCount: number;
 };
 type ActiveTab = "valid" | "invalid";
+type ApprovalState = "approval_blocked" | "approval_review_required" | "approval_ready";
+type ApprovalChecklistStatus = "passed" | "needs_review" | "blocked" | "pending";
+
+type ApprovalChecklistRow = {
+  checkItem: string;
+  requiredBeforeImport: "Yes";
+  status: ApprovalChecklistStatus;
+  owner: string;
+  notes: string;
+};
 
 // ─── Template headers ─────────────────────────────────────────────────────────
 
@@ -165,6 +175,135 @@ function downloadSignOffChecklist(): void {
   triggerDownload(buildCsvBlob(headers, rows), "import-preflight-signoff.csv");
 }
 
+function getApprovalState(result: PreviewResult, preflightState: PreflightState): ApprovalState {
+  const hasHardBlockers =
+    preflightState === "blocked" ||
+    result.invalid.length > 0 ||
+    result.dupNhiGroupCount > 0 ||
+    result.dupSerialGroupCount > 0;
+  if (hasHardBlockers) return "approval_blocked";
+
+  const hasReviewItems =
+    preflightState === "review_required" ||
+    result.dupContactWarnCount > 0 ||
+    result.reviewRows.length > 0;
+  if (hasReviewItems) return "approval_review_required";
+
+  return "approval_ready";
+}
+
+function getApprovalRecommendation(approvalState: ApprovalState): string {
+  if (approvalState === "approval_blocked") {
+    return "Do not approve this batch. Resolve invalid rows and duplicate NHI or machine serial conflicts first.";
+  }
+  if (approvalState === "approval_review_required") {
+    return "Review shared contact details before approving this batch for future import execution.";
+  }
+  return "This batch is ready for Midland owner review. Import execution is still not enabled.";
+}
+
+function buildApprovalChecklist(result: PreviewResult): ApprovalChecklistRow[] {
+  return [
+    {
+      checkItem: "CSV structure reviewed",
+      requiredBeforeImport: "Yes",
+      status: "passed",
+      owner: "Import reviewer",
+      notes: "",
+    },
+    {
+      checkItem: "Invalid rows reviewed",
+      requiredBeforeImport: "Yes",
+      status: result.invalid.length > 0 ? "blocked" : "passed",
+      owner: "Import reviewer",
+      notes: result.invalid.length > 0 ? `${result.invalid.length} invalid row(s) must be resolved.` : "",
+    },
+    {
+      checkItem: "Duplicate NHI reviewed",
+      requiredBeforeImport: "Yes",
+      status: result.dupNhiGroupCount > 0 ? "blocked" : "passed",
+      owner: "Import reviewer",
+      notes: result.dupNhiGroupCount > 0 ? `${result.dupNhiGroupCount} duplicate NHI group(s) must be resolved.` : "",
+    },
+    {
+      checkItem: "Duplicate machine serial reviewed",
+      requiredBeforeImport: "Yes",
+      status: result.dupSerialGroupCount > 0 ? "blocked" : "passed",
+      owner: "Import reviewer",
+      notes: result.dupSerialGroupCount > 0 ? `${result.dupSerialGroupCount} duplicate serial group(s) must be resolved.` : "",
+    },
+    {
+      checkItem: "Shared contact details reviewed",
+      requiredBeforeImport: "Yes",
+      status: result.dupContactWarnCount > 0 ? "needs_review" : "passed",
+      owner: "Import reviewer",
+      notes: result.dupContactWarnCount > 0 ? `${result.dupContactWarnCount} contact warning(s) need review.` : "",
+    },
+    {
+      checkItem: "Funding values reviewed",
+      requiredBeforeImport: "Yes",
+      status: result.reviewRows.length > 0 ? "needs_review" : "passed",
+      owner: "Import reviewer",
+      notes: result.reviewRows.length > 0 ? "Review-row issues remain in this batch." : "",
+    },
+    {
+      checkItem: "Machine serials confirmed",
+      requiredBeforeImport: "Yes",
+      status: result.dupSerialGroupCount > 0 ? "blocked" : "passed",
+      owner: "Import reviewer",
+      notes: result.dupSerialGroupCount > 0 ? "Resolve duplicate machine serial groups before sign-off." : "",
+    },
+    {
+      checkItem: "NHI exposure minimized",
+      requiredBeforeImport: "Yes",
+      status: "passed",
+      owner: "Import reviewer",
+      notes: "Approval UI and downloads do not include raw NHI.",
+    },
+    {
+      checkItem: "Midland owner sign-off received",
+      requiredBeforeImport: "Yes",
+      status: "pending",
+      owner: "Midland owner",
+      notes: "",
+    },
+    {
+      checkItem: "Real import implementation approved separately",
+      requiredBeforeImport: "Yes",
+      status: "pending",
+      owner: "Midland owner",
+      notes: "",
+    },
+  ];
+}
+
+function downloadApprovalChecklist(rows: ApprovalChecklistRow[]): void {
+  const headers = ["check_item","required_before_import","status","owner","notes"];
+  const data = rows.map((row) => [
+    row.checkItem,
+    row.requiredBeforeImport,
+    row.status,
+    row.owner,
+    row.notes,
+  ]);
+  triggerDownload(buildCsvBlob(headers, data), "import-approval-checklist.csv");
+}
+
+function downloadApprovalSummary(result: PreviewResult, approvalState: ApprovalState, recommendation: string): void {
+  const rows: string[][] = [
+    ["approval_state", approvalState],
+    ["total_rows", String(result.totalRows)],
+    ["valid_rows", String(result.valid.length)],
+    ["invalid_rows", String(result.invalid.length)],
+    ["review_rows", String(result.reviewRows.length)],
+    ["duplicate_nhi_groups", String(result.dupNhiGroupCount)],
+    ["duplicate_serial_groups", String(result.dupSerialGroupCount)],
+    ["contact_warnings", String(result.dupContactWarnCount)],
+    ["recommendation", recommendation],
+  ];
+  triggerDownload(buildCsvBlob(["metric","value"], rows), "import-approval-summary.csv");
+}
+
 // ─── UI components ────────────────────────────────────────────────────────────
 
 const READINESS: Record<PreviewResult["readiness"], { label: string; leftBorder: string; badge: string; note: string | null }> = {
@@ -292,6 +431,133 @@ function PreflightPanel({
         <DownloadButton
           label="Download preflight sign-off checklist CSV"
           onClick={downloadSignOffChecklist}
+        />
+      </div>
+    </div>
+  );
+}
+
+const APPROVAL_CONFIG: Record<ApprovalState, { label: string; leftBorder: string; badge: string }> = {
+  approval_blocked: {
+    label: "Approval blocked",
+    leftBorder: "border-l-red-500",
+    badge: "bg-red-100 text-red-800",
+  },
+  approval_review_required: {
+    label: "Approval review required",
+    leftBorder: "border-l-amber-500",
+    badge: "bg-amber-100 text-amber-800",
+  },
+  approval_ready: {
+    label: "Approval ready",
+    leftBorder: "border-l-emerald-500",
+    badge: "bg-emerald-100 text-emerald-800",
+  },
+};
+
+const CHECK_STATUS_CONFIG: Record<ApprovalChecklistStatus, { label: string; className: string }> = {
+  passed: {
+    label: "Passed",
+    className: "bg-emerald-100 text-emerald-700",
+  },
+  needs_review: {
+    label: "Needs review",
+    className: "bg-amber-100 text-amber-700",
+  },
+  blocked: {
+    label: "Blocked",
+    className: "bg-red-100 text-red-700",
+  },
+  pending: {
+    label: "Pending",
+    className: "bg-gray-100 text-gray-700",
+  },
+};
+
+function ImportApprovalPanel({
+  result,
+  preflightState,
+}: {
+  result: PreviewResult;
+  preflightState: PreflightState;
+}) {
+  const approvalState = getApprovalState(result, preflightState);
+  const cfg = APPROVAL_CONFIG[approvalState];
+  const checklist = buildApprovalChecklist(result);
+  const recommendation = getApprovalRecommendation(approvalState);
+  const blockingIssues = result.invalid.length + result.dupNhiGroupCount + result.dupSerialGroupCount;
+  const stats: { label: string; value: number | string; color?: string }[] = [
+    { label: "Batch status", value: cfg.label, color: cfg.badge.includes("red") ? "text-red-600" : cfg.badge.includes("amber") ? "text-amber-600" : "text-emerald-700" },
+    { label: "Total rows", value: result.totalRows },
+    { label: "Valid rows", value: result.valid.length, color: result.valid.length > 0 ? "text-emerald-700" : undefined },
+    { label: "Invalid rows", value: result.invalid.length, color: result.invalid.length > 0 ? "text-red-600" : undefined },
+    { label: "Review items", value: result.reviewRows.length, color: result.reviewRows.length > 0 ? "text-amber-600" : undefined },
+    { label: "Blocking issues", value: blockingIssues, color: blockingIssues > 0 ? "text-red-600" : undefined },
+    { label: "Contact warnings", value: result.dupContactWarnCount, color: result.dupContactWarnCount > 0 ? "text-amber-600" : undefined },
+    { label: "Approval recommendation", value: recommendation, color: cfg.badge.includes("red") ? "text-red-600" : cfg.badge.includes("amber") ? "text-amber-600" : "text-emerald-700" },
+  ];
+
+  return (
+    <div className={`bg-white border border-gray-200 border-l-4 ${cfg.leftBorder} rounded-xl p-5 space-y-5`}>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <h2 className="text-base font-semibold text-gray-800">Import approval</h2>
+          <div className="space-y-0.5 mt-1">
+            <p className="text-xs text-gray-500">Approval records are for admin review only. No patient records are created or updated.</p>
+            <p className="text-xs text-gray-500">Production import execution requires a separately approved implementation step.</p>
+          </div>
+        </div>
+        <span className={`text-xs font-semibold px-3 py-1 rounded-full ${cfg.badge}`}>{cfg.label}</span>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {stats.map(({ label, value, color }) => (
+          <div key={label} className={label === "Approval recommendation" ? "flex flex-col sm:col-span-4" : "flex flex-col"}>
+            <span className={`${label === "Approval recommendation" ? "text-sm leading-6" : "text-2xl"} font-bold ${color ?? "text-gray-800"}`}>{value}</span>
+            <span className="text-xs text-gray-500 mt-0.5">{label}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="overflow-x-auto border border-gray-200 rounded-lg">
+        <table className="w-full min-w-[760px] border-collapse text-sm">
+          <thead>
+            <tr className="bg-gray-50 border-b border-gray-200">
+              {["Check item", "Required before import", "Status", "Owner"].map((col) => (
+                <th key={col} className="text-left px-4 py-3 font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap text-xs">
+                  {col}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {checklist.map((row) => {
+              const statusCfg = CHECK_STATUS_CONFIG[row.status];
+              return (
+                <tr key={row.checkItem} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-4 py-3 font-medium text-gray-800">{row.checkItem}</td>
+                  <td className="px-4 py-3 text-gray-700">{row.requiredBeforeImport}</td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full ${statusCfg.className}`}>
+                      {statusCfg.label}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{row.owner}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="flex flex-wrap gap-3">
+        <DownloadButton
+          label="Download approval checklist CSV"
+          onClick={() => downloadApprovalChecklist(checklist)}
+        />
+        <DownloadButton
+          label="Download approval summary CSV"
+          onClick={() => downloadApprovalSummary(result, approvalState, recommendation)}
         />
       </div>
     </div>
@@ -658,6 +924,9 @@ export default function AdminImportPage() {
 
           {/* Import preflight panel */}
           <PreflightPanel result={result} preflightState={preflightState} manifest={manifest} />
+
+          {/* Import approval panel */}
+          <ImportApprovalPanel result={result} preflightState={preflightState} />
 
           {/* Import manifest preview */}
           <ManifestPreview manifest={manifest} />
