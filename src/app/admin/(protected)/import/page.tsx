@@ -2,6 +2,8 @@
 
 import { useState, useRef } from "react";
 import type { ParsedPatient, ReviewRow } from "@/lib/csv-import/patient-import";
+import type { ImportManifestRow, PreflightState } from "@/lib/csv-import/import-preflight";
+import { computePreflightState, buildManifest } from "@/lib/csv-import/import-preflight";
 
 type PreviewResult = {
   valid: ParsedPatient[];
@@ -130,6 +132,39 @@ function downloadReviewReport(reviewRows: ReviewRow[]): void {
   triggerDownload(buildCsvBlob(headers, data), "import-review-report.csv");
 }
 
+function downloadImportManifest(manifest: ImportManifestRow[]): void {
+  const headers = ["row","name","masked_nhi","funded_by","machine_serial","validation_status","preflight_status","issues"];
+  const data = manifest.map((r) => [
+    String(r.rowNumber),
+    r.name,
+    r.maskedNhi,
+    r.fundedBy,
+    r.machineSerial,
+    r.validationStatus,
+    r.preflightStatus,
+    r.issues,
+  ]);
+  triggerDownload(buildCsvBlob(headers, data), "import-manifest.csv");
+}
+
+function downloadSignOffChecklist(): void {
+  const headers = ["check_item","status","owner","notes"];
+  const rows: string[][] = [
+    ["CSV structure validated",          "Pending", "Import reviewer", ""],
+    ["Invalid rows reviewed",            "Pending", "Import reviewer", ""],
+    ["Duplicate NHI reviewed",           "Pending", "Import reviewer", ""],
+    ["Duplicate machine serial reviewed","Pending", "Import reviewer", ""],
+    ["Shared contact details reviewed",  "Pending", "Import reviewer", ""],
+    ["Funding values reviewed",          "Pending", "Import reviewer", ""],
+    ["Machine serials confirmed",        "Pending", "Import reviewer", ""],
+    ["NHI exposure minimized",           "Pending", "Import reviewer", ""],
+    ["Real import scope approved",       "Pending", "Midland owner",   ""],
+    ["Rollback approach approved",       "Pending", "Midland owner",   ""],
+    ["Midland owner sign-off received",  "Pending", "Midland owner",   ""],
+  ];
+  triggerDownload(buildCsvBlob(headers, rows), "import-preflight-signoff.csv");
+}
+
 // ─── UI components ────────────────────────────────────────────────────────────
 
 const READINESS: Record<PreviewResult["readiness"], { label: string; leftBorder: string; badge: string; note: string | null }> = {
@@ -182,6 +217,135 @@ function ReadinessPanel({ result }: { result: PreviewResult }) {
       {cfg.note && (
         <p className="text-xs text-red-700 border-t border-gray-100 pt-3">{cfg.note}</p>
       )}
+    </div>
+  );
+}
+
+const PREFLIGHT_CONFIG: Record<PreflightState, { label: string; leftBorder: string; badge: string; note: string }> = {
+  passed: {
+    label: "Preflight passed",
+    leftBorder: "border-l-emerald-500",
+    badge: "bg-emerald-100 text-emerald-800",
+    note: "All rows passed validation and no duplicates were detected.",
+  },
+  review_required: {
+    label: "Preflight review required",
+    leftBorder: "border-l-amber-500",
+    badge: "bg-amber-100 text-amber-800",
+    note: "Contact warnings or review items exist. Resolve before proceeding.",
+  },
+  blocked: {
+    label: "Preflight blocked",
+    leftBorder: "border-l-red-500",
+    badge: "bg-red-100 text-red-800",
+    note: "Invalid rows or duplicate NHI/serial conflicts must be resolved before import.",
+  },
+};
+
+function PreflightPanel({
+  result,
+  preflightState,
+  manifest,
+}: {
+  result: PreviewResult;
+  preflightState: PreflightState;
+  manifest: ImportManifestRow[];
+}) {
+  const cfg = PREFLIGHT_CONFIG[preflightState];
+  const reviewCount = result.reviewRows.length;
+  const currentState = preflightState.replace(/_/g, " ");
+  const stats: { label: string; value: number | string; color?: string }[] = [
+    { label: "Total rows",        value: result.totalRows },
+    { label: "Valid rows",        value: result.valid.length,         color: result.valid.length         > 0 ? "text-emerald-700" : undefined },
+    { label: "Invalid rows",      value: result.invalid.length,       color: result.invalid.length       > 0 ? "text-red-600"     : undefined },
+    { label: "Needs review",      value: reviewCount,                  color: reviewCount                 > 0 ? "text-red-600"     : undefined },
+    { label: "Dup NHI groups",    value: result.dupNhiGroupCount,      color: result.dupNhiGroupCount     > 0 ? "text-red-600"     : undefined },
+    { label: "Dup serial groups", value: result.dupSerialGroupCount,   color: result.dupSerialGroupCount  > 0 ? "text-red-600"     : undefined },
+    { label: "Contact warnings",  value: result.dupContactWarnCount,   color: result.dupContactWarnCount  > 0 ? "text-amber-600"   : undefined },
+    { label: "Current preflight state", value: currentState, color: cfg.badge.includes("red") ? "text-red-600" : cfg.badge.includes("amber") ? "text-amber-600" : "text-emerald-700" },
+  ];
+  return (
+    <div className={`bg-white border border-gray-200 border-l-4 ${cfg.leftBorder} rounded-xl p-5 space-y-4`}>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Import preflight</p>
+        <span className={`text-xs font-semibold px-3 py-1 rounded-full ${cfg.badge}`}>{cfg.label}</span>
+      </div>
+      <div className="space-y-0.5">
+        <p className="text-xs text-gray-500">Preflight only — no patient records are created or updated.</p>
+        <p className="text-xs text-gray-500">Real import to DynamoDB must be approved and scoped separately.</p>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {stats.map(({ label, value, color }) => (
+          <div key={label} className="flex flex-col">
+            <span className={`text-2xl font-bold ${color ?? "text-gray-800"}`}>{value}</span>
+            <span className="text-xs text-gray-500 mt-0.5">{label}</span>
+          </div>
+        ))}
+      </div>
+      <p className="text-xs text-gray-600 border-t border-gray-100 pt-3">{cfg.note}</p>
+      <div className="flex flex-wrap gap-3">
+        <DownloadButton
+          label="Download import manifest CSV"
+          onClick={() => downloadImportManifest(manifest)}
+          disabled={manifest.length === 0}
+        />
+        <DownloadButton
+          label="Download preflight sign-off checklist CSV"
+          onClick={downloadSignOffChecklist}
+        />
+      </div>
+    </div>
+  );
+}
+
+function ManifestPreview({ manifest }: { manifest: ImportManifestRow[] }) {
+  if (manifest.length === 0) return null;
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+      <div className="px-5 py-4 border-b border-gray-200">
+        <h2 className="text-base font-semibold text-gray-800">Import manifest preview</h2>
+        <p className="text-sm text-gray-500 mt-0.5">All rows — NHI masked. Sorted by CSV line number.</p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[700px] border-collapse text-sm">
+          <thead>
+            <tr className="bg-gray-50 border-b border-gray-200">
+              {["Row", "Name", "NHI", "Funded by", "Serial", "Validation", "Preflight"].map((col) => (
+                <th key={col} className="text-left px-4 py-3 font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap text-xs">
+                  {col}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {manifest.map((row, i) => (
+              <tr key={i} className="hover:bg-gray-50 transition-colors">
+                <td className="px-4 py-3 text-gray-600 tabular-nums">{row.rowNumber}</td>
+                <td className="px-4 py-3 font-medium text-gray-800 whitespace-nowrap">{row.name || "—"}</td>
+                <td className="px-4 py-3 font-mono text-gray-700">{row.maskedNhi}</td>
+                <td className="px-4 py-3 text-gray-700">{row.fundedBy || "—"}</td>
+                <td className="px-4 py-3 font-mono text-gray-700">{row.machineSerial || "—"}</td>
+                <td className="px-4 py-3">
+                  {row.validationStatus === "valid" ? (
+                    <span className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Valid</span>
+                  ) : (
+                    <span className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700">Invalid</span>
+                  )}
+                </td>
+                <td className="px-4 py-3">
+                  {row.preflightStatus === "passed" ? (
+                    <span className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Passed</span>
+                  ) : row.preflightStatus === "review_required" ? (
+                    <span className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Review</span>
+                  ) : (
+                    <span className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700">Blocked</span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -370,6 +534,19 @@ export default function AdminImportPage() {
   const canPreview = csvText.trim().length > 0 && !isPreviewing;
   const canClear   = csvText.length > 0 || result !== null;
 
+  const manifest: ImportManifestRow[] = result
+    ? buildManifest({ valid: result.valid, invalid: result.invalid, reviewRows: result.reviewRows })
+    : [];
+  const preflightState: PreflightState = result
+    ? computePreflightState({
+        invalidCount:        result.invalid.length,
+        dupNhiGroupCount:    result.dupNhiGroupCount,
+        dupSerialGroupCount: result.dupSerialGroupCount,
+        dupContactWarnCount: result.dupContactWarnCount,
+        reviewRowCount:      result.reviewRows.length,
+      })
+    : 'passed';
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -478,6 +655,12 @@ export default function AdminImportPage() {
 
           {/* Import readiness panel */}
           <ReadinessPanel result={result} />
+
+          {/* Import preflight panel */}
+          <PreflightPanel result={result} preflightState={preflightState} manifest={manifest} />
+
+          {/* Import manifest preview */}
+          <ManifestPreview manifest={manifest} />
 
           {/* Summary cards */}
           <div className="grid grid-cols-3 gap-4">
