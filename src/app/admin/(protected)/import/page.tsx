@@ -19,6 +19,7 @@ type PreviewResult = {
 type ActiveTab = "valid" | "invalid";
 type ApprovalState = "approval_blocked" | "approval_review_required" | "approval_ready";
 type ApprovalChecklistStatus = "passed" | "needs_review" | "blocked" | "pending";
+type RiskLevel = "low" | "medium" | "blocked";
 
 type ApprovalChecklistRow = {
   checkItem: string;
@@ -304,6 +305,99 @@ function downloadApprovalSummary(result: PreviewResult, approvalState: ApprovalS
   triggerDownload(buildCsvBlob(["metric","value"], rows), "import-approval-summary.csv");
 }
 
+function getRiskLevel(result: PreviewResult, preflightState: PreflightState): RiskLevel {
+  const hasHardBlockers =
+    result.invalid.length > 0 ||
+    result.dupNhiGroupCount > 0 ||
+    result.dupSerialGroupCount > 0;
+  if (hasHardBlockers) return "blocked";
+
+  const hasReviewItems = result.dupContactWarnCount > 0 || result.reviewRows.length > 0;
+  if (hasReviewItems) return "medium";
+
+  if (preflightState === "passed") return "low";
+  return "medium";
+}
+
+function getRiskReasons(result: PreviewResult, riskLevel: RiskLevel): string[] {
+  const reasons: string[] = [];
+  if (result.invalid.length > 0) reasons.push("Invalid rows must be corrected before import.");
+  if (result.dupNhiGroupCount > 0) reasons.push("Duplicate NHI conflicts must be resolved before import.");
+  if (result.dupSerialGroupCount > 0) reasons.push("Duplicate machine serial conflicts must be resolved before import.");
+  if (result.dupContactWarnCount > 0) reasons.push("Shared contact details require admin review.");
+  if (result.reviewRows.length > 0) reasons.push("Review rows require admin review.");
+  if (riskLevel === "low") reasons.push("No blocking issues detected.");
+  return reasons;
+}
+
+function getResolutionItems(result: PreviewResult, riskLevel: RiskLevel): string[] {
+  if (riskLevel === "blocked") {
+    const items: string[] = [];
+    if (result.invalid.length > 0) items.push("Invalid rows");
+    if (result.dupNhiGroupCount > 0) items.push("Duplicate NHI conflicts");
+    if (result.dupSerialGroupCount > 0) items.push("Duplicate machine serial conflicts");
+    return items;
+  }
+
+  if (riskLevel === "medium") {
+    const items: string[] = [];
+    if (result.dupContactWarnCount > 0) items.push("Shared contact details");
+    if (result.reviewRows.length > 0) {
+      items.push("Review rows");
+      items.push("Funding values");
+    }
+    return items;
+  }
+
+  return ["No required corrections detected before Midland owner review."];
+}
+
+function downloadRiskReport(
+  result: PreviewResult,
+  preflightState: PreflightState,
+  approvalState: ApprovalState,
+  riskLevel: RiskLevel,
+  riskReasons: string[],
+  resolutionItems: string[]
+): void {
+  const rows: string[][] = [
+    ["batch_summary", "total_rows", String(result.totalRows), "reviewed", ""],
+    ["batch_summary", "valid_rows", String(result.valid.length), "reviewed", ""],
+    ["validation", "invalid_rows", String(result.invalid.length), result.invalid.length > 0 ? "blocked" : "passed", "Invalid rows must be corrected before import."],
+    ["duplicate_checks", "duplicate_nhi_groups", String(result.dupNhiGroupCount), result.dupNhiGroupCount > 0 ? "blocked" : "passed", "Duplicate NHI conflicts must be resolved before import."],
+    ["duplicate_checks", "duplicate_machine_serial_groups", String(result.dupSerialGroupCount), result.dupSerialGroupCount > 0 ? "blocked" : "passed", "Duplicate machine serial conflicts must be resolved before import."],
+    ["contact_warnings", "contact_warnings", String(result.dupContactWarnCount), result.dupContactWarnCount > 0 ? "needs_review" : "passed", "Shared contact details require admin review."],
+    ["preflight", "preflight_state", preflightState, preflightState === "blocked" ? "blocked" : preflightState === "review_required" ? "needs_review" : "passed", ""],
+    ["approval", "approval_state", approvalState, approvalState === "approval_blocked" ? "blocked" : approvalState === "approval_review_required" ? "needs_review" : "ready", ""],
+    ["recommendation", "risk_level", riskLevel, riskLevel, riskReasons.join(" ")],
+    ["recommendation", "what_needs_resolving", resolutionItems.join("; "), riskLevel, ""],
+  ];
+  triggerDownload(buildCsvBlob(["section","item","value","status","notes"], rows), "import-risk-report.csv");
+}
+
+function downloadAdminEvidencePack(
+  result: PreviewResult,
+  manifest: ImportManifestRow[],
+  preflightState: PreflightState,
+  approvalState: ApprovalState
+): void {
+  const rows: string[][] = [
+    ["CSV parsed successfully", "passed", "preview result", `${result.totalRows} total row(s) parsed.`],
+    ["Required fields checked", result.invalid.length > 0 ? "blocked" : "passed", "validation summary", `${result.invalid.length} invalid row(s) found.`],
+    ["Invalid rows separated", "passed", "validation summary", `${result.invalid.length} invalid row(s) separated from valid rows.`],
+    ["Duplicate NHI checked", result.dupNhiGroupCount > 0 ? "blocked" : "passed", "duplicate summary", `${result.dupNhiGroupCount} duplicate NHI group(s) found.`],
+    ["Duplicate machine serial checked", result.dupSerialGroupCount > 0 ? "blocked" : "passed", "duplicate summary", `${result.dupSerialGroupCount} duplicate serial group(s) found.`],
+    ["Shared contact details checked", result.dupContactWarnCount > 0 ? "needs_review" : "passed", "contact warning summary", `${result.dupContactWarnCount} contact warning(s) found.`],
+    ["NHI masking confirmed", "passed", "risk and evidence exports", "Risk and evidence downloads contain aggregate data only."],
+    ["Manifest generated", manifest.length > 0 ? "passed" : "pending", "import manifest", `${manifest.length} manifest row(s) generated.`],
+    ["Preflight state generated", preflightState, "preflight panel", preflightState],
+    ["Approval checklist generated", approvalState, "approval panel", approvalState],
+    ["Real import not executed", "not_executed", "admin import page", "This page does not execute production imports."],
+    ["Production writes not performed", "not_performed", "admin import page", "No production data write is performed by this workflow."],
+  ];
+  triggerDownload(buildCsvBlob(["evidence_item","status","source","notes"], rows), "import-admin-evidence-pack.csv");
+}
+
 // ─── UI components ────────────────────────────────────────────────────────────
 
 const READINESS: Record<PreviewResult["readiness"], { label: string; leftBorder: string; badge: string; note: string | null }> = {
@@ -558,6 +652,113 @@ function ImportApprovalPanel({
         <DownloadButton
           label="Download approval summary CSV"
           onClick={() => downloadApprovalSummary(result, approvalState, recommendation)}
+        />
+      </div>
+    </div>
+  );
+}
+
+const RISK_CONFIG: Record<RiskLevel, { label: string; leftBorder: string; badge: string }> = {
+  low: {
+    label: "Low risk",
+    leftBorder: "border-l-emerald-500",
+    badge: "bg-emerald-100 text-emerald-800",
+  },
+  medium: {
+    label: "Medium risk",
+    leftBorder: "border-l-amber-500",
+    badge: "bg-amber-100 text-amber-800",
+  },
+  blocked: {
+    label: "Blocked risk",
+    leftBorder: "border-l-red-500",
+    badge: "bg-red-100 text-red-800",
+  },
+};
+
+function ImportRiskReportPanel({
+  result,
+  preflightState,
+  manifest,
+}: {
+  result: PreviewResult;
+  preflightState: PreflightState;
+  manifest: ImportManifestRow[];
+}) {
+  const approvalState = getApprovalState(result, preflightState);
+  const riskLevel = getRiskLevel(result, preflightState);
+  const cfg = RISK_CONFIG[riskLevel];
+  const riskReasons = getRiskReasons(result, riskLevel);
+  const resolutionItems = getResolutionItems(result, riskLevel);
+  const stats: { label: string; value: number | string; color?: string }[] = [
+    { label: "Total rows", value: result.totalRows },
+    { label: "Valid rows", value: result.valid.length, color: result.valid.length > 0 ? "text-emerald-700" : undefined },
+    { label: "Invalid rows", value: result.invalid.length, color: result.invalid.length > 0 ? "text-red-600" : undefined },
+    { label: "Review rows", value: result.reviewRows.length, color: result.reviewRows.length > 0 ? "text-amber-600" : undefined },
+    { label: "Duplicate NHI groups", value: result.dupNhiGroupCount, color: result.dupNhiGroupCount > 0 ? "text-red-600" : undefined },
+    { label: "Duplicate machine serial groups", value: result.dupSerialGroupCount, color: result.dupSerialGroupCount > 0 ? "text-red-600" : undefined },
+    { label: "Contact warnings", value: result.dupContactWarnCount, color: result.dupContactWarnCount > 0 ? "text-amber-600" : undefined },
+    { label: "Risk level", value: cfg.label, color: cfg.badge.includes("red") ? "text-red-600" : cfg.badge.includes("amber") ? "text-amber-600" : "text-emerald-700" },
+    { label: "Approval state", value: approvalState.replace(/_/g, " ") },
+    { label: "Preflight state", value: preflightState.replace(/_/g, " ") },
+  ];
+
+  return (
+    <div className={`bg-white border border-gray-200 border-l-4 ${cfg.leftBorder} rounded-xl p-5 space-y-5`}>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <h2 className="text-base font-semibold text-gray-800">Import risk report</h2>
+          <div className="space-y-0.5 mt-1">
+            <p className="text-xs text-gray-500">This report summarises CSV import risk before any production data write is approved.</p>
+            <p className="text-xs text-gray-500">It is an admin evidence pack only. It does not execute an import.</p>
+          </div>
+        </div>
+        <span className={`text-xs font-semibold px-3 py-1 rounded-full ${cfg.badge}`}>{cfg.label}</span>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        {stats.map(({ label, value, color }) => (
+          <div key={label} className="flex flex-col">
+            <span className={`text-xl font-bold ${color ?? "text-gray-800"}`}>{value}</span>
+            <span className="text-xs text-gray-500 mt-0.5">{label}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-4">
+        <div className="border border-gray-200 rounded-lg p-4">
+          <h3 className="text-sm font-semibold text-gray-800">Risk reasons</h3>
+          <ul className="mt-2 space-y-1.5">
+            {riskReasons.map((reason) => (
+              <li key={reason} className="flex items-start gap-2 text-sm text-gray-700">
+                <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-gray-400 shrink-0" />
+                <span>{reason}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="border border-gray-200 rounded-lg p-4">
+          <h3 className="text-sm font-semibold text-gray-800">What needs resolving</h3>
+          <ul className="mt-2 space-y-1.5">
+            {resolutionItems.map((item) => (
+              <li key={item} className="flex items-start gap-2 text-sm text-gray-700">
+                <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-gray-400 shrink-0" />
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-3">
+        <DownloadButton
+          label="Download risk report CSV"
+          onClick={() => downloadRiskReport(result, preflightState, approvalState, riskLevel, riskReasons, resolutionItems)}
+        />
+        <DownloadButton
+          label="Download admin evidence pack CSV"
+          onClick={() => downloadAdminEvidencePack(result, manifest, preflightState, approvalState)}
         />
       </div>
     </div>
@@ -927,6 +1128,9 @@ export default function AdminImportPage() {
 
           {/* Import approval panel */}
           <ImportApprovalPanel result={result} preflightState={preflightState} />
+
+          {/* Import risk report panel */}
+          <ImportRiskReportPanel result={result} preflightState={preflightState} manifest={manifest} />
 
           {/* Import manifest preview */}
           <ManifestPreview manifest={manifest} />
