@@ -398,6 +398,22 @@ function downloadAdminEvidencePack(
   triggerDownload(buildCsvBlob(["evidence_item","status","source","notes"], rows), "import-admin-evidence-pack.csv");
 }
 
+function downloadDemoChecklist(): void {
+  const headers = ["demo_step","what_to_show","expected_result"];
+  const rows: string[][] = [
+    ["Clean CSV", "Run a complete CSV with no duplicate or validation issues.", "Low risk with passed preflight and approval-ready state."],
+    ["Duplicate NHI CSV", "Run a CSV with duplicate NHI groups.", "Blocked risk with duplicate NHI review required."],
+    ["Duplicate serial CSV", "Run a CSV with duplicate machine serial groups.", "Blocked risk with duplicate serial review required."],
+    ["Shared contact CSV", "Run a CSV with shared contact details only.", "Medium risk with contact review required."],
+    ["Invalid rows CSV", "Run a CSV with missing or invalid required fields.", "Invalid rows are separated and the batch is blocked."],
+    ["Manifest download", "Download the masked-NHI import manifest.", "Admin receives a preflight manifest for review."],
+    ["Approval checklist download", "Download the approval checklist.", "Admin receives a sign-off checklist for separate real import scope."],
+    ["Evidence pack download", "Download the admin evidence pack.", "Admin receives aggregate review evidence with no raw NHI."],
+    ["API unauthorized check", "Access preview API without an admin session.", "Request is rejected by existing admin protections."],
+  ];
+  triggerDownload(buildCsvBlob(headers, rows), "import-demo-checklist.csv");
+}
+
 // ─── UI components ────────────────────────────────────────────────────────────
 
 const READINESS: Record<PreviewResult["readiness"], { label: string; leftBorder: string; badge: string; note: string | null }> = {
@@ -420,6 +436,127 @@ const READINESS: Record<PreviewResult["readiness"], { label: string; leftBorder:
     note: "Resolve duplicate NHI or serial conflicts and fix all invalid rows before import.",
   },
 };
+
+const WORKFLOW_STEPS = [
+  "CSV preview",
+  "Data validation",
+  "Duplicate review",
+  "Preflight manifest",
+  "Approval checklist",
+  "Evidence pack",
+  "Real import — separate scope",
+];
+
+const STAGE_CARDS = [
+  {
+    title: "CSV preview",
+    text: "Parses uploaded CSV data without writing to the system.",
+  },
+  {
+    title: "Data validation",
+    text: "Checks required fields and separates valid and invalid rows.",
+  },
+  {
+    title: "Duplicate review",
+    text: "Flags duplicate NHI, machine serial, and shared contact details.",
+  },
+  {
+    title: "Preflight manifest",
+    text: "Creates a masked-NHI manifest for admin review.",
+  },
+  {
+    title: "Approval checklist",
+    text: "Creates a sign-off checklist before any production import is considered.",
+  },
+  {
+    title: "Evidence pack",
+    text: "Creates downloadable review evidence for internal admin records.",
+  },
+  {
+    title: "Real import",
+    text: "Production import execution is not enabled in this workflow and must be scoped separately.",
+  },
+];
+
+function DemoSummaryPanel() {
+  return (
+    <div className="bg-white border border-gray-200 border-l-4 border-l-[#0B5C6C] rounded-xl p-4 flex items-start justify-between gap-4 flex-wrap">
+      <div className="space-y-1 max-w-4xl">
+        <p className="text-sm font-medium text-gray-800">
+          This workflow is preview-only. It helps Midland review CSV quality, duplicate risks, preflight status, approval readiness, and admin evidence before any patient records are changed.
+        </p>
+        <p className="text-sm text-gray-600">Real production import remains a separately approved implementation step.</p>
+      </div>
+      <DownloadButton label="Download demo checklist CSV" onClick={downloadDemoChecklist} />
+    </div>
+  );
+}
+
+function WorkflowStepper() {
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        {WORKFLOW_STEPS.map((step, i) => {
+          const isSeparateScope = i === WORKFLOW_STEPS.length - 1;
+          return (
+            <div key={step} className="flex items-center gap-2">
+              {isSeparateScope && <div className="hidden sm:block h-6 w-px bg-gray-200 mx-1" />}
+              <div
+                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${
+                  isSeparateScope
+                    ? "border-gray-200 bg-gray-50 text-gray-500"
+                    : "border-[#0B5C6C]/20 bg-[#0B5C6C]/5 text-[#0B5C6C]"
+                }`}
+              >
+                <span
+                  className={`inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px] ${
+                    isSeparateScope ? "bg-gray-200 text-gray-600" : "bg-[#0B5C6C] text-white"
+                  }`}
+                >
+                  {i + 1}
+                </span>
+                {step}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function StageExplanationCards() {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {STAGE_CARDS.map((stage) => {
+        const isSeparateScope = stage.title === "Real import";
+        return (
+          <div key={stage.title} className={`border rounded-lg p-4 bg-white ${isSeparateScope ? "border-gray-200 text-gray-500" : "border-gray-200"}`}>
+            <h2 className={`text-sm font-semibold ${isSeparateScope ? "text-gray-600" : "text-gray-800"}`}>{stage.title}</h2>
+            <p className="text-xs text-gray-500 mt-1 leading-5">{stage.text}</p>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function CsvPreparationEmptyState() {
+  return (
+    <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+      <p className="text-sm text-gray-700">
+        Before uploading, prepare a CSV with patient name, NHI, date of birth, contact details, machine details, mask details, and funding source.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {TEMPLATE_HEADERS_ARRAY.map((header) => (
+          <span key={header} className="inline-flex rounded-md bg-white border border-gray-200 px-2.5 py-1 text-xs font-mono text-gray-700">
+            {header}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function ReadinessPanel({ result }: { result: PreviewResult }) {
   const cfg = READINESS[result.readiness];
@@ -1029,12 +1166,20 @@ export default function AdminImportPage() {
         </p>
       </div>
 
+      <DemoSummaryPanel />
+
+      <WorkflowStepper />
+
+      <StageExplanationCards />
+
       {/* Error banner */}
       {previewError && (
         <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3">
           <p className="text-sm text-red-700 font-medium">{previewError}</p>
         </div>
       )}
+
+      {result === null && <CsvPreparationEmptyState />}
 
       {/* Input card */}
       <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-5">
