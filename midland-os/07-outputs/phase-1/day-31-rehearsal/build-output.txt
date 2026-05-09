@@ -1,0 +1,56 @@
+
+> midland-portal-production@0.1.0 build
+> next build
+
+▲ Next.js 16.2.4 (Turbopack)
+- Environments: .env.local
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 3.0s
+  Running TypeScript ...
+  Finished TypeScript in 2.6s ...
+  Collecting page data using 9 workers ...
+  Generating static pages using 9 workers (0/31) ...
+  Generating static pages using 9 workers (7/31) 
+  Generating static pages using 9 workers (15/31) 
+  Generating static pages using 9 workers (23/31) 
+✓ Generating static pages using 9 workers (31/31) in 207ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ƒ /admin
+├ ƒ /admin/audit
+├ ƒ /admin/config
+├ ƒ /admin/entitlement
+├ ƒ /admin/import
+├ ƒ /admin/inventory
+├ ○ /admin/login
+├ ƒ /admin/orders
+├ ƒ /admin/outreach
+├ ƒ /admin/patients
+├ ƒ /admin/reports
+├ ƒ /admin/segments
+├ ƒ /api/admin/import/execute
+├ ƒ /api/admin/import/preview
+├ ƒ /api/admin/patients
+├ ƒ /api/auth/session
+├ ƒ /api/patient/data
+├ ƒ /api/patient/nhi-reveal
+├ ƒ /api/patient/profile
+├ ○ /login
+├ ○ /portal/contact
+├ ○ /portal/dashboard
+├ ○ /portal/equipment
+├ ○ /portal/maintenance
+├ ○ /portal/profile
+├ ○ /portal/reorder
+└ ○ /register
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

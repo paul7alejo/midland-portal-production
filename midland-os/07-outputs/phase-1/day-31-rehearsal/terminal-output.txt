@@ -1,0 +1,19 @@
+=== DATE ===
+Sat May  9 16:56:22 NZST 2026
+
+=== GIT STATUS ===
+On branch main
+Your branch is up to date with 'origin/main'.
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	midland-os/07-outputs/
+
+nothing added to commit but untracked files present (use "git add" to track)
+
+=== RECENT COMMITS ===
+3bd841e docs: add Midland OS production rehearsal pack
+92e1f17 add admin visibility for imported patients
+7099334 add controlled real import execution
+07b942a feat: add dry-run import execution API
+fb2579d feat: polish import readiness demo workflow

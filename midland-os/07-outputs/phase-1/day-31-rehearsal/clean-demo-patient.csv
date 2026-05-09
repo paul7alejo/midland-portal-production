@@ -1,0 +1,2 @@
+full_name,nhi,date_of_birth,email,phone,address,machine_brand,machine_model,machine_serial,machine_setup_date,mask_brand,mask_model,mask_size,funded_by
+Demo Patient One,ABC1234,1965-04-12,demo.patient.one@example.com,021111111,"1 Demo Street, Hamilton",ResMed,AirSense 10,DEMO-SERIAL-3101,2025-05-01,ResMed,AirFit F20,Medium,ACC
