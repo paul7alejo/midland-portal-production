@@ -29,13 +29,48 @@ interface DrawerPatient {
     model: string;
     size: string;
     lastIssued: string;
-  };
+  } | null;
   entitlement: EntitlementItem[];
   funding: DrawerFunding;
   orders: DrawerOrder[];
   nhiMasked: string;
   // nhiActual is never logged — only displayed after explicit reveal with audit trail
   nhiActual: string;
+  imported?: boolean;
+  importBatchId?: string;
+  reviewStatus?: string;
+  fundedBy?: string;
+}
+
+interface ImportedPatientDetail {
+  patient: {
+    patient_id: string;
+    portal_id: string;
+    name: string;
+    email?: string;
+    phone?: string;
+    address?: string;
+    date_of_birth?: string;
+    funded_by?: string;
+    import_batch_id?: string;
+    review_status?: string;
+    created_at?: string;
+  };
+  devices: Array<{
+    device_id: string;
+    brand?: string;
+    model?: string;
+    serial_number?: string;
+    setup_date?: string;
+    funded_by?: string;
+  }>;
+  mask: {
+    mask_id: string;
+    brand?: string;
+    model?: string;
+    size?: string;
+    fitted_date?: string;
+  } | null;
 }
 
 interface EntitlementItem {
@@ -126,48 +161,56 @@ const DEMO_DATA: Record<string, DrawerPatient> = {
   },
 };
 
-function makeFallbackPatient(msid: string, name: string): DrawerPatient {
+function safeValue(value?: string): string {
+  return value?.trim() || "—";
+}
+
+function makeImportedPatient(detail: ImportedPatientDetail): DrawerPatient {
+  const imported = detail.patient;
+  const device = detail.devices[0];
   return {
-    msid,
-    name,
-    dob: "—",
-    phone: "—",
-    email: "—",
-    address: "—",
-    segment: "Active",
-    registrationDate: "—",
+    msid: imported.portal_id,
+    name: imported.name,
+    dob: safeValue(imported.date_of_birth),
+    phone: safeValue(imported.phone),
+    email: safeValue(imported.email),
+    address: safeValue(imported.address),
+    segment: "Imported",
+    registrationDate: safeValue(imported.created_at),
     machine: {
-      brand: "ResMed",
-      model: "AirSense 10 AutoSet",
-      serial: "—",
-      deviceId: "—",
-      setupDate: "—",
-      fundedBy: "ACC",
+      brand: safeValue(device?.brand),
+      model: safeValue(device?.model),
+      serial: safeValue(device?.serial_number),
+      deviceId: safeValue(device?.device_id),
+      setupDate: safeValue(device?.setup_date),
+      fundedBy: safeValue(device?.funded_by ?? imported.funded_by),
       safetyCheckOverdue: false,
     },
-    mask: {
-      brand: "ResMed",
-      model: "AirFit N20",
-      size: "Medium",
-      lastIssued: "—",
-    },
-    entitlement: [
-      { item: "Mask cushion", lastReorder: "—", nextEligible: "—", usageVsCap: "—" },
-      { item: "Headgear",     lastReorder: "—", nextEligible: "—", usageVsCap: "—" },
-      { item: "Filters",      lastReorder: "—", nextEligible: "—", usageVsCap: "—" },
-    ],
+    mask: detail.mask
+      ? {
+          brand: safeValue(detail.mask.brand),
+          model: safeValue(detail.mask.model),
+          size: safeValue(detail.mask.size),
+          lastIssued: safeValue(detail.mask.fitted_date),
+        }
+      : null,
+    entitlement: [],
     funding: {
-      annualAllowance: 150,
+      annualAllowance: 0,
       usedAmount: 0,
-      remainingAmount: 150,
+      remainingAmount: 0,
       fundingPeriodStart: "—",
       fundingPeriodEnd: "—",
       suggestedItemsRemaining: [],
-      fundingNote: undefined,
+      fundingNote: "Imported record requires admin review before entitlement data is available.",
     },
     orders: [],
-    nhiMasked: "ZZZ****",
-    nhiActual: "ZZZ0000",
+    nhiMasked: "Stored securely",
+    nhiActual: "",
+    imported: true,
+    importBatchId: imported.import_batch_id,
+    reviewStatus: imported.review_status,
+    fundedBy: imported.funded_by,
   };
 }
 
@@ -224,8 +267,19 @@ function OverviewTab({ patient }: { patient: DrawerPatient }) {
       />
       <FieldRow
         label="Mask"
-        value={`${patient.mask.brand} ${patient.mask.model} (${patient.mask.size})`}
+        value={
+          patient.mask
+            ? `${patient.mask.brand} ${patient.mask.model} (${patient.mask.size})`
+            : "No mask record imported"
+        }
       />
+      {patient.imported && (
+        <>
+          <FieldRow label="Funded by" value={safeValue(patient.fundedBy)} />
+          <FieldRow label="Import batch ID" value={safeValue(patient.importBatchId)} />
+          <FieldRow label="Review status" value={safeValue(patient.reviewStatus)} />
+        </>
+      )}
     </dl>
   );
 }
@@ -255,12 +309,18 @@ function EquipmentTab({ patient }: { patient: DrawerPatient }) {
 
       <div>
         <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3">Mask</h3>
-        <dl className="grid gap-4 sm:grid-cols-2 bg-gray-50 rounded-xl p-4">
-          <FieldRow label="Brand"       value={mask.brand} />
-          <FieldRow label="Model"       value={mask.model} />
-          <FieldRow label="Size"        value={mask.size} />
-          <FieldRow label="Last issued" value={mask.lastIssued} />
-        </dl>
+        {mask ? (
+          <dl className="grid gap-4 sm:grid-cols-2 bg-gray-50 rounded-xl p-4">
+            <FieldRow label="Brand"       value={mask.brand} />
+            <FieldRow label="Model"       value={mask.model} />
+            <FieldRow label="Size"        value={mask.size} />
+            <FieldRow label="Last issued" value={mask.lastIssued} />
+          </dl>
+        ) : (
+          <div className="bg-gray-50 rounded-xl p-4">
+            <p className="text-base text-gray-600">No mask record imported</p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -527,6 +587,19 @@ function NhiTab({
   setNhiReason: (v: string) => void;
   onReveal: () => void;
 }) {
+  if (patient.imported) {
+    return (
+      <div className="space-y-5">
+        <div className="bg-gray-50 rounded-xl p-5">
+          <p className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-1">NHI</p>
+          <p className="text-base text-gray-700">
+            NHI is stored securely. Admin reveal is not enabled in this MVP.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
       <div className="bg-gray-50 rounded-xl p-5">
@@ -580,13 +653,16 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName }: PatientDra
   const [notesByMsid, setNotesByMsid]     = useState<Record<string, Note[]>>({});
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editText, setEditText]           = useState("");
+  const [importedPatient, setImportedPatient] = useState<DrawerPatient | null>(null);
+  const [importedLoading, setImportedLoading] = useState(false);
+  const [importedError, setImportedError] = useState<string | null>(null);
   const nhiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const demoData = msid ? (DEMO_DATA[msid] ?? null) : null;
   const patient: DrawerPatient | null = msid
     ? demoData
       ? { ...demoData, name: patientName ?? demoData.name }
-      : makeFallbackPatient(msid, patientName ?? msid)
+      : importedPatient
     : null;
 
   useEffect(() => {
@@ -610,14 +686,45 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName }: PatientDra
     setNoteText("");
     setEditingNoteId(null);
     setEditText("");
+    setImportedPatient(null);
+    setImportedError(null);
   }, [msid]);
+
+  useEffect(() => {
+    if (!isOpen || !msid || demoData) return;
+    let cancelled = false;
+    const selectedMsid = msid;
+
+    async function loadImportedPatient() {
+      setImportedLoading(true);
+      setImportedError(null);
+      try {
+        const res = await fetch(`/api/admin/patients?msid=${encodeURIComponent(selectedMsid)}`, { cache: "no-store" });
+        if (!res.ok) throw new Error("Unable to load imported patient");
+        const detail = (await res.json()) as ImportedPatientDetail;
+        if (!cancelled) setImportedPatient(makeImportedPatient(detail));
+      } catch {
+        if (!cancelled) {
+          setImportedPatient(null);
+          setImportedError("Imported patient details could not be loaded.");
+        }
+      } finally {
+        if (!cancelled) setImportedLoading(false);
+      }
+    }
+
+    loadImportedPatient();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, msid, demoData]);
 
   useEffect(() => {
     return () => { if (nhiTimerRef.current) clearTimeout(nhiTimerRef.current); };
   }, []);
 
   function handleRevealNhi() {
-    if (!nhiReason || !patient) return;
+    if (!nhiReason || !patient || patient.imported) return;
     // Audit log fires BEFORE NHI is revealed — NHI value never passed to log
     console.log({
       action: "NHI_REVEAL_ADMIN",
@@ -749,7 +856,13 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName }: PatientDra
 
         {/* Tab content */}
         <div className="flex-1 overflow-y-auto px-6 py-6">
-          {patient ? (
+          {importedLoading ? (
+            <p className="text-base text-gray-500">Loading imported patient details…</p>
+          ) : importedError && !patient ? (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              {importedError}
+            </div>
+          ) : patient ? (
             <>
               {activeTab === "overview"    && <OverviewTab patient={patient} />}
               {activeTab === "equipment"   && <EquipmentTab patient={patient} />}

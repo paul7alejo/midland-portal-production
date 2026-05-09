@@ -5,7 +5,7 @@ import { PatientDrawer } from "@/components/admin/PatientDrawer";
 import { cn } from "@/lib/utils";
 
 type FundingType       = "ACC" | "Private" | "Health NZ";
-type PatientStatus     = "eligible" | "not_eligible" | "overdue" | "needs_outreach" | "safety_check_due";
+type PatientStatus     = "eligible" | "not_eligible" | "overdue" | "needs_outreach" | "safety_check_due" | "pending_review";
 type RemainingRange    = "zero" | "low" | "mid" | "high";
 type NextEligibleRange = "now" | "30days" | "90days" | "later";
 type SortOption        =
@@ -29,6 +29,26 @@ interface Patient {
   fundingPeriodEnd: string;
   suggestedItemsRemaining: string[];
   fundingNote?: string;
+  source?: "demo" | "admin_csv";
+  importBatchId?: string;
+  reviewStatus?: string;
+}
+
+interface ImportedPatientSummary {
+  patient_id: string;
+  portal_id: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  date_of_birth?: string;
+  funded_by?: string;
+  import_batch_id?: string;
+  import_row_number?: number;
+  import_status?: string;
+  review_status?: string;
+  created_at?: string;
+  created_by?: string;
 }
 
 const PATIENTS: Patient[] = [
@@ -236,6 +256,7 @@ const STATUS_CONFIG: Record<PatientStatus, { label: string; classes: string }> =
   overdue:          { label: "Overdue",          classes: "bg-amber-100 text-amber-800 border border-amber-200" },
   needs_outreach:   { label: "Needs outreach",   classes: "bg-orange-100 text-orange-800 border border-orange-200" },
   safety_check_due: { label: "Safety check due", classes: "bg-amber-100 text-amber-800 border border-amber-200" },
+  pending_review:   { label: "Pending review",   classes: "bg-sky-100 text-sky-800 border border-sky-200" },
 };
 
 const ACTION_CONFIG: Record<PatientStatus, { label: string; disabled: boolean }> = {
@@ -244,6 +265,7 @@ const ACTION_CONFIG: Record<PatientStatus, { label: string; disabled: boolean }>
   overdue:          { label: "Start outreach", disabled: false },
   needs_outreach:   { label: "Call patient",   disabled: false },
   safety_check_due: { label: "Book check",     disabled: false },
+  pending_review:   { label: "Review record",  disabled: false },
 };
 
 const MONTH_NUM: Record<string, number> = {
@@ -252,6 +274,7 @@ const MONTH_NUM: Record<string, number> = {
 };
 function parseDateForSort(s: string): number {
   const [d, m, y] = s.split(" ");
+  if (!d || !m || !y) return 0;
   return parseInt(y) * 10000 + (MONTH_NUM[m] ?? 0) * 100 + parseInt(d);
 }
 function parseToDate(s: string): Date | null {
@@ -261,10 +284,34 @@ function parseToDate(s: string): Date | null {
   return new Date(parseInt(y), mo - 1, parseInt(d));
 }
 
-const totalPatients   = PATIENTS.length;
-const eligibleNow     = PATIENTS.filter((p) => p.status === "eligible").length;
-const needsOutreach   = PATIENTS.filter((p) => p.status === "needs_outreach" || p.status === "overdue").length;
-const safetyChecksDue = PATIENTS.filter((p) => p.status === "safety_check_due").length;
+function mapFunding(value?: string): FundingType {
+  const normalized = (value ?? "").toLowerCase().replace(/[_-]/g, " ").trim();
+  if (normalized.includes("acc")) return "ACC";
+  if (normalized.includes("health") || normalized.includes("hnz") || normalized.includes("te whatu")) return "Health NZ";
+  return "Private";
+}
+
+function mapImportedPatient(patient: ImportedPatientSummary): Patient {
+  return {
+    id: patient.patient_id,
+    name: patient.name,
+    msid: patient.portal_id,
+    phone: patient.phone?.trim() || "—",
+    funding: mapFunding(patient.funded_by),
+    lastOrder: "—",
+    nextEligible: "Review required",
+    status: "pending_review",
+    annualAllowance: 0,
+    usedAmount: 0,
+    remainingAmount: 0,
+    fundingPeriodStart: "—",
+    fundingPeriodEnd: "—",
+    suggestedItemsRemaining: [],
+    source: "admin_csv",
+    importBatchId: patient.import_batch_id,
+    reviewStatus: patient.review_status,
+  };
+}
 
 function SummaryCard({ label, value, accent }: { label: string; value: number; accent?: string }) {
   return (
@@ -290,6 +337,7 @@ function FundingBadge({ amount }: { amount: number }) {
 // ─── Filter option data ────────────────────────────────────────────────────────
 
 const STATUS_OPTIONS: { value: PatientStatus; label: string }[] = [
+  { value: "pending_review",   label: "Pending review" },
   { value: "eligible",         label: "Eligible" },
   { value: "needs_outreach",   label: "Needs outreach" },
   { value: "safety_check_due", label: "Safety check due" },
@@ -530,6 +578,9 @@ function FilterPanel({
 
 export default function AdminPatientsPage() {
   const [search,           setSearch]           = useState("");
+  const [importedPatients, setImportedPatients] = useState<Patient[]>([]);
+  const [importLoading,    setImportLoading]    = useState(true);
+  const [importError,      setImportError]      = useState<string | null>(null);
   const [statusFilters,    setStatusFilters]    = useState<Set<PatientStatus>>(new Set());
   const [fundingFilters,   setFundingFilters]   = useState<Set<FundingType>>(new Set());
   const [remainingRange,   setRemainingRange]   = useState<RemainingRange | null>(null);
@@ -546,6 +597,35 @@ export default function AdminPatientsPage() {
     setDrawerOpen(true);
   }
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadImportedPatients() {
+      setImportLoading(true);
+      setImportError(null);
+      try {
+        const res = await fetch("/api/admin/patients", { cache: "no-store" });
+        if (!res.ok) throw new Error("Unable to load imported patients");
+        const data = (await res.json()) as { patients?: ImportedPatientSummary[] };
+        if (!cancelled) {
+          setImportedPatients((data.patients ?? []).map(mapImportedPatient));
+        }
+      } catch {
+        if (!cancelled) {
+          setImportedPatients([]);
+          setImportError("Imported patients could not be loaded. Demo patients are still shown.");
+        }
+      } finally {
+        if (!cancelled) setImportLoading(false);
+      }
+    }
+
+    loadImportedPatients();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   function clearAllFilters() {
     setStatusFilters(new Set());
     setFundingFilters(new Set());
@@ -555,7 +635,7 @@ export default function AdminPatientsPage() {
   }
 
   const displayedPatients = useMemo(() => {
-    let result = [...PATIENTS];
+    let result = [...importedPatients, ...PATIENTS];
 
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -604,7 +684,13 @@ export default function AdminPatientsPage() {
       });
     }
     return result;
-  }, [search, statusFilters, fundingFilters, remainingRange, nextEligRange, activeSortOption]);
+  }, [search, statusFilters, fundingFilters, remainingRange, nextEligRange, activeSortOption, importedPatients]);
+
+  const allPatients = useMemo(() => [...importedPatients, ...PATIENTS], [importedPatients]);
+  const totalPatients = allPatients.length;
+  const eligibleNow = allPatients.filter((p) => p.status === "eligible").length;
+  const needsOutreach = allPatients.filter((p) => p.status === "needs_outreach" || p.status === "overdue").length;
+  const safetyChecksDue = allPatients.filter((p) => p.status === "safety_check_due").length;
 
   const activeFilterCount =
     statusFilters.size +
@@ -705,9 +791,18 @@ export default function AdminPatientsPage() {
         </button>
 
         <span className="text-base text-gray-500 whitespace-nowrap">
-          {displayedPatients.length} of {PATIENTS.length}
+          {displayedPatients.length} of {totalPatients}
         </span>
+        {importLoading && (
+          <span className="text-sm text-gray-500">Loading imported patients…</span>
+        )}
       </div>
+
+      {importError && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          {importError}
+        </div>
+      )}
 
       {/* Applied filter chips */}
       {filterChips.length > 0 && (
@@ -817,7 +912,7 @@ export default function AdminPatientsPage() {
                           <button
                             type="button"
                             disabled={actionCfg.disabled}
-                            onClick={actionCfg.disabled ? undefined : () => console.log(actionCfg.label, patient)}
+                            onClick={actionCfg.disabled ? undefined : () => openDrawer(patient.msid, patient.name)}
                             className={
                               actionCfg.disabled
                                 ? "bg-gray-200 text-gray-500 cursor-not-allowed rounded-lg px-3 py-2 min-h-[40px] text-sm font-medium whitespace-nowrap"
