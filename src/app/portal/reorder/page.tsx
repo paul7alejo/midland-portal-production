@@ -1,10 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { usePatientData } from "@/hooks/usePatientData";
 import { cn } from "@/lib/utils";
 import { DEMO_MASKS } from "@/lib/demoData";
+import {
+  EMPTY_DELIVERY_ADDRESS,
+  formatDeliveryAddress,
+  getDeliveryAddressStorageKey,
+  hasCompleteDeliveryAddress,
+  normalizeDeliveryAddress,
+  readSavedDeliveryAddress,
+  saveDeliveryAddress,
+  type DeliveryAddress,
+} from "@/lib/patientDeliveryAddress";
 
 const ITEM_LABELS: Record<string, string> = {
   cushion: "Mask cushion",
@@ -30,13 +40,113 @@ function formatDate(iso: string): string {
   });
 }
 
+function DeliveryAddressFields({
+  address,
+  onChange,
+}: {
+  address: DeliveryAddress;
+  onChange: (field: keyof DeliveryAddress, value: string) => void;
+}) {
+  return (
+    <div className="grid gap-4 md:grid-cols-2">
+      <label className="block md:col-span-2">
+        <span className="mb-2 block text-base font-medium text-charcoal">
+          Address line 1
+        </span>
+        <input
+          value={address.line1}
+          onChange={(event) => onChange("line1", event.target.value)}
+          className="min-h-[52px] w-full rounded-lg border border-sand bg-white px-4 py-3 text-lg text-charcoal placeholder:text-charcoal/45 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-deep-teal"
+          placeholder="Street address"
+        />
+      </label>
+
+      <label className="block md:col-span-2">
+        <span className="mb-2 block text-base font-medium text-charcoal">
+          Address line 2 <span className="font-normal text-charcoal/60">(optional)</span>
+        </span>
+        <input
+          value={address.line2}
+          onChange={(event) => onChange("line2", event.target.value)}
+          className="min-h-[52px] w-full rounded-lg border border-sand bg-white px-4 py-3 text-lg text-charcoal placeholder:text-charcoal/45 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-deep-teal"
+          placeholder="Apartment, unit, or care of"
+        />
+      </label>
+
+      <label className="block">
+        <span className="mb-2 block text-base font-medium text-charcoal">
+          City
+        </span>
+        <input
+          value={address.city}
+          onChange={(event) => onChange("city", event.target.value)}
+          className="min-h-[52px] w-full rounded-lg border border-sand bg-white px-4 py-3 text-lg text-charcoal placeholder:text-charcoal/45 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-deep-teal"
+          placeholder="Hamilton"
+        />
+      </label>
+
+      <label className="block">
+        <span className="mb-2 block text-base font-medium text-charcoal">
+          Region
+        </span>
+        <input
+          value={address.region}
+          onChange={(event) => onChange("region", event.target.value)}
+          className="min-h-[52px] w-full rounded-lg border border-sand bg-white px-4 py-3 text-lg text-charcoal placeholder:text-charcoal/45 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-deep-teal"
+          placeholder="Waikato"
+        />
+      </label>
+
+      <label className="block">
+        <span className="mb-2 block text-base font-medium text-charcoal">
+          Postcode
+        </span>
+        <input
+          value={address.postcode}
+          onChange={(event) => onChange("postcode", event.target.value)}
+          className="min-h-[52px] w-full rounded-lg border border-sand bg-white px-4 py-3 text-lg text-charcoal placeholder:text-charcoal/45 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-deep-teal"
+          inputMode="numeric"
+          placeholder="3204"
+        />
+      </label>
+
+      <label className="block">
+        <span className="mb-2 block text-base font-medium text-charcoal">
+          Country
+        </span>
+        <input
+          value={address.country}
+          onChange={(event) => onChange("country", event.target.value)}
+          className="min-h-[52px] w-full rounded-lg border border-sand bg-white px-4 py-3 text-lg text-charcoal placeholder:text-charcoal/45 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-deep-teal"
+          placeholder="New Zealand"
+        />
+      </label>
+    </div>
+  );
+}
+
 export default function ReorderPage() {
   const { patient } = useAuth();
   const { entitlement, loading } = usePatientData();
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
-  const [address, setAddress] = useState("");
+  const [savedAddress, setSavedAddress] = useState<DeliveryAddress | null>(null);
+  const [overrideAddress, setOverrideAddress] = useState<DeliveryAddress>(
+    EMPTY_DELIVERY_ADDRESS
+  );
+  const [useSavedAddress, setUseSavedAddress] = useState(false);
+  const [saveAsDefault, setSaveAsDefault] = useState(false);
+  const [submittedDeliveryAddress, setSubmittedDeliveryAddress] =
+    useState<DeliveryAddress | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const addressStorageKey = getDeliveryAddressStorageKey(patient?.userId);
+
+  useEffect(() => {
+    if (!patient?.userId) return;
+    const storedAddress = readSavedDeliveryAddress(addressStorageKey);
+    setSavedAddress(storedAddress);
+    setUseSavedAddress(Boolean(storedAddress));
+  }, [addressStorageKey, patient?.userId]);
 
   if (loading) return <div className="p-8 text-charcoal/80 text-lg leading-7">Loading...</div>;
   if (!patient) return null;
@@ -45,6 +155,12 @@ export default function ReorderPage() {
   const mask = DEMO_MASKS[patient.userId];
   const eligibleItems = items.filter((item) => item.status === "ELIGIBLE");
   const notYetItems = items.filter((item) => item.status === "NOT_YET");
+  const hasSavedAddress = Boolean(savedAddress);
+  const showAddressForm = !hasSavedAddress || !useSavedAddress;
+  const activeDeliveryAddress =
+    useSavedAddress && savedAddress ? savedAddress : overrideAddress;
+  const canSendRequest =
+    selectedItems.length > 0 && hasCompleteDeliveryAddress(activeDeliveryAddress);
 
   const toggleItem = (itemType: string) => {
     setSelectedItems((prev) =>
@@ -54,10 +170,26 @@ export default function ReorderPage() {
     );
   };
 
+  const updateOverrideAddress = (
+    field: keyof DeliveryAddress,
+    value: string
+  ) => {
+    setOverrideAddress((prev) => ({ ...prev, [field]: value }));
+  };
+
   const handleSubmit = async () => {
+    const addressSnapshot = normalizeDeliveryAddress(activeDeliveryAddress);
+    if (!hasCompleteDeliveryAddress(addressSnapshot)) return;
+
     setIsSubmitting(true);
     // Simulate network delay
     await new Promise((resolve) => setTimeout(resolve, 1000));
+    if (!useSavedAddress && saveAsDefault) {
+      saveDeliveryAddress(addressStorageKey, addressSnapshot);
+      setSavedAddress(addressSnapshot);
+      setUseSavedAddress(true);
+    }
+    setSubmittedDeliveryAddress(addressSnapshot);
     setIsSubmitted(true);
     setIsSubmitting(false);
   };
@@ -86,10 +218,21 @@ export default function ReorderPage() {
               ))}
             </ul>
           </div>
+          {submittedDeliveryAddress && (
+            <div className="bg-white border border-sand rounded-2xl p-5 text-left">
+              <h2 className="text-xl font-semibold text-charcoal mb-3">Delivery address</h2>
+              <div className="space-y-1 text-lg leading-7 text-charcoal/85">
+                {formatDeliveryAddress(submittedDeliveryAddress).map((line) => (
+                  <p key={line}>{line}</p>
+                ))}
+              </div>
+            </div>
+          )}
           <button
             onClick={() => {
               setIsSubmitted(false);
               setSelectedItems([]);
+              setSaveAsDefault(false);
             }}
             className="text-lg text-deep-teal hover:underline mt-4 font-medium min-h-[44px]"
           >
@@ -229,36 +372,107 @@ export default function ReorderPage() {
           )}
 
           {/* Delivery address */}
-          <div>
-            <label
-              htmlFor="address"
-              className="block text-lg font-medium text-charcoal mb-2"
-            >
-              Delivery address
-            </label>
-            <p className="text-base leading-6 text-charcoal/75 mb-2">
-              Enter the address where Midland Sleep should arrange delivery.
-            </p>
-            <textarea
-              id="address"
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              placeholder="Enter your delivery address"
-              rows={4}
-              className="w-full px-3 py-3 border border-sand rounded-md
-                         focus:outline-none focus:ring-2 focus:ring-deep-teal
-                         focus:border-transparent bg-white text-charcoal
-                         placeholder:text-charcoal/50 text-lg leading-7 min-h-[132px]"
-            />
-          </div>
+          <section className="rounded-2xl border border-sand bg-white p-5 md:p-6 space-y-5">
+            <div>
+              <h2 className="text-2xl font-semibold text-charcoal leading-snug">
+                Delivery address
+              </h2>
+              <p className="mt-1 text-base leading-6 text-charcoal/75">
+                Midland Sleep staff will use this address when reviewing this
+                supply request.
+              </p>
+            </div>
+
+            {savedAddress && (
+              <div className="rounded-xl border border-sand bg-sand-pale/50 p-5">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <p className="mb-2 font-mono text-sm uppercase tracking-wide text-charcoal/80">
+                      Default delivery address
+                    </p>
+                    <div className="space-y-1 text-lg leading-7 text-charcoal">
+                      {formatDeliveryAddress(savedAddress).map((line) => (
+                        <p key={line}>{line}</p>
+                      ))}
+                    </div>
+                  </div>
+                  <span className="rounded-full border border-deep-teal/20 bg-sky-blue px-3 py-1 text-sm font-medium text-deep-teal">
+                    {useSavedAddress ? "Selected" : "Saved"}
+                  </span>
+                </div>
+
+                <div className="mt-5 flex flex-wrap gap-3">
+                  {!useSavedAddress && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUseSavedAddress(true);
+                        setSaveAsDefault(false);
+                      }}
+                      className="min-h-[48px] rounded-lg border border-deep-teal/30 px-5 py-2.5 text-base font-medium text-deep-teal hover:bg-sky-blue"
+                    >
+                      Use saved address
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setUseSavedAddress(false)}
+                    className="min-h-[48px] rounded-lg border border-sand px-5 py-2.5 text-base font-medium text-charcoal hover:border-deep-teal/40"
+                  >
+                    Use a different address
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {showAddressForm && (
+              <div className="space-y-5">
+                {!savedAddress && (
+                  <div className="rounded-xl border border-dashed border-sand bg-sand-pale/50 p-5">
+                    <p className="text-lg font-semibold text-charcoal">
+                      No default delivery address is saved yet
+                    </p>
+                    <p className="mt-1 text-base leading-6 text-charcoal/75">
+                      Enter an address for this request. You can choose whether
+                      to save it as your default.
+                    </p>
+                  </div>
+                )}
+
+                {savedAddress && (
+                  <p className="text-base leading-6 text-charcoal/75">
+                    Enter the delivery address to use for this request.
+                  </p>
+                )}
+
+                <DeliveryAddressFields
+                  address={overrideAddress}
+                  onChange={updateOverrideAddress}
+                />
+
+                <label className="flex items-start gap-3 rounded-xl border border-sand bg-sand-pale/40 p-4">
+                  <input
+                    type="checkbox"
+                    checked={saveAsDefault}
+                    onChange={(event) => setSaveAsDefault(event.target.checked)}
+                    className="mt-1 h-5 w-5 rounded border-sand text-deep-teal focus:ring-deep-teal"
+                  />
+                  <span className="text-base leading-6 text-charcoal/80">
+                    Save this as my default delivery address for future supply
+                    requests.
+                  </span>
+                </label>
+              </div>
+            )}
+          </section>
 
           {/* Submit */}
           <p className="text-base leading-6 text-charcoal/75">
-            Select at least one item and enter a delivery address to send your request.
+            Select at least one item and confirm a delivery address to send your request.
           </p>
           <button
             onClick={handleSubmit}
-            disabled={selectedItems.length === 0 || !address.trim() || isSubmitting}
+            disabled={!canSendRequest || isSubmitting}
             className="bg-[#0B5C6C] text-white px-7 py-3.5 rounded-lg text-lg
                        font-medium min-h-[52px] hover:bg-[#0B5C6C]/90 transition-colors
                        disabled:opacity-50 disabled:cursor-not-allowed"
