@@ -13,6 +13,22 @@ import {
 
 const ORG_ID = 'midland-sleep';
 
+interface ImportedPatientExportRow {
+  patientName: string;
+  portalId: string;
+  phone: string;
+  funding: string;
+  machineBrand: string;
+  machineModel: string;
+  machineSerial: string;
+  maskBrand: string;
+  maskModel: string;
+  maskSize: string;
+  importBatchId: string;
+  reviewStatus: string;
+  importedAt: string;
+}
+
 function sanitizeImportedPatient(patient: PatientRecord): ImportedPatientSummary {
   return {
     patient_id: patient.patient_id,
@@ -31,6 +47,95 @@ function sanitizeImportedPatient(patient: PatientRecord): ImportedPatientSummary
     created_at: patient.created_at,
     created_by: patient.created_by,
   };
+}
+
+function safeCsvValue(value?: string | number | null): string {
+  if (value === undefined || value === null) return '';
+  return String(value);
+}
+
+function humanizeLabel(value?: string): string {
+  const normalized = value?.trim();
+  if (!normalized) return '';
+  return normalized
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .toLowerCase()
+    .replace(/^\w/, (char) => char.toUpperCase());
+}
+
+function formatNzDateTime(value?: string): string {
+  if (!value?.trim()) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat('en-NZ', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: 'Pacific/Auckland',
+  }).format(date);
+}
+
+function csvEscape(value: string): string {
+  if (!/[",\r\n]/.test(value)) return value;
+  return `"${value.replace(/"/g, '""')}"`;
+}
+
+function buildCsv(rows: ImportedPatientExportRow[]): string {
+  const columns: Array<[keyof ImportedPatientExportRow, string]> = [
+    ['patientName', 'Patient name'],
+    ['portalId', 'MSID / portal ID'],
+    ['phone', 'Phone'],
+    ['funding', 'Funding'],
+    ['machineBrand', 'Machine brand'],
+    ['machineModel', 'Machine model'],
+    ['machineSerial', 'Machine serial'],
+    ['maskBrand', 'Mask brand'],
+    ['maskModel', 'Mask model'],
+    ['maskSize', 'Mask size'],
+    ['importBatchId', 'Import batch ID'],
+    ['reviewStatus', 'Review status'],
+    ['importedAt', 'Imported at'],
+  ];
+
+  const header = columns.map(([, label]) => csvEscape(label)).join(',');
+  const body = rows.map((row) =>
+    columns.map(([key]) => csvEscape(safeCsvValue(row[key]))).join(',')
+  );
+
+  return [header, ...body].join('\r\n');
+}
+
+async function buildImportedPatientExportRows(): Promise<ImportedPatientExportRow[]> {
+  const patients = await listImportedPatients(ORG_ID);
+  return Promise.all(
+    patients.map(async (patient) => {
+      const [devices, mask] = await Promise.all([
+        getPatientDevices(patient.patient_id, ORG_ID),
+        getPatientMask(patient.patient_id, ORG_ID),
+      ]);
+      const device = devices[0];
+
+      return {
+        patientName: safeCsvValue(patient.name),
+        portalId: safeCsvValue(patient.portal_id),
+        phone: safeCsvValue(patient.phone),
+        funding: safeCsvValue(patient.funded_by),
+        machineBrand: safeCsvValue(device?.brand),
+        machineModel: safeCsvValue(device?.model),
+        machineSerial: safeCsvValue(device?.serial_number),
+        maskBrand: safeCsvValue(mask?.brand),
+        maskModel: safeCsvValue(mask?.model),
+        maskSize: safeCsvValue(mask?.size),
+        importBatchId: safeCsvValue(patient.import_batch_id),
+        reviewStatus: humanizeLabel(patient.review_status),
+        importedAt: formatNzDateTime(patient.created_at),
+      };
+    })
+  );
 }
 
 function sanitizeDevice(device: DeviceRecord) {
@@ -80,8 +185,28 @@ export async function GET(request: NextRequest) {
   }
 
   const msid = request.nextUrl.searchParams.get('msid')?.trim();
+  const exportFormat = request.nextUrl.searchParams.get('export')?.trim().toLowerCase();
 
   try {
+    if (exportFormat) {
+      if (exportFormat !== 'csv') {
+        return NextResponse.json({ error: 'Unsupported export format' }, { status: 400 });
+      }
+
+      const rows = await buildImportedPatientExportRows();
+      const csv = buildCsv(rows);
+      const date = new Date().toISOString().slice(0, 10);
+
+      return new NextResponse(csv, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': `attachment; filename="imported-patients-${date}.csv"`,
+          'Cache-Control': 'no-store',
+        },
+      });
+    }
+
     if (msid) {
       const patient = await getPatientByMSID(msid, ORG_ID);
       if (!patient || patient.import_source !== 'admin_csv') {

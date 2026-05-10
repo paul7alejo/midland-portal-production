@@ -787,16 +787,6 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName }: PatientDra
 
   function handleRevealNhi() {
     if (!nhiReason || !patient || patient.imported) return;
-    // Audit log fires BEFORE NHI is revealed — NHI value never passed to log
-    console.log({
-      action: "NHI_REVEAL_ADMIN",
-      staff_id: "staff-session",
-      patient_msid: patient.msid,
-      patient_nhi_masked: patient.nhiMasked,
-      reason: nhiReason,
-      timestamp: new Date().toISOString(),
-      org_id: "midland-sleep",
-    });
     setNhiVisible(true);
     if (nhiTimerRef.current) clearTimeout(nhiTimerRef.current);
     nhiTimerRef.current = setTimeout(() => setNhiVisible(false), 30000);

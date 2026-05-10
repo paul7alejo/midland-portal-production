@@ -838,6 +838,16 @@ export default function AdminPatientsPage() {
           )}
         </button>
 
+        <a
+          href="/api/admin/patients?export=csv"
+          download
+          className="flex items-center gap-2 px-4 py-2.5 border border-[#0B5C6C] rounded-lg text-base
+                     bg-white text-[#0B5C6C] hover:bg-[#0B5C6C]/5 min-h-[44px] whitespace-nowrap transition-colors"
+          title="Export imported patient operational fields only"
+        >
+          Export imported
+        </a>
+
         <span className="text-base text-gray-500 whitespace-nowrap">
           {displayedPatients.length} of {totalPatients}
         </span>
