@@ -33,6 +33,13 @@ Day 35 completed:
 - Demo story uses existing Day 31 evidence and keeps dry run, controlled execute, created/skipped/failed outcomes, admin list visibility, drawer review, equipment details, no fake mask fallback, and NHI safety explicit.
 - Export bridge is treated as a checkpoint to demonstrate only when present in the target environment.
 
+Day 42 completed:
+
+- Midland OS v1 handover pack finalized.
+- Handover index created as the navigation page for Phase 1 operating documentation.
+- Known limitations, support model, release SOP, and Phase 1E closeout summary tightened around honest Phase 1 boundaries.
+- Phase 1E closeout states what Phase 1 delivers, what remains excluded, what Midland can use immediately, what requires future scope, and the OneOfZero support model after handover/go-live.
+
 Next work:
 
 - Production rehearsal.

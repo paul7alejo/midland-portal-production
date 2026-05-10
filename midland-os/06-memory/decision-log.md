@@ -21,3 +21,10 @@
 - Midland admin explanation now centers on batch ID, created count, skipped count, failed count, duplicate NHI outcome, duplicate machine serial outcome, and invalid required-field outcome.
 - Failed and skipped rows require Midland admin source-data correction, identity review, equipment review, or escalation before retry.
 - No backend workflow, schema, analytics dashboard, or patient-facing behavior was added.
+
+## Day 42
+
+- Midland OS v1 handover pack was finalized as documentation only.
+- Handover index is the navigation point for Phase 1 operating docs and evidence.
+- Phase 1E closeout is explicit that Phase 1 delivers admin/import/review visibility, not checkout, inventory, mobile, invites, emails, advanced audit, analytics, or clinical decisioning.
+- OneOfZero support after handover/go-live is bounded by the documented support model and retainer path, not unlimited support.
