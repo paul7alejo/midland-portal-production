@@ -21,3 +21,10 @@
 - Midland admin explanation now centers on batch ID, created count, skipped count, failed count, duplicate NHI outcome, duplicate machine serial outcome, and invalid required-field outcome.
 - Failed and skipped rows require Midland admin source-data correction, identity review, equipment review, or escalation before retry.
 - No backend workflow, schema, analytics dashboard, or patient-facing behavior was added.
+
+## Day 39
+
+- Support model was finalized as bounded monthly support, not unlimited development or vague emergency cover.
+- Retainer anchor is NZD 2,300/month including GST unless commercial terms change in writing.
+- Bug fixes for agreed workflows, import/admin guidance, release checks, and minor maintenance are included within bounded monthly capacity.
+- New features, checkout/Stripe, inventory/fulfilment, patient invites/emails, Cognito/account changes, advanced dashboards, clinical decisions, after-hours SLA, and major infrastructure work require separate scope.

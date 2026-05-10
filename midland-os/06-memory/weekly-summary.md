@@ -33,9 +33,14 @@ Day 35 completed:
 - Demo story uses existing Day 31 evidence and keeps dry run, controlled execute, created/skipped/failed outcomes, admin list visibility, drawer review, equipment details, no fake mask fallback, and NHI safety explicit.
 - Export bridge is treated as a checkpoint to demonstrate only when present in the target environment.
 
+Day 39 completed:
+
+- Support model SOP created with practical retainer boundaries.
+- Monthly retainer anchor set at NZD 2,300/month including GST unless commercial terms change.
+- Included support, excluded work, response expectations, emergency handling, bug vs feature distinction, change requests, monthly improvement cadence, AWS/hosting boundaries, and clinic staff support boundaries are explicit.
+
 Next work:
 
 - Production rehearsal.
 - Midland review of SOPs.
-- Support model confirmation.
 - Editable admin review status later.
