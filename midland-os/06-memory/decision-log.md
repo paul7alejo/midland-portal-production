@@ -22,14 +22,13 @@
 - Failed and skipped rows require Midland admin source-data correction, identity review, equipment review, or escalation before retry.
 - No backend workflow, schema, analytics dashboard, or patient-facing behavior was added.
 
-<<<<<<< HEAD
 ## Day 36
 
 - Import SOP was finalized as a clinic-ready operational runbook.
 - Midland remains owner of source-data accuracy, identity decisions, equipment conflict decisions, and approval of corrected retry files.
 - Phase 1 import boundaries remain explicit: no patient accounts, emails, invites, orders, fulfilment tasks, inventory movements, or clinical decisioning.
 - No backend changes or UI redesign were introduced for the SOP finalization.
-=======
+
 ## Day 37
 
 - Admin review SOP was finalized as an operational process for reviewing imported patients after import.
@@ -37,3 +36,10 @@
 - Missing device and mask data must be reviewed against Midland source records; no default mask or inferred equipment should be invented.
 - Export is documented as safe operational review only when available, with raw NHI, encrypted NHI, and NHI hashes excluded.
 - The review workflow is explicitly not clinical advice and does not create invites, emails, patient accounts, orders, fulfilment tasks, or inventory movements.
+
+## Day 38
+
+- Phase 1 release language was finalized as honest and bounded.
+- Release SOP now requires go/no-go, pre-release, smoke, admin/import/export, rollback, escalation, signoff, and support-boundary checks.
+- Known limitations explicitly state no checkout/Stripe, no inventory/fulfilment system, no mobile app, no patient invites/accounts/emails, and no advanced audit dashboard.
+- Phase 1 remains an admin/import/review visibility release, not a fake analytics, audit, backup, finance, fulfilment, or patient onboarding system.
