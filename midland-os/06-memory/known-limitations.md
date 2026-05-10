@@ -10,7 +10,7 @@ Phase 1 is an admin/import/review visibility release. It is not a full commerce,
 - No patient portal access is created by import.
 - No patient invites are sent by import.
 - No patient emails are sent by import.
-- Imported patients remain staff-review records until Midland completes its operational review.
+- Imported patients remain staff-review records until Midland completes operational review.
 
 ## Checkout and Payments
 
