@@ -57,6 +57,11 @@ Day 39 completed:
 - Included support, exclusions, response expectations, emergency handling, bug vs feature distinction, change request process, monthly improvement cadence, AWS/hosting boundaries, and clinic staff support boundaries are now explicit.
 - Retainer anchor is documented at NZD 2,300/month incl GST unless commercial terms change in writing.
 
+Day 40 completed:
+
+- Midland OS handover index was added.
+- The handover pack now has a practical entry point describing what Phase 1 includes, what it excludes, what Midland can use immediately, and how to request changes after go-live.
+
 Next work:
 
 - Production rehearsal.

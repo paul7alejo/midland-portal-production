@@ -50,3 +50,9 @@
 - Included monthly support, excluded work, response expectations, emergency handling, bug vs feature distinction, change request handling, monthly improvement cadence, AWS/hosting boundaries, and clinic staff support boundaries were documented.
 - Retainer anchor is NZD 2,300/month incl GST unless commercial terms change in writing.
 - Support remains operational and technical in scope, not clinical, payroll, finance-system, or general-business administration support.
+
+## Day 40
+
+- Midland OS handover index was added as the main entry point for handover.
+- Handover documentation now explains what Midland OS v1 is, what Phase 1 includes and excludes, where to find key SOPs and workflows, how to request changes, and what happens after go-live.
+- Midland OS v1 is explicitly positioned as an operating/documentation layer around the portal, not a separate AI product.
