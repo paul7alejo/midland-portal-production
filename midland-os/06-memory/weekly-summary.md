@@ -51,6 +51,12 @@ Day 38 completed:
 - Go/no-go, pre-release checks, smoke tests, admin/import/export checks, rollback/escalation, signoff, and support boundaries are explicit.
 - Known limitations rewritten with Phase 1 truths, including no checkout/Stripe, no fulfilment/inventory system, no mobile app, no patient invites/accounts/emails, and no advanced audit dashboard.
 
+Day 39 completed:
+
+- Support model and retainer boundaries were finalized.
+- Included support, exclusions, response expectations, emergency handling, bug vs feature distinction, change request process, monthly improvement cadence, AWS/hosting boundaries, and clinic staff support boundaries are now explicit.
+- Retainer anchor is documented at NZD 2,300/month incl GST unless commercial terms change in writing.
+
 Next work:
 
 - Production rehearsal.

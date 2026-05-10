@@ -43,3 +43,10 @@
 - Release SOP now requires go/no-go, pre-release, smoke, admin/import/export, rollback, escalation, signoff, and support-boundary checks.
 - Known limitations explicitly state no checkout/Stripe, no inventory/fulfilment system, no mobile app, no patient invites/accounts/emails, and no advanced audit dashboard.
 - Phase 1 remains an admin/import/review visibility release, not a fake analytics, audit, backup, finance, fulfilment, or patient onboarding system.
+
+## Day 39
+
+- Support model was formalized as a bounded post-go-live operating agreement, not unlimited support.
+- Included monthly support, excluded work, response expectations, emergency handling, bug vs feature distinction, change request handling, monthly improvement cadence, AWS/hosting boundaries, and clinic staff support boundaries were documented.
+- Retainer anchor is NZD 2,300/month incl GST unless commercial terms change in writing.
+- Support remains operational and technical in scope, not clinical, payroll, finance-system, or general-business administration support.
