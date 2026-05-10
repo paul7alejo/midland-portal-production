@@ -21,3 +21,10 @@
 - Midland admin explanation now centers on batch ID, created count, skipped count, failed count, duplicate NHI outcome, duplicate machine serial outcome, and invalid required-field outcome.
 - Failed and skipped rows require Midland admin source-data correction, identity review, equipment review, or escalation before retry.
 - No backend workflow, schema, analytics dashboard, or patient-facing behavior was added.
+
+## Day 40
+
+- Midland OS handover index was created as the canonical navigation page for Phase 1 operating documentation.
+- Midland OS v1 is defined as an operating/documentation layer around the portal, not a separate AI product or product expansion.
+- The handover index links status, phase map, import workflow, admin review workflow, SOPs, known limitations, risks, support model, and Phase 1 evidence.
+- Change requests must be scoped through documented operational need, risk, acceptance criteria, and support/change boundaries.

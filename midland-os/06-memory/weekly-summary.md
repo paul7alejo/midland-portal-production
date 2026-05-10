@@ -33,6 +33,12 @@ Day 35 completed:
 - Demo story uses existing Day 31 evidence and keeps dry run, controlled execute, created/skipped/failed outcomes, admin list visibility, drawer review, equipment details, no fake mask fallback, and NHI safety explicit.
 - Export bridge is treated as a checkpoint to demonstrate only when present in the target environment.
 
+Day 40 completed:
+
+- Midland OS handover index created at `midland-os/HANDOVER-INDEX.md`.
+- Index explains Midland OS v1 as the operating layer around the portal, not a separate AI product.
+- Phase 1 capabilities, boundaries, canonical docs, change request process, and post-go-live operating rhythm are linked and summarised.
+
 Next work:
 
 - Production rehearsal.
