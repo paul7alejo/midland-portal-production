@@ -74,7 +74,7 @@ export default function ProfilePage() {
       return;
     }
     if (res.status === 404) {
-      setNhiState({ status: "error", message: "NHI not available in this demo. In production, your encrypted NHI will appear here." });
+      setNhiState({ status: "error", message: "NHI is not available here yet. Please contact Midland Sleep if you need help with your NHI." });
       return;
     }
     if (!res.ok) {
@@ -99,69 +99,69 @@ export default function ProfilePage() {
 
   return (
     <>
-      <h1 className="font-display text-[34px] font-semibold text-navy mb-2">
+      <h1 className="font-display text-[34px] md:text-[38px] leading-tight font-semibold text-navy mb-2">
         My profile
       </h1>
-      <p className="text-base text-charcoal/70 mb-6">
-        Your account details and preferences.
+      <p className="text-lg leading-7 text-charcoal/80 mb-7">
+        Your account details and Midland Sleep ID.
       </p>
 
-      <div className="space-y-6">
+      <div className="space-y-7">
 
         {/* SECTION 1 — Your Details */}
-        <section className="bg-white border border-sand rounded-2xl p-6 space-y-4">
-          <div className="bg-seafoam-pale border border-seafoam/30 rounded-md px-4 py-3">
-            <p className="text-sm text-charcoal/80">
+        <section className="bg-white border border-sand rounded-2xl p-6 md:p-7 space-y-5">
+          <div className="bg-seafoam-pale border border-seafoam/30 rounded-md px-4 py-4">
+            <p className="text-base leading-6 text-charcoal/85">
               Your information is handled in accordance with the Health Information Privacy Code 2020.
             </p>
           </div>
 
-          <h2 className="font-display text-[22px] font-semibold text-navy">Your details</h2>
+          <h2 className="font-display text-2xl font-semibold text-navy leading-snug">Your details</h2>
 
           {profileLoading ? (
-            <p className="text-base text-charcoal/70">Loading...</p>
+            <p className="text-lg leading-7 text-charcoal/80">Loading...</p>
           ) : profile ? (
-            <dl className="grid gap-4 md:grid-cols-2 text-[17px]">
+            <dl className="grid gap-x-8 gap-y-5 md:grid-cols-2 text-lg leading-7">
               <div>
-                <dt className="text-sm uppercase tracking-wide text-charcoal/70 font-mono mb-1">
+                <dt className="text-sm uppercase tracking-wide text-charcoal/80 font-mono mb-1.5">
                   Full name
                 </dt>
                 <dd className="font-medium text-charcoal">{profile.name}</dd>
               </div>
               <div>
-                <dt className="text-sm uppercase tracking-wide text-charcoal/70 font-mono mb-1">
+                <dt className="text-sm uppercase tracking-wide text-charcoal/80 font-mono mb-1.5">
                   Email
                 </dt>
-                <dd className="text-charcoal">{profile.email}</dd>
+                <dd className="text-charcoal break-words">{profile.email}</dd>
               </div>
               <div>
-                <dt className="text-sm uppercase tracking-wide text-charcoal/70 font-mono mb-1">
+                <dt className="text-sm uppercase tracking-wide text-charcoal/80 font-mono mb-1.5">
                   Midland Sleep ID
                 </dt>
-                <dd className="font-mono text-charcoal">{profile.msid}</dd>
+                <dd className="font-mono text-charcoal break-all">{profile.msid}</dd>
               </div>
             </dl>
           ) : (
-            <p className="text-base text-charcoal/70">
+            <p className="text-lg leading-7 text-charcoal/80">
               Unable to load your details. Please try again later.
             </p>
           )}
         </section>
 
         {/* SECTION 2 — Portal ID Card */}
-        <section className="bg-navy rounded-2xl p-6 space-y-4">
+        <section className="bg-navy rounded-2xl p-6 md:p-7 space-y-5">
           <div>
-            <h2 className="font-display text-[22px] font-semibold text-cream">Portal ID card</h2>
-            <p className="text-sm text-cream/70 mt-1">
+            <h2 className="font-display text-2xl font-semibold text-cream leading-snug">Portal ID card</h2>
+            <p className="text-base leading-6 text-cream/80 mt-1">
               Use this ID when contacting Midland Sleep.
             </p>
           </div>
 
           <div className="bg-deep-teal/40 rounded-md px-5 py-4">
-            <p className="text-xs uppercase tracking-wide text-seafoam font-mono mb-2">
+            <p className="text-sm uppercase tracking-wide text-seafoam font-mono mb-2">
               Your Midland Sleep ID
             </p>
-            <p className="font-mono text-3xl text-cream tracking-widest">
+            <p className="font-mono text-3xl text-cream tracking-widest break-all">
               {msid || "—"}
             </p>
           </div>
@@ -170,7 +170,7 @@ export default function ProfilePage() {
             onClick={handleCopy}
             disabled={!msid}
             className={cn(
-              "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-colors disabled:cursor-not-allowed",
+              "flex items-center justify-center gap-2 px-5 py-3 rounded-lg text-base font-medium transition-colors disabled:cursor-not-allowed min-h-[48px]",
               copied
                 ? "bg-seafoam text-navy"
                 : "bg-cream/10 text-cream hover:bg-cream/20 border border-cream/20"
@@ -181,56 +181,56 @@ export default function ProfilePage() {
         </section>
 
         {/* SECTION 3 — NHI Number */}
-        <section className="bg-white border border-sand rounded-2xl p-6 space-y-4">
+        <section className="bg-white border border-sand rounded-2xl p-6 md:p-7 space-y-5">
           <div>
-            <h2 className="font-display text-[22px] font-semibold text-navy">NHI number</h2>
-            <p className="text-base text-charcoal/70 mt-1">
+            <h2 className="font-display text-2xl font-semibold text-navy leading-snug">NHI number</h2>
+            <p className="text-lg leading-7 text-charcoal/80 mt-1">
               Your National Health Index number.
             </p>
           </div>
 
-          <div className="bg-sand-pale rounded-md px-4 py-3">
-            <p className="text-sm uppercase tracking-wide text-charcoal/70 font-mono mb-1">
+          <div className="bg-sand-pale rounded-md px-4 py-4">
+            <p className="text-sm uppercase tracking-wide text-charcoal/80 font-mono mb-1.5">
               NHI
             </p>
-            <p className="text-2xl font-mono text-charcoal font-medium tracking-widest">
-              {nhiState.status === "revealed" ? nhiState.nhi : "ZZZ****"}
+            <p className="text-2xl font-mono text-charcoal font-medium tracking-widest break-all">
+              {nhiState.status === "revealed" ? nhiState.nhi : "Hidden"}
             </p>
           </div>
 
           {nhiState.status === "revealed" && (
-            <p className="text-sm font-medium text-amber">
+            <p className="text-base font-medium text-amber">
               Hiding in {nhiState.secondsLeft}s
             </p>
           )}
 
           {nhiState.status === "error" && (
-            <p className="text-sm text-amber">{nhiState.message}</p>
+            <p className="text-base leading-6 text-amber">{nhiState.message}</p>
           )}
 
           {nhiState.status !== "revealed" && (
             <button
               onClick={handleRevealNhi}
               disabled={nhiState.status === "loading"}
-              className="bg-[#0B5C6C] text-white px-6 py-3 rounded-lg text-base font-medium
-                         min-h-[48px] hover:bg-[#0B5C6C]/90 transition-colors
+              className="bg-[#0B5C6C] text-white px-7 py-3.5 rounded-lg text-lg font-medium
+                         min-h-[52px] hover:bg-[#0B5C6C]/90 transition-colors
                          disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {nhiState.status === "loading" ? "Revealing..." : "Reveal NHI"}
             </button>
           )}
 
-          <p className="text-sm text-charcoal/70">
-            Your NHI is encrypted. Access is logged for security.
+          <p className="text-base leading-6 text-charcoal/80">
+            Your NHI is protected. Revealing it is logged for security.
           </p>
         </section>
 
         {/* SECTION 4 — Notification Preferences */}
-        <section className="bg-white border border-sand rounded-2xl p-6 space-y-4">
+        <section className="bg-white border border-sand rounded-2xl p-6 md:p-7 space-y-5">
           <div>
-            <h2 className="font-display text-[22px] font-semibold text-navy">Notification preferences</h2>
-            <p className="text-base text-charcoal/70 mt-1">
-              Manage how Midland Sleep contacts you.
+            <h2 className="font-display text-2xl font-semibold text-navy leading-snug">Notification preferences</h2>
+            <p className="text-lg leading-7 text-charcoal/80 mt-1">
+              Notification settings are not available yet.
             </p>
           </div>
 
@@ -241,16 +241,16 @@ export default function ProfilePage() {
             ].map(({ label, detail }) => (
               <div
                 key={label}
-                className="flex items-center justify-between py-3 border-b border-sand last:border-0"
+                className="flex items-center justify-between gap-4 py-4 border-b border-sand last:border-0"
               >
                 <div>
-                  <p className="text-base font-medium text-charcoal/70">{label}</p>
-                  <p className="text-sm text-charcoal/60">{detail}</p>
+                  <p className="text-lg leading-7 font-medium text-charcoal/80">{label}</p>
+                  <p className="text-base leading-6 text-charcoal/70">{detail}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-charcoal/60 font-mono">Coming soon</span>
-                  <div className="w-10 h-6 rounded-full bg-seafoam/40 flex items-center px-1 cursor-not-allowed">
-                    <div className="w-4 h-4 rounded-full bg-white shadow-sm translate-x-4" />
+                  <span className="text-sm text-charcoal/70 font-mono whitespace-nowrap">Coming soon</span>
+                  <div className="w-10 h-6 rounded-full bg-gray-200 border border-gray-300 flex items-center px-1 cursor-not-allowed">
+                    <div className="w-4 h-4 rounded-full bg-white shadow-sm" />
                   </div>
                 </div>
               </div>

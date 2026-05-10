@@ -38,7 +38,7 @@ export default function ReorderPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
 
-  if (loading) return <div className="p-8 text-charcoal/60">Loading...</div>;
+  if (loading) return <div className="p-8 text-charcoal/80 text-lg leading-7">Loading...</div>;
   if (!patient) return null;
 
   const items = entitlement?.items ?? [];
@@ -66,22 +66,21 @@ export default function ReorderPage() {
   if (isSubmitted) {
     return (
       <>
-        <div className="max-w-2xl mx-auto text-center py-12 space-y-4">
+        <div className="max-w-2xl mx-auto text-center py-12 space-y-5">
           <div className="h-16 w-16 rounded-full bg-seafoam-pale flex items-center justify-center mx-auto">
             <span className="text-seafoam text-2xl">&#10003;</span>
           </div>
-          <h1 className="font-display text-[34px] font-semibold text-navy">
+          <h1 className="font-display text-[34px] md:text-[38px] leading-tight font-semibold text-navy">
             Your request has been received
           </h1>
-          <p className="text-charcoal/70">
-            We will review your request and dispatch your supplies shortly.
-            You will receive a confirmation at your email address.
+          <p className="text-lg leading-7 text-charcoal/80">
+            Midland Sleep staff will review your request and contact you if anything else is needed.
           </p>
-          <div className="bg-white border border-sand rounded-2xl p-4 text-left mt-6">
-            <h2 className="text-base font-semibold text-charcoal mb-2">Items requested</h2>
-            <ul className="space-y-1">
+          <div className="bg-white border border-sand rounded-2xl p-5 text-left mt-6">
+            <h2 className="text-xl font-semibold text-charcoal mb-3">Items requested</h2>
+            <ul className="space-y-2">
               {selectedItems.map((itemType) => (
-                <li key={itemType} className="text-base text-charcoal/80">
+                <li key={itemType} className="text-lg leading-7 text-charcoal/85">
                   {ITEM_LABELS[itemType]}
                 </li>
               ))}
@@ -92,7 +91,7 @@ export default function ReorderPage() {
               setIsSubmitted(false);
               setSelectedItems([]);
             }}
-            className="text-base text-deep-teal hover:underline mt-4"
+            className="text-lg text-deep-teal hover:underline mt-4 font-medium min-h-[44px]"
           >
             Make another request
           </button>
@@ -103,11 +102,11 @@ export default function ReorderPage() {
 
   return (
     <>
-      <h1 className="font-display text-[34px] font-semibold text-navy mb-2">
+      <h1 className="font-display text-[34px] md:text-[38px] leading-tight font-semibold text-navy mb-2">
         Request Supplies
       </h1>
       {mask && (
-        <p className="text-base text-charcoal/70 mb-6">
+        <p className="text-lg leading-7 text-charcoal/80 mb-6">
           Based on your current mask:{" "}
           <span className="font-medium text-charcoal">
             {mask.brand} {mask.name}
@@ -116,34 +115,34 @@ export default function ReorderPage() {
       )}
 
       {/* Privacy notice — HIPC Rule 3: must appear ABOVE any data collection */}
-      <div className="bg-sky-blue border border-deep-teal/10 rounded-lg px-4 py-3 mb-6">
-        <p className="text-sm text-charcoal/80">
+      <div className="bg-sky-blue border border-deep-teal/10 rounded-lg px-4 py-4 mb-7">
+        <p className="text-base leading-6 text-charcoal/85">
           Your request will be reviewed by Midland Sleep staff. We collect your
-          delivery address to dispatch supplies. Your information is handled in
+          delivery address so staff can arrange supplies. Your information is handled in
           accordance with the Health Information Privacy Code 2020.
         </p>
       </div>
 
       {eligibleItems.length === 0 ? (
-        <div className="bg-sand-pale border border-sand rounded-2xl p-6 text-center">
-          <p className="text-charcoal font-medium mb-2">
+        <div className="bg-sand-pale border border-sand rounded-2xl p-6 md:p-7 text-center">
+          <p className="text-lg leading-7 text-charcoal font-medium mb-2">
             No supplies are available to request right now
           </p>
           {notYetItems.length > 0 && notYetItems[0].next_eligible_date && (
-            <p className="text-sm text-charcoal/70">
+            <p className="text-base leading-6 text-charcoal/80">
               Your supplies will be available from{" "}
               {formatDate(notYetItems[0].next_eligible_date)}
             </p>
           )}
         </div>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-7">
           {/* Eligible items */}
           <div>
-            <h2 className="text-[22px] font-semibold text-charcoal mb-3">
+            <h2 className="text-2xl font-semibold text-charcoal mb-4 leading-snug">
               Available supplies
             </h2>
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-2">
               {eligibleItems.map((item) => {
                 const isSelected = selectedItems.includes(item.item_type);
                 return (
@@ -151,24 +150,24 @@ export default function ReorderPage() {
                     key={item.item_type}
                     onClick={() => toggleItem(item.item_type)}
                     className={cn(
-                      "border rounded-2xl p-5 text-left transition-colors",
+                      "border rounded-2xl p-5 text-left transition-colors min-h-[132px]",
                       isSelected
-                        ? "border-deep-teal bg-seafoam-pale/50"
-                        : "border-sand bg-white hover:border-deep-teal/30"
+                        ? "border-deep-teal bg-seafoam-pale/50 shadow-sm"
+                        : "border-sand bg-white hover:border-deep-teal/40"
                     )}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="text-[17px] font-medium text-charcoal">
+                        <p className="text-lg font-medium text-charcoal leading-7">
                           {ITEM_LABELS[item.item_type]}
                         </p>
-                        <p className="text-base text-charcoal/70 mt-1">
+                        <p className="text-base text-charcoal/80 mt-1 leading-6">
                           {ITEM_DESCRIPTIONS[item.item_type]}
                         </p>
                       </div>
                       <div
                         className={cn(
-                          "h-5 w-5 rounded border-2 shrink-0 mt-0.5 flex items-center justify-center",
+                          "h-6 w-6 rounded border-2 shrink-0 mt-0.5 flex items-center justify-center",
                           isSelected
                             ? "border-deep-teal bg-deep-teal"
                             : "border-sand"
@@ -179,7 +178,7 @@ export default function ReorderPage() {
                         )}
                       </div>
                     </div>
-                    <span className="inline-block mt-2 text-sm text-seafoam font-medium">
+                    <span className="inline-block mt-3 text-base text-seafoam font-medium">
                       Available
                     </span>
                   </button>
@@ -191,22 +190,22 @@ export default function ReorderPage() {
           {/* Not-yet items */}
           {notYetItems.length > 0 && (
             <div>
-              <h2 className="text-lg font-medium text-charcoal/70 mb-3">
+              <h2 className="text-xl font-medium text-charcoal/80 mb-3">
                 Not yet available
               </h2>
               <div className="grid gap-3 md:grid-cols-2">
                 {notYetItems.map((item) => (
                   <div
                     key={item.item_type}
-                    className="border border-sand rounded-lg p-4 opacity-60"
+                    className="border border-sand rounded-lg p-4 bg-white"
                   >
-                    <p className="text-[17px] font-medium text-charcoal">
+                    <p className="text-lg font-medium text-charcoal leading-7">
                       {ITEM_LABELS[item.item_type]}
                     </p>
-                    <p className="text-base text-charcoal/70 mt-1">
+                    <p className="text-base text-charcoal/80 mt-1 leading-6">
                       {ITEM_DESCRIPTIONS[item.item_type]}
                     </p>
-                    <span className="inline-block mt-2 text-sm text-charcoal/70">
+                    <span className="inline-block mt-2 text-base text-charcoal/80">
                       From{" "}
                       {item.next_eligible_date
                         ? formatDate(item.next_eligible_date)
@@ -222,10 +221,13 @@ export default function ReorderPage() {
           <div>
             <label
               htmlFor="address"
-              className="block text-base font-medium text-charcoal mb-1"
+              className="block text-lg font-medium text-charcoal mb-2"
             >
               Delivery address
             </label>
+            <p className="text-base leading-6 text-charcoal/75 mb-2">
+              Enter the address where Midland Sleep should arrange delivery.
+            </p>
             <textarea
               id="address"
               value={address}
@@ -235,16 +237,19 @@ export default function ReorderPage() {
               className="w-full px-3 py-3 border border-sand rounded-md
                          focus:outline-none focus:ring-2 focus:ring-deep-teal
                          focus:border-transparent bg-white text-charcoal
-                         placeholder:text-charcoal/40 text-base min-h-[120px]"
+                         placeholder:text-charcoal/50 text-lg leading-7 min-h-[132px]"
             />
           </div>
 
           {/* Submit */}
+          <p className="text-base leading-6 text-charcoal/75">
+            Select at least one item and enter a delivery address to send your request.
+          </p>
           <button
             onClick={handleSubmit}
             disabled={selectedItems.length === 0 || !address.trim() || isSubmitting}
-            className="bg-[#0B5C6C] text-white px-6 py-3 rounded-lg text-base
-                       font-medium min-h-[48px] hover:bg-[#0B5C6C]/90 transition-colors
+            className="bg-[#0B5C6C] text-white px-7 py-3.5 rounded-lg text-lg
+                       font-medium min-h-[52px] hover:bg-[#0B5C6C]/90 transition-colors
                        disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isSubmitting ? "Sending..." : "Send request"}

@@ -27,60 +27,67 @@ export default function EquipmentPage() {
   const { device, mask, loading } = usePatientData();
 
   if (!patient) return null;
-  if (loading) return <div className="p-8 text-gray-700 text-base">Loading...</div>;
+  if (loading) return <div className="p-8 text-gray-700 text-lg leading-7">Loading...</div>;
 
   return (
     <>
-      <h1 className="font-display text-[34px] font-semibold text-navy mb-6">
+      <h1 className="font-display text-[34px] md:text-[38px] leading-tight font-semibold text-navy mb-3">
         My Equipment
       </h1>
+      <p className="text-lg leading-7 text-charcoal/80 mb-7">
+        These are the current equipment details held by Midland Sleep.
+      </p>
 
-      <div className="space-y-6">
-        <section className="bg-white border border-sand rounded-2xl p-6 space-y-3">
-          <h2 className="font-display text-[22px] font-semibold text-navy">Current machine</h2>
+      <div className="space-y-7">
+        <section className="bg-white border border-sand rounded-2xl p-6 md:p-7 space-y-5">
+          <h2 className="font-display text-2xl font-semibold text-navy leading-snug">Current machine</h2>
 
           {device ? (
-            <dl className="grid gap-3 md:grid-cols-2 text-[17px]">
-              <div><dt className="text-sm uppercase text-gray-600 font-mono">Brand</dt><dd className="text-charcoal font-medium">{device.brand ?? "-"}</dd></div>
-              <div><dt className="text-sm uppercase text-gray-600 font-mono">Model</dt><dd className="text-charcoal font-medium">{device.name ?? device.model ?? "-"}</dd></div>
-              <div><dt className="text-sm uppercase text-gray-600 font-mono">Serial number</dt><dd className="text-charcoal font-mono">{device.serial_number ?? "-"}</dd></div>
-              <div><dt className="text-sm uppercase text-gray-600 font-mono">Set up</dt><dd className="text-charcoal">{formatDate(device.setup_date)}</dd></div>
-              <div><dt className="text-sm uppercase text-gray-600 font-mono">Funded by</dt><dd className="text-charcoal font-medium">{device.funding_stream ?? "-"}</dd></div>
+            <dl className="grid gap-x-8 gap-y-5 md:grid-cols-2 text-lg leading-7">
+              <div><dt className="text-sm uppercase tracking-wide text-gray-700 font-mono mb-1.5">Brand</dt><dd className="text-charcoal font-medium">{device.brand ?? "Not recorded"}</dd></div>
+              <div><dt className="text-sm uppercase tracking-wide text-gray-700 font-mono mb-1.5">Model</dt><dd className="text-charcoal font-medium">{device.name ?? device.model ?? "Not recorded"}</dd></div>
+              <div><dt className="text-sm uppercase tracking-wide text-gray-700 font-mono mb-1.5">Serial number</dt><dd className="text-charcoal font-mono break-all">{device.serial_number ?? "Not recorded"}</dd></div>
+              <div><dt className="text-sm uppercase tracking-wide text-gray-700 font-mono mb-1.5">Set up</dt><dd className="text-charcoal">{formatDate(device.setup_date)}</dd></div>
+              <div><dt className="text-sm uppercase tracking-wide text-gray-700 font-mono mb-1.5">Funded by</dt><dd className="text-charcoal font-medium">{device.funding_stream ?? "Not recorded"}</dd></div>
             </dl>
           ) : (
-            <p className="text-base text-gray-700">No machine on file.</p>
+            <p className="text-lg leading-7 text-gray-800">
+              No machine is on file. If this looks wrong, please contact Midland Sleep.
+            </p>
           )}
         </section>
 
-        <section className="bg-white border border-sand rounded-2xl p-6 space-y-3">
-          <h2 className="font-display text-[22px] font-semibold text-navy">Current mask</h2>
+        <section className="bg-white border border-sand rounded-2xl p-6 md:p-7 space-y-5">
+          <h2 className="font-display text-2xl font-semibold text-navy leading-snug">Current mask</h2>
 
           {mask ? (
-            <dl className="grid gap-3 md:grid-cols-2 text-[17px]">
-              <div><dt className="text-sm uppercase text-gray-600 font-mono">Brand</dt><dd className="text-charcoal font-medium">{mask.brand ?? "-"}</dd></div>
-              <div><dt className="text-sm uppercase text-gray-600 font-mono">Model</dt><dd className="text-charcoal font-medium">{mask.name ?? "-"}</dd></div>
-              <div><dt className="text-sm uppercase text-gray-600 font-mono">Type</dt><dd className="text-charcoal">{formatMaskType(mask.type)}</dd></div>
-              <div><dt className="text-sm uppercase text-gray-600 font-mono">Size</dt><dd className="text-charcoal font-medium">{mask.size ?? "-"}</dd></div>
-              <div><dt className="text-sm uppercase text-gray-600 font-mono">Fitted</dt><dd className="text-charcoal">{formatDate(mask.fitted_date)}</dd></div>
+            <dl className="grid gap-x-8 gap-y-5 md:grid-cols-2 text-lg leading-7">
+              <div><dt className="text-sm uppercase tracking-wide text-gray-700 font-mono mb-1.5">Brand</dt><dd className="text-charcoal font-medium">{mask.brand ?? "Not recorded"}</dd></div>
+              <div><dt className="text-sm uppercase tracking-wide text-gray-700 font-mono mb-1.5">Model</dt><dd className="text-charcoal font-medium">{mask.name ?? "Not recorded"}</dd></div>
+              <div><dt className="text-sm uppercase tracking-wide text-gray-700 font-mono mb-1.5">Type</dt><dd className="text-charcoal">{formatMaskType(mask.type)}</dd></div>
+              <div><dt className="text-sm uppercase tracking-wide text-gray-700 font-mono mb-1.5">Size</dt><dd className="text-charcoal font-medium">{mask.size ?? "Not recorded"}</dd></div>
+              <div><dt className="text-sm uppercase tracking-wide text-gray-700 font-mono mb-1.5">Fitted</dt><dd className="text-charcoal">{formatDate(mask.fitted_date)}</dd></div>
             </dl>
           ) : (
-            <p className="text-base text-gray-700">No mask on file.</p>
+            <p className="text-lg leading-7 text-gray-800">
+              No mask is on file. If you use a Midland Sleep mask, please contact us so we can check your record.
+            </p>
           )}
         </section>
 
-        <section className="bg-white border border-sand rounded-2xl p-6 space-y-4">
-          <h2 className="font-display text-[22px] font-semibold text-navy">Maintenance timeline</h2>
-          <p className="text-base text-gray-700">
+        <section className="bg-white border border-sand rounded-2xl p-6 md:p-7 space-y-4">
+          <h2 className="font-display text-2xl font-semibold text-navy leading-snug">Maintenance timeline</h2>
+          <p className="text-lg leading-7 text-gray-800">
             Maintenance records will appear here once connected to Midland Sleep records.
           </p>
-          <p className="text-base text-gray-700 pt-3 border-t border-sand">
+          <p className="text-lg leading-7 text-gray-800 pt-4 border-t border-sand">
             To arrange checks, call Midland Sleep on <a href="tel:0800000000" className="text-deep-teal font-medium hover:underline">0800 000 000</a>.
           </p>
         </section>
 
-        <section className="bg-white border border-sand rounded-2xl p-6 border-dashed">
-          <h2 className="font-display text-[22px] font-semibold text-navy mb-2">Previous equipment</h2>
-          <p className="text-base text-gray-700">
+        <section className="bg-white border border-sand rounded-2xl p-6 md:p-7 border-dashed">
+          <h2 className="font-display text-2xl font-semibold text-navy mb-3 leading-snug">Previous equipment</h2>
+          <p className="text-lg leading-7 text-gray-800">
             Your machine and mask history will appear here in a future update.
           </p>
         </section>
