@@ -33,6 +33,12 @@ Day 35 completed:
 - Demo story uses existing Day 31 evidence and keeps dry run, controlled execute, created/skipped/failed outcomes, admin list visibility, drawer review, equipment details, no fake mask fallback, and NHI safety explicit.
 - Export bridge is treated as a checkpoint to demonstrate only when present in the target environment.
 
+Day 41 completed:
+
+- Phase 1 operating decisions consolidated into memory.
+- Key truths recorded: no Cognito patient accounts in import, no patient invite/email flow before June 30, PutItem-only audit/import rule, no fake mask fallback, no raw NHI returned from imported patient API, and checkout/inventory/mobile deferred.
+- Risks expanded and learnings captured for future handover.
+
 Next work:
 
 - Production rehearsal.
