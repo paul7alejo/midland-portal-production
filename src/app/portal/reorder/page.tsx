@@ -106,12 +106,17 @@ export default function ReorderPage() {
         Request Supplies
       </h1>
       {mask && (
-        <p className="text-lg leading-7 text-charcoal/80 mb-6">
-          Based on your current mask:{" "}
-          <span className="font-medium text-charcoal">
+        <div className="mb-6 rounded-xl border border-sand bg-white p-5">
+          <p className="mb-1 font-mono text-sm uppercase tracking-wide text-gray-700">
+            Current mask
+          </p>
+          <p className="text-xl font-semibold leading-7 text-charcoal">
             {mask.brand} {mask.name}
-          </span>
-        </p>
+          </p>
+          <p className="mt-2 text-base leading-7 text-charcoal/75">
+            Supply options below are based on this mask record.
+          </p>
+        </div>
       )}
 
       {/* Privacy notice — HIPC Rule 3: must appear ABOVE any data collection */}
@@ -148,17 +153,18 @@ export default function ReorderPage() {
                 return (
                   <button
                     key={item.item_type}
+                    aria-pressed={isSelected}
                     onClick={() => toggleItem(item.item_type)}
                     className={cn(
-                      "border rounded-2xl p-5 text-left transition-colors min-h-[132px]",
+                      "border rounded-2xl p-5 text-left transition-colors min-h-[160px] focus:outline-none focus:ring-2 focus:ring-deep-teal",
                       isSelected
                         ? "border-deep-teal bg-seafoam-pale/50 shadow-sm"
                         : "border-sand bg-white hover:border-deep-teal/40"
                     )}
                   >
                     <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-lg font-medium text-charcoal leading-7">
+                      <div className="min-w-0">
+                        <p className="text-xl font-semibold text-charcoal leading-7">
                           {ITEM_LABELS[item.item_type]}
                         </p>
                         <p className="text-base text-charcoal/80 mt-1 leading-6">
@@ -178,9 +184,14 @@ export default function ReorderPage() {
                         )}
                       </div>
                     </div>
-                    <span className="inline-block mt-3 text-base text-seafoam font-medium">
-                      Available
-                    </span>
+                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                      <span className="inline-flex rounded-full bg-seafoam-pale px-3 py-1 text-sm font-medium text-deep-teal">
+                        Available now
+                      </span>
+                      <span className="inline-flex rounded-full border border-sand bg-white px-3 py-1 text-sm font-medium text-charcoal/70">
+                        Replacement item
+                      </span>
+                    </div>
                   </button>
                 );
               })}
@@ -193,20 +204,20 @@ export default function ReorderPage() {
               <h2 className="text-xl font-medium text-charcoal/80 mb-3">
                 Not yet available
               </h2>
-              <div className="grid gap-3 md:grid-cols-2">
+              <div className="grid gap-4 md:grid-cols-2">
                 {notYetItems.map((item) => (
                   <div
                     key={item.item_type}
-                    className="border border-sand rounded-lg p-4 bg-white"
+                    className="border border-sand rounded-2xl p-5 bg-sand-pale/50"
                   >
-                    <p className="text-lg font-medium text-charcoal leading-7">
+                    <p className="text-xl font-semibold text-charcoal leading-7">
                       {ITEM_LABELS[item.item_type]}
                     </p>
                     <p className="text-base text-charcoal/80 mt-1 leading-6">
                       {ITEM_DESCRIPTIONS[item.item_type]}
                     </p>
-                    <span className="inline-block mt-2 text-base text-charcoal/80">
-                      From{" "}
+                    <span className="inline-flex mt-4 rounded-full border border-sand bg-white px-3 py-1 text-sm font-medium text-charcoal/75">
+                      Available from{" "}
                       {item.next_eligible_date
                         ? formatDate(item.next_eligible_date)
                         : "later this year"}
