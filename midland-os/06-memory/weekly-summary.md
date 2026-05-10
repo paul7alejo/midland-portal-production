@@ -33,6 +33,12 @@ Day 35 completed:
 - Demo story uses existing Day 31 evidence and keeps dry run, controlled execute, created/skipped/failed outcomes, admin list visibility, drawer review, equipment details, no fake mask fallback, and NHI safety explicit.
 - Export bridge is treated as a checkpoint to demonstrate only when present in the target environment.
 
+Day 37 completed:
+
+- Admin review SOP finalized as a clinic-ready workflow for reviewing imported patients after import.
+- Patient list, drawer review, field checks, missing device handling, missing mask handling, display-only review status, export use, escalation, and scope boundaries are explicit.
+- SOP states the workflow is not clinical advice and does not create patient invites or email flows.
+
 Next work:
 
 - Production rehearsal.
