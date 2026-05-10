@@ -21,3 +21,10 @@
 - Midland admin explanation now centers on batch ID, created count, skipped count, failed count, duplicate NHI outcome, duplicate machine serial outcome, and invalid required-field outcome.
 - Failed and skipped rows require Midland admin source-data correction, identity review, equipment review, or escalation before retry.
 - No backend workflow, schema, analytics dashboard, or patient-facing behavior was added.
+
+## Day 36
+
+- Import SOP was finalized as a clinic-ready operational runbook.
+- Midland remains owner of source-data accuracy, identity decisions, equipment conflict decisions, and approval of corrected retry files.
+- Phase 1 import boundaries remain explicit: no patient accounts, emails, invites, orders, fulfilment tasks, inventory movements, or clinical decisioning.
+- No backend changes or UI redesign were introduced for the SOP finalization.

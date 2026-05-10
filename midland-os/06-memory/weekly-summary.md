@@ -33,6 +33,12 @@ Day 35 completed:
 - Demo story uses existing Day 31 evidence and keeps dry run, controlled execute, created/skipped/failed outcomes, admin list visibility, drawer review, equipment details, no fake mask fallback, and NHI safety explicit.
 - Export bridge is treated as a checkpoint to demonstrate only when present in the target environment.
 
+Day 36 completed:
+
+- Import SOP rewritten as a clinic-ready operational runbook.
+- Source-data ownership, accepted formats, required fields, dry run, approval, execute, result definitions, duplicate handling, failed-row handling, post-import verification, evidence capture, escalation, and Phase 1 boundaries are explicit.
+- Biomedical import workflow updated to match the clinic SOP.
+
 Next work:
 
 - Production rehearsal.
