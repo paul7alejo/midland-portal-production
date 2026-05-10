@@ -1059,7 +1059,7 @@ function DownloadButton({
       onClick={onClick}
       disabled={disabled}
       className="inline-flex items-center gap-2 border border-gray-300 text-gray-700 text-sm font-medium
-                 px-4 py-2 rounded-lg min-h-[36px] hover:border-[#0B5C6C] hover:text-[#0B5C6C]
+                 px-4 py-2.5 rounded-lg min-h-[40px] hover:border-[#0B5C6C] hover:text-[#0B5C6C]
                  transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-white"
     >
       <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -1154,15 +1154,23 @@ export default function AdminImportPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-navy">Import Patients</h1>
-        <p className="text-base text-gray-600 mt-1">Preview CSV before committing — Midland Sleep</p>
+      <div className="space-y-2">
+        <p className="text-sm font-semibold uppercase tracking-wide text-deep-teal">
+          Data operations
+        </p>
+        <h1 className="text-3xl font-bold text-navy">Import patients</h1>
+        <p className="text-base leading-6 text-gray-600">
+          Validate CSV data, review risks, and prepare evidence before any approved production import.
+        </p>
       </div>
 
       {/* Warning banner — always visible */}
-      <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
-        <p className="text-sm text-amber-800 font-medium">
-          Preview only — no data will be written to the system.
+      <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-4">
+        <p className="text-base text-amber-900 font-semibold">
+          Preview only
+        </p>
+        <p className="mt-1 text-sm leading-6 text-amber-800">
+          This screen validates and prepares review evidence. It does not write patient records.
         </p>
       </div>
 
@@ -1182,11 +1190,17 @@ export default function AdminImportPage() {
       {result === null && <CsvPreparationEmptyState />}
 
       {/* Input card */}
-      <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-5">
+      <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-5 shadow-sm">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-800">CSV input</h2>
+          <p className="mt-1 text-sm leading-6 text-gray-500">
+            Upload a CSV file or paste CSV content below. NHI is masked in review reports.
+          </p>
+        </div>
 
         {/* File upload */}
         <div className="space-y-2">
-          <label className="block text-sm font-semibold text-gray-700">Upload CSV file</label>
+          <label className="block text-sm font-semibold uppercase tracking-wide text-gray-700">Upload CSV file</label>
           <div className="flex items-center gap-3 flex-wrap">
             <label
               htmlFor="csv-file-input"
@@ -1196,7 +1210,7 @@ export default function AdminImportPage() {
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
               </svg>
-              Choose file
+              Choose CSV file
             </label>
             <input
               id="csv-file-input"
@@ -1215,13 +1229,13 @@ export default function AdminImportPage() {
         {/* OR divider */}
         <div className="flex items-center gap-3">
           <div className="flex-1 h-px bg-gray-200" />
-          <span className="text-sm font-medium text-gray-400">OR</span>
+          <span className="text-sm font-medium text-gray-400">or</span>
           <div className="flex-1 h-px bg-gray-200" />
         </div>
 
         {/* Paste textarea */}
         <div className="space-y-2">
-          <label htmlFor="csv-paste" className="block text-sm font-semibold text-gray-700">
+          <label htmlFor="csv-paste" className="block text-sm font-semibold uppercase tracking-wide text-gray-700">
             Paste CSV
           </label>
           <textarea
@@ -1281,7 +1295,7 @@ export default function AdminImportPage() {
           <ManifestPreview manifest={manifest} />
 
           {/* Summary cards */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <SummaryCard label="Total rows" value={result.totalRows} />
             <SummaryCard
               label="Valid"

@@ -290,9 +290,9 @@ const NHI_REASONS = [
 
 function FieldRow({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div>
+    <div className="min-w-0">
       <dt className="text-sm font-medium text-gray-500 uppercase tracking-wide">{label}</dt>
-      <dd className="text-base text-gray-800 mt-0.5 min-w-0 break-words">{value}</dd>
+      <dd className="text-base leading-6 text-gray-800 mt-1 min-w-0 break-words">{value}</dd>
     </div>
   );
 }
@@ -303,46 +303,56 @@ function MonoValue({ value }: { value: string }) {
 
 function OverviewTab({ patient }: { patient: DrawerPatient }) {
   return (
-    <dl className="grid gap-5 sm:grid-cols-2">
-      <div className="sm:col-span-2">
-        <dt className="text-sm font-medium text-gray-500 uppercase tracking-wide">MSID</dt>
-        <dd className="mt-0.5 max-w-full break-all font-mono text-base text-[#0B5C6C]">{patient.msid}</dd>
-      </div>
-      <FieldRow label="Date of birth" value={patient.dob} />
-      <FieldRow label="Phone" value={patient.phone} />
-      <FieldRow label="Email" value={patient.email} />
-      <div className="sm:col-span-2">
-        <FieldRow label="Address" value={patient.address} />
-      </div>
-      <FieldRow
-        label="Segment"
-        value={
-          <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-sm font-medium bg-emerald-100 text-emerald-800 border border-emerald-200">
-            {patient.segment}
-          </span>
-        }
-      />
-      <FieldRow label="Registration date" value={patient.registrationDate} />
-      <FieldRow
-        label="Machine"
-        value={`${patient.machine.brand} ${patient.machine.model}`}
-      />
-      <FieldRow
-        label="Mask"
-        value={
-          patient.mask
-            ? `${patient.mask.brand} ${patient.mask.model} (${patient.mask.size})`
-            : "No mask record imported"
-        }
-      />
-      {patient.imported && (
-        <>
-          <FieldRow label="Funded by" value={safeValue(patient.fundedBy)} />
-          <FieldRow label="Import batch ID" value={<MonoValue value={safeValue(patient.importBatchId)} />} />
-          <FieldRow label="Review status" value={safeValue(patient.reviewStatus)} />
-        </>
-      )}
-    </dl>
+    <div className="space-y-5">
+      <section className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+        <dl className="grid gap-5 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <dt className="text-sm font-medium text-gray-500 uppercase tracking-wide">MSID</dt>
+            <dd className="mt-1 max-w-full break-all font-mono text-base text-[#0B5C6C]">{patient.msid}</dd>
+          </div>
+          <FieldRow label="Date of birth" value={patient.dob} />
+          <FieldRow label="Phone" value={patient.phone} />
+          <FieldRow label="Email" value={patient.email} />
+          <div className="sm:col-span-2">
+            <FieldRow label="Address" value={patient.address} />
+          </div>
+          <FieldRow
+            label="Segment"
+            value={
+              <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-sm font-medium bg-emerald-100 text-emerald-800 border border-emerald-200">
+                {patient.segment}
+              </span>
+            }
+          />
+          <FieldRow label="Registration date" value={patient.registrationDate} />
+        </dl>
+      </section>
+
+      <section className="rounded-xl border border-gray-200 bg-white p-4">
+        <h3 className="mb-4 text-sm font-semibold text-gray-600 uppercase tracking-wide">Equipment summary</h3>
+        <dl className="grid gap-5 sm:grid-cols-2">
+          <FieldRow
+            label="Machine"
+            value={`${patient.machine.brand} ${patient.machine.model}`}
+          />
+          <FieldRow
+            label="Mask"
+            value={
+              patient.mask
+                ? `${patient.mask.brand} ${patient.mask.model} (${patient.mask.size})`
+                : "No mask record imported"
+            }
+          />
+          {patient.imported && (
+            <>
+              <FieldRow label="Funded by" value={safeValue(patient.fundedBy)} />
+              <FieldRow label="Import batch ID" value={<MonoValue value={safeValue(patient.importBatchId)} />} />
+              <FieldRow label="Review status" value={safeValue(patient.reviewStatus)} />
+            </>
+          )}
+        </dl>
+      </section>
+    </div>
   );
 }
 
@@ -352,7 +362,7 @@ function EquipmentTab({ patient }: { patient: DrawerPatient }) {
     <div className="space-y-6">
       <div>
         <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3">Machine</h3>
-        <dl className="grid gap-4 sm:grid-cols-2 bg-gray-50 rounded-xl p-4">
+        <dl className="grid gap-5 sm:grid-cols-2 bg-gray-50 border border-gray-200 rounded-xl p-4">
           <FieldRow label="Brand"      value={machine.brand} />
           <FieldRow label="Model"      value={machine.model} />
           <FieldRow label="Serial"     value={machine.serial} />
@@ -372,15 +382,16 @@ function EquipmentTab({ patient }: { patient: DrawerPatient }) {
       <div>
         <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3">Mask</h3>
         {mask ? (
-          <dl className="grid gap-4 sm:grid-cols-2 bg-gray-50 rounded-xl p-4">
+          <dl className="grid gap-5 sm:grid-cols-2 bg-gray-50 border border-gray-200 rounded-xl p-4">
             <FieldRow label="Brand"       value={mask.brand} />
             <FieldRow label="Model"       value={mask.model} />
             <FieldRow label="Size"        value={mask.size} />
             <FieldRow label="Last issued" value={mask.lastIssued} />
           </dl>
         ) : (
-          <div className="bg-gray-50 rounded-xl p-4">
-            <p className="text-base text-gray-600">No mask record imported</p>
+          <div className="bg-gray-50 border border-dashed border-gray-200 rounded-xl p-4">
+            <p className="text-base font-medium text-gray-700">No mask record imported</p>
+            <p className="mt-1 text-sm text-gray-500">Review the import source or update the record when mask details are available.</p>
           </div>
         )}
       </div>

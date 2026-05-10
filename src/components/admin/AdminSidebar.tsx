@@ -84,17 +84,17 @@ export default function AdminSidebar() {
             Midland Sleep
           </span>
           <span className="text-xs text-amber-400 font-medium">
-            Admin
+            Admin console
           </span>
         </div>
       </div>
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-3 py-4">
-        <div className="space-y-5">
+        <div className="space-y-6">
           {navSections.map((section) => (
             <div key={section.label}>
-              <p className="px-2 pb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/40">
+              <p className="px-2 pb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/45">
                 {section.label}
               </p>
               <div className="space-y-1">
@@ -110,7 +110,7 @@ export default function AdminSidebar() {
                       key={item.href}
                       href={item.href}
                       className={`
-                        flex items-center gap-3 rounded-lg px-3 py-2.5 text-base transition-colors
+                        flex items-center gap-3 rounded-lg px-3 py-2.5 text-base font-medium transition-colors
                         ${
                           isActive
                             ? "bg-deep-teal text-white shadow-sm"
