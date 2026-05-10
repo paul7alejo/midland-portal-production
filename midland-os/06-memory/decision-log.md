@@ -21,3 +21,10 @@
 - Midland admin explanation now centers on batch ID, created count, skipped count, failed count, duplicate NHI outcome, duplicate machine serial outcome, and invalid required-field outcome.
 - Failed and skipped rows require Midland admin source-data correction, identity review, equipment review, or escalation before retry.
 - No backend workflow, schema, analytics dashboard, or patient-facing behavior was added.
+
+## Day 38
+
+- Phase 1 release language was finalized as honest and bounded.
+- Release SOP now requires go/no-go, pre-release, smoke, admin/import/export, rollback, escalation, signoff, and support-boundary checks.
+- Known limitations explicitly state no checkout/Stripe, no inventory/fulfilment system, no mobile app, no patient invites/accounts/emails, and no advanced audit dashboard.
+- Phase 1 remains an admin/import/review visibility release, not a fake analytics, audit, backup, finance, fulfilment, or patient onboarding system.

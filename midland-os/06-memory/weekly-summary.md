@@ -33,6 +33,12 @@ Day 35 completed:
 - Demo story uses existing Day 31 evidence and keeps dry run, controlled execute, created/skipped/failed outcomes, admin list visibility, drawer review, equipment details, no fake mask fallback, and NHI safety explicit.
 - Export bridge is treated as a checkpoint to demonstrate only when present in the target environment.
 
+Day 38 completed:
+
+- Release SOP finalized as a bounded Phase 1 release/rehearsal runbook.
+- Go/no-go, pre-release checks, smoke tests, admin/import/export checks, rollback/escalation, signoff, and support boundaries are explicit.
+- Known limitations rewritten with Phase 1 truths, including no checkout/Stripe, no fulfilment/inventory system, no mobile app, no patient invites/accounts/emails, and no advanced audit dashboard.
+
 Next work:
 
 - Production rehearsal.
