@@ -62,6 +62,12 @@ Day 40 completed:
 - Midland OS handover index was added.
 - The handover pack now has a practical entry point describing what Phase 1 includes, what it excludes, what Midland can use immediately, and how to request changes after go-live.
 
+Day 41 completed:
+
+- Risks, decisions, learnings, and weekly-summary memory were cleaned up.
+- Phase 1 operating truths are now easier to find and hand over.
+- No new scope or backend behavior was introduced.
+
 Next work:
 
 - Production rehearsal.

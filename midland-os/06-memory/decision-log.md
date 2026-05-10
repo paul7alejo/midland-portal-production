@@ -56,3 +56,9 @@
 - Midland OS handover index was added as the main entry point for handover.
 - Handover documentation now explains what Midland OS v1 is, what Phase 1 includes and excludes, where to find key SOPs and workflows, how to request changes, and what happens after go-live.
 - Midland OS v1 is explicitly positioned as an operating/documentation layer around the portal, not a separate AI product.
+
+## Day 41
+
+- Risks, decisions, learnings, and weekly summary were cleaned up into a clearer operating memory layer.
+- The Phase 1 operating truths were locked in one place: no Cognito patient accounts from import, no patient invite/email flow before June 30, PutItem-only import/audit rule, no fake mask fallback, no raw NHI returned from imported patient APIs, and checkout/inventory/mobile deferred.
+- Day 41 did not add product scope or new backend behavior; it improved continuity and handover quality.
