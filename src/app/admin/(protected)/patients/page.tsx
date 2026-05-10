@@ -363,9 +363,9 @@ function mapImportedPatient(patient: ImportedPatientSummary): Patient {
 
 function SummaryCard({ label, value, accent }: { label: string; value: number; accent?: string }) {
   return (
-    <div className="bg-white border border-gray-200 rounded-xl p-6 flex flex-col gap-1 min-w-0">
-      <span className={`text-3xl font-bold ${accent ?? "text-navy"}`}>{value}</span>
-      <span className="text-base font-medium text-gray-600">{label}</span>
+    <div className="bg-white border border-gray-200 rounded-xl p-5 flex flex-col gap-1 min-w-0 shadow-sm">
+      <span className={`text-3xl font-bold tabular-nums ${accent ?? "text-navy"}`}>{value}</span>
+      <span className="text-sm font-semibold uppercase tracking-wide text-gray-600">{label}</span>
     </div>
   );
 }
@@ -790,17 +790,20 @@ export default function AdminPatientsPage() {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div>
+      <div className="space-y-2">
+        <p className="text-sm font-semibold uppercase tracking-wide text-deep-teal">
+          Patient operations
+        </p>
         <h1 className="text-3xl font-bold text-navy">Patients</h1>
-        <p className="text-base text-gray-600 mt-1">Active patient register — Midland Sleep</p>
+        <p className="text-base leading-6 text-gray-600">Active and imported patient records for admin review.</p>
       </div>
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <SummaryCard label="Total Patients"    value={totalPatients} />
-        <SummaryCard label="Eligible Now"      value={eligibleNow}    accent="text-emerald-700" />
-        <SummaryCard label="Needs Outreach"    value={needsOutreach}  accent="text-amber-700" />
-        <SummaryCard label="Safety Checks Due" value={safetyChecksDue} accent="text-amber-700" />
+        <SummaryCard label="Total patients"    value={totalPatients} />
+        <SummaryCard label="Eligible now"      value={eligibleNow}    accent="text-emerald-700" />
+        <SummaryCard label="Needs outreach"    value={needsOutreach}  accent="text-amber-700" />
+        <SummaryCard label="Safety checks due" value={safetyChecksDue} accent="text-amber-700" />
       </div>
 
       {/* Search + Filter & Sort button */}
@@ -826,7 +829,7 @@ export default function AdminPatientsPage() {
         <button
           type="button"
           onClick={() => setFilterPanelOpen(true)}
-          className="flex items-center gap-2 px-4 py-2.5 border border-gray-300 rounded-lg text-base
+          className="flex items-center gap-2 px-4 py-2.5 border border-gray-300 rounded-lg text-base font-medium
                      bg-white text-gray-700 hover:border-[#0B5C6C] min-h-[44px] whitespace-nowrap transition-colors"
         >
           Filter &amp; Sort
@@ -841,7 +844,7 @@ export default function AdminPatientsPage() {
         <a
           href="/api/admin/patients?export=csv"
           download
-          className="flex items-center gap-2 px-4 py-2.5 border border-[#0B5C6C] rounded-lg text-base
+          className="flex items-center gap-2 px-4 py-2.5 border border-[#0B5C6C] rounded-lg text-base font-medium
                      bg-white text-[#0B5C6C] hover:bg-[#0B5C6C]/5 min-h-[44px] whitespace-nowrap transition-colors"
           title="Export imported patient operational fields only"
         >
@@ -895,7 +898,13 @@ export default function AdminPatientsPage() {
       )}
 
       {/* Table */}
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+        <div className="border-b border-gray-200 bg-white px-5 py-4">
+          <h2 className="text-base font-semibold text-gray-800">Patient register</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            Imported records are marked and should be reviewed before operational use.
+          </p>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[860px] border-collapse">
             <thead>
@@ -935,9 +944,9 @@ export default function AdminPatientsPage() {
                       : "bg-purple-50 text-purple-700 border border-purple-200";
                   return (
                     <tr key={patient.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-4">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-sm font-semibold text-navy">{patient.name}</span>
+                          <span className="text-base font-semibold text-navy">{patient.name}</span>
                           {patient.source === "admin_csv" && (
                             <span className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-700">
                               Imported
@@ -948,12 +957,12 @@ export default function AdminPatientsPage() {
                           <span className="mt-1 block text-xs text-gray-500">Imported {patient.importedAt}</span>
                         )}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-4">
                         <span className="block max-w-[12rem] break-all font-mono text-sm leading-5 text-gray-700">
                           {patient.msid.replace(/^MS-/, "")}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-4">
                         {patient.phone === "—" ? (
                           <span className="text-sm text-gray-500">—</span>
                         ) : (
@@ -965,26 +974,26 @@ export default function AdminPatientsPage() {
                           </a>
                         )}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-4">
                         <span className={`inline-block text-sm font-medium px-2.5 py-1 rounded-full ${fundingCls}`}>
                           {patient.funding}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-4">
                         <span className="text-sm text-gray-700 whitespace-nowrap">{patient.lastOrder}</span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-4">
                         <span className="text-sm text-gray-700 whitespace-nowrap">{patient.nextEligible}</span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-4">
                         <span className={`inline-flex items-center text-sm font-medium px-3 py-1.5 rounded-full whitespace-nowrap ${statusCfg.classes}`}>
                           {statusCfg.label}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-4">
                         <FundingBadge amount={patient.remainingAmount} />
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-4">
                         <div className="flex items-center gap-2 flex-wrap">
                           <button
                             type="button"

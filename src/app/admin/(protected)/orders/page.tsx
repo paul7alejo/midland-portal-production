@@ -257,7 +257,7 @@ function FilterPanel({
 
 function EmptyState({ filtered }: { filtered: boolean }) {
   return (
-    <div className="flex flex-col items-center justify-center py-20 text-center">
+    <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
       <div className="h-14 w-14 rounded-full bg-gray-100 flex items-center justify-center mb-4">
         <svg className="h-7 w-7 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
@@ -267,7 +267,7 @@ function EmptyState({ filtered }: { filtered: boolean }) {
         {filtered ? "No orders match the current filters." : "No orders here yet."}
       </p>
       {!filtered && (
-        <p className="text-sm text-gray-500 mt-1">Orders will appear here once they reach this stage.</p>
+        <p className="text-sm leading-6 text-gray-500 mt-1">Supply requests will appear here once they reach this stage.</p>
       )}
     </div>
   );
@@ -417,19 +417,22 @@ export default function AdminOrdersPage() {
   const isFiltered = activeFilterCount > 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-7">
       {/* Header */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
+        <div className="space-y-2">
+          <p className="text-sm font-semibold uppercase tracking-wide text-deep-teal">
+            Patient operations
+          </p>
           <h1 className="text-3xl font-bold text-navy">Orders</h1>
-          <p className="text-base text-gray-600 mt-1">Supply request worklist — Midland Sleep</p>
+          <p className="text-base leading-6 text-gray-600">Supply request worklist for staff review.</p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           {selectedVisible.length > 0 && (
             <button
               type="button"
               onClick={handleApproveSelected}
-              className="bg-[#0B5C6C] text-white text-sm font-medium px-5 py-2.5 rounded-lg min-h-[40px] hover:bg-[#0B5C6C]/90 transition-colors"
+              className="bg-[#0B5C6C] text-white text-base font-medium px-5 py-2.5 rounded-lg min-h-[44px] hover:bg-[#0B5C6C]/90 transition-colors"
             >
               Approve selected ({selectedVisible.length})
             </button>
@@ -437,8 +440,8 @@ export default function AdminOrdersPage() {
           <button
             type="button"
             onClick={() => setFilterOpen(true)}
-            className="flex items-center gap-2 px-4 py-2.5 border border-gray-300 rounded-lg text-sm
-                       bg-white text-gray-700 hover:border-[#0B5C6C] min-h-[40px] whitespace-nowrap transition-colors"
+            className="flex items-center gap-2 px-4 py-2.5 border border-gray-300 rounded-lg text-base font-medium
+                       bg-white text-gray-700 hover:border-[#0B5C6C] min-h-[44px] whitespace-nowrap transition-colors"
           >
             Filter &amp; Sort
             {activeFilterCount > 0 && (
@@ -452,8 +455,8 @@ export default function AdminOrdersPage() {
       </div>
 
       {/* Tab bar */}
-      <div className="border-b border-gray-200">
-        <nav className="flex gap-0">
+      <div className="border-b border-gray-200 overflow-x-auto">
+        <nav className="flex gap-0 min-w-max">
           {TABS.map((tab) => {
             const isActive = activeTab === tab.key && statusFilters.size === 0;
             return (
@@ -462,7 +465,7 @@ export default function AdminOrdersPage() {
                 type="button"
                 onClick={() => handleTabClick(tab.key)}
                 className={`
-                  flex items-center gap-2 px-5 py-3.5 text-sm font-medium border-b-2 transition-colors
+                  flex items-center gap-2 px-5 py-3.5 text-base font-medium border-b-2 transition-colors
                   ${isActive
                     ? "border-[#0B5C6C] text-[#0B5C6C]"
                     : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
@@ -515,7 +518,13 @@ export default function AdminOrdersPage() {
       )}
 
       {/* Table */}
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+        <div className="border-b border-gray-200 bg-white px-5 py-4">
+          <h2 className="text-base font-semibold text-gray-800">Request list</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            Review patient requests and open the patient drawer for context.
+          </p>
+        </div>
         {visibleOrders.length === 0 ? (
           <EmptyState filtered={isFiltered} />
         ) : (
@@ -550,7 +559,7 @@ export default function AdminOrdersPage() {
                       key={order.id}
                       className={`transition-colors ${isSelected ? "bg-teal-50" : "hover:bg-gray-50"}`}
                     >
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-4">
                         <input
                           type="checkbox"
                           checked={isSelected}
@@ -559,29 +568,29 @@ export default function AdminOrdersPage() {
                           aria-label={`Select ${order.patient}`}
                         />
                       </td>
-                      <td className="px-4 py-3">
-                        <span className="text-sm font-semibold text-navy whitespace-nowrap">{order.patient}</span>
+                      <td className="px-4 py-4">
+                        <span className="text-base font-semibold text-navy whitespace-nowrap">{order.patient}</span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-4">
                         <span className="text-sm font-mono text-gray-700">{order.msid.replace(/^MS-/, "")}</span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-4">
                         <span className="text-sm text-gray-700 whitespace-nowrap">{order.date}</span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-4">
                         <span className="text-sm text-gray-700">{order.items}</span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-4">
                         <span className={`inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${TYPE_BADGE[order.type]}`}>
                           {TYPE_LABEL[order.type]}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-4">
                         <span className={`inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${STATUS_BADGE[order.status]}`}>
                           {order.status}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-4">
                         <div className="flex items-center gap-2 flex-wrap">
                           <button
                             type="button"
