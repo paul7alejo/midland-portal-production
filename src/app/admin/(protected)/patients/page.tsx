@@ -32,6 +32,7 @@ interface Patient {
   source?: "demo" | "admin_csv";
   importBatchId?: string;
   reviewStatus?: string;
+  importedAt?: string;
 }
 
 interface ImportedPatientSummary {
@@ -284,6 +285,52 @@ function parseToDate(s: string): Date | null {
   return new Date(parseInt(y), mo - 1, parseInt(d));
 }
 
+function humanizeLabel(value?: string): string {
+  const normalized = value?.trim();
+  if (!normalized) return "—";
+  return normalized
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .toLowerCase()
+    .replace(/^\w/, (char) => char.toUpperCase());
+}
+
+function formatNzDateTime(value?: string): string {
+  if (!value?.trim()) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("en-NZ", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "Pacific/Auckland",
+  }).format(date);
+}
+
+function formatNzPhone(value?: string): string {
+  const raw = value?.trim();
+  if (!raw || raw === "—") return "—";
+
+  const hasInternationalPrefix = raw.startsWith("+");
+  const digits = raw.replace(/\D/g, "");
+  if (!digits) return raw;
+
+  const localDigits = digits.startsWith("64") ? `0${digits.slice(2)}` : digits;
+  if (localDigits.length === 10 && /^02\d/.test(localDigits)) {
+    return `${localDigits.slice(0, 3)} ${localDigits.slice(3, 6)} ${localDigits.slice(6)}`;
+  }
+  if (localDigits.length === 9 && /^0[34679]/.test(localDigits)) {
+    return `${localDigits.slice(0, 2)} ${localDigits.slice(2, 5)} ${localDigits.slice(5)}`;
+  }
+  if (hasInternationalPrefix && digits.startsWith("64")) {
+    return `+64 ${digits.slice(2)}`;
+  }
+  return raw;
+}
+
 function mapFunding(value?: string): FundingType {
   const normalized = (value ?? "").toLowerCase().replace(/[_-]/g, " ").trim();
   if (normalized.includes("acc")) return "ACC";
@@ -296,7 +343,7 @@ function mapImportedPatient(patient: ImportedPatientSummary): Patient {
     id: patient.patient_id,
     name: patient.name,
     msid: patient.portal_id,
-    phone: patient.phone?.trim() || "—",
+    phone: formatNzPhone(patient.phone),
     funding: mapFunding(patient.funded_by),
     lastOrder: "—",
     nextEligible: "Review required",
@@ -309,7 +356,8 @@ function mapImportedPatient(patient: ImportedPatientSummary): Patient {
     suggestedItemsRemaining: [],
     source: "admin_csv",
     importBatchId: patient.import_batch_id,
-    reviewStatus: patient.review_status,
+    reviewStatus: humanizeLabel(patient.review_status),
+    importedAt: formatNzDateTime(patient.created_at),
   };
 }
 
@@ -794,7 +842,9 @@ export default function AdminPatientsPage() {
           {displayedPatients.length} of {totalPatients}
         </span>
         {importLoading && (
-          <span className="text-sm text-gray-500">Loading imported patients…</span>
+          <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-sm text-gray-600">
+            Loading imported records...
+          </span>
         )}
       </div>
 
@@ -857,7 +907,10 @@ export default function AdminPatientsPage() {
               {displayedPatients.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="px-5 py-12 text-center text-base text-gray-500">
-                    No patients match the current filters.
+                    <span className="block font-medium text-gray-700">No patients found</span>
+                    <span className="mt-1 block text-sm text-gray-500">
+                      Adjust the search or filters to see imported and demo patient records.
+                    </span>
                   </td>
                 </tr>
               ) : (
@@ -873,20 +926,34 @@ export default function AdminPatientsPage() {
                   return (
                     <tr key={patient.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-3">
-                        <span className="text-sm font-semibold text-navy">{patient.name}</span>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-semibold text-navy">{patient.name}</span>
+                          {patient.source === "admin_csv" && (
+                            <span className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-700">
+                              Imported
+                            </span>
+                          )}
+                        </div>
+                        {patient.source === "admin_csv" && patient.importedAt && patient.importedAt !== "—" && (
+                          <span className="mt-1 block text-xs text-gray-500">Imported {patient.importedAt}</span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
-                        <span className="text-sm font-mono text-gray-700">
+                        <span className="block max-w-[12rem] break-all font-mono text-sm leading-5 text-gray-700">
                           {patient.msid.replace(/^MS-/, "")}
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <a
-                          href={`tel:${patient.phone.replace(/\s/g, "")}`}
-                          className="text-sm text-gray-700 hover:text-[#0B5C6C] transition-colors whitespace-nowrap"
-                        >
-                          {patient.phone}
-                        </a>
+                        {patient.phone === "—" ? (
+                          <span className="text-sm text-gray-500">—</span>
+                        ) : (
+                          <a
+                            href={`tel:${patient.phone.replace(/\s/g, "")}`}
+                            className="text-sm text-gray-700 hover:text-[#0B5C6C] transition-colors whitespace-nowrap"
+                          >
+                            {patient.phone}
+                          </a>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <span className={`inline-block text-sm font-medium px-2.5 py-1 rounded-full ${fundingCls}`}>

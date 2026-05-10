@@ -165,24 +165,82 @@ function safeValue(value?: string): string {
   return value?.trim() || "—";
 }
 
+function humanizeLabel(value?: string): string {
+  const normalized = value?.trim();
+  if (!normalized) return "—";
+  return normalized
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .toLowerCase()
+    .replace(/^\w/, (char) => char.toUpperCase());
+}
+
+function formatNzDate(value?: string): string {
+  if (!value?.trim()) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("en-NZ", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "Pacific/Auckland",
+  }).format(date);
+}
+
+function formatNzDateTime(value?: string): string {
+  if (!value?.trim()) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("en-NZ", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "Pacific/Auckland",
+  }).format(date);
+}
+
+function formatNzPhone(value?: string): string {
+  const raw = value?.trim();
+  if (!raw || raw === "—") return "—";
+
+  const hasInternationalPrefix = raw.startsWith("+");
+  const digits = raw.replace(/\D/g, "");
+  if (!digits) return raw;
+
+  const localDigits = digits.startsWith("64") ? `0${digits.slice(2)}` : digits;
+  if (localDigits.length === 10 && /^02\d/.test(localDigits)) {
+    return `${localDigits.slice(0, 3)} ${localDigits.slice(3, 6)} ${localDigits.slice(6)}`;
+  }
+  if (localDigits.length === 9 && /^0[34679]/.test(localDigits)) {
+    return `${localDigits.slice(0, 2)} ${localDigits.slice(2, 5)} ${localDigits.slice(5)}`;
+  }
+  if (hasInternationalPrefix && digits.startsWith("64")) {
+    return `+64 ${digits.slice(2)}`;
+  }
+  return raw;
+}
+
 function makeImportedPatient(detail: ImportedPatientDetail): DrawerPatient {
   const imported = detail.patient;
   const device = detail.devices[0];
   return {
     msid: imported.portal_id,
     name: imported.name,
-    dob: safeValue(imported.date_of_birth),
-    phone: safeValue(imported.phone),
+    dob: formatNzDate(imported.date_of_birth),
+    phone: formatNzPhone(imported.phone),
     email: safeValue(imported.email),
     address: safeValue(imported.address),
     segment: "Imported",
-    registrationDate: safeValue(imported.created_at),
+    registrationDate: formatNzDateTime(imported.created_at),
     machine: {
       brand: safeValue(device?.brand),
       model: safeValue(device?.model),
       serial: safeValue(device?.serial_number),
       deviceId: safeValue(device?.device_id),
-      setupDate: safeValue(device?.setup_date),
+      setupDate: formatNzDate(device?.setup_date),
       fundedBy: safeValue(device?.funded_by ?? imported.funded_by),
       safetyCheckOverdue: false,
     },
@@ -191,7 +249,7 @@ function makeImportedPatient(detail: ImportedPatientDetail): DrawerPatient {
           brand: safeValue(detail.mask.brand),
           model: safeValue(detail.mask.model),
           size: safeValue(detail.mask.size),
-          lastIssued: safeValue(detail.mask.fitted_date),
+          lastIssued: formatNzDate(detail.mask.fitted_date),
         }
       : null,
     entitlement: [],
@@ -209,7 +267,7 @@ function makeImportedPatient(detail: ImportedPatientDetail): DrawerPatient {
     nhiActual: "",
     imported: true,
     importBatchId: imported.import_batch_id,
-    reviewStatus: imported.review_status,
+    reviewStatus: humanizeLabel(imported.review_status),
     fundedBy: imported.funded_by,
   };
 }
@@ -234,9 +292,13 @@ function FieldRow({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div>
       <dt className="text-sm font-medium text-gray-500 uppercase tracking-wide">{label}</dt>
-      <dd className="text-base text-gray-800 mt-0.5">{value}</dd>
+      <dd className="text-base text-gray-800 mt-0.5 min-w-0 break-words">{value}</dd>
     </div>
   );
+}
+
+function MonoValue({ value }: { value: string }) {
+  return <span className="block max-w-full break-all font-mono leading-6">{value}</span>;
 }
 
 function OverviewTab({ patient }: { patient: DrawerPatient }) {
@@ -244,7 +306,7 @@ function OverviewTab({ patient }: { patient: DrawerPatient }) {
     <dl className="grid gap-5 sm:grid-cols-2">
       <div className="sm:col-span-2">
         <dt className="text-sm font-medium text-gray-500 uppercase tracking-wide">MSID</dt>
-        <dd className="font-mono text-base text-[#0B5C6C] mt-0.5">{patient.msid}</dd>
+        <dd className="mt-0.5 max-w-full break-all font-mono text-base text-[#0B5C6C]">{patient.msid}</dd>
       </div>
       <FieldRow label="Date of birth" value={patient.dob} />
       <FieldRow label="Phone" value={patient.phone} />
@@ -276,7 +338,7 @@ function OverviewTab({ patient }: { patient: DrawerPatient }) {
       {patient.imported && (
         <>
           <FieldRow label="Funded by" value={safeValue(patient.fundedBy)} />
-          <FieldRow label="Import batch ID" value={safeValue(patient.importBatchId)} />
+          <FieldRow label="Import batch ID" value={<MonoValue value={safeValue(patient.importBatchId)} />} />
           <FieldRow label="Review status" value={safeValue(patient.reviewStatus)} />
         </>
       )}
@@ -294,7 +356,7 @@ function EquipmentTab({ patient }: { patient: DrawerPatient }) {
           <FieldRow label="Brand"      value={machine.brand} />
           <FieldRow label="Model"      value={machine.model} />
           <FieldRow label="Serial"     value={machine.serial} />
-          <FieldRow label="Device ID"  value={machine.deviceId} />
+          <FieldRow label="Device ID"  value={<MonoValue value={machine.deviceId} />} />
           <FieldRow label="Setup date" value={machine.setupDate} />
           <FieldRow label="Funded by"  value={machine.fundedBy} />
           {machine.safetyCheckOverdue && (
@@ -811,13 +873,20 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName }: PatientDra
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-5 border-b border-gray-200 shrink-0">
-          <div>
+          <div className="min-w-0 flex-1">
             <h2 className="text-2xl font-semibold text-[#0B2A3C]">
               {patient?.name ?? "Patient"}
             </h2>
-            <p className="font-mono text-[#0B5C6C] text-base mt-0.5">
-              {patient?.msid}
-            </p>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <p className="max-w-full break-all font-mono text-base text-[#0B5C6C]">
+                {patient?.msid}
+              </p>
+              {patient?.imported && (
+                <span className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700">
+                  Imported
+                </span>
+              )}
+            </div>
           </div>
           <button
             type="button"
@@ -857,10 +926,14 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName }: PatientDra
         {/* Tab content */}
         <div className="flex-1 overflow-y-auto px-6 py-6">
           {importedLoading ? (
-            <p className="text-base text-gray-500">Loading imported patient details…</p>
+            <div className="rounded-xl border border-gray-200 bg-gray-50 px-5 py-4">
+              <p className="text-base font-medium text-gray-700">Loading imported patient details...</p>
+              <p className="mt-1 text-sm text-gray-500">Fetching the imported record and linked equipment.</p>
+            </div>
           ) : importedError && !patient ? (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-              {importedError}
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4">
+              <p className="text-base font-medium text-amber-900">Unable to load imported patient</p>
+              <p className="mt-1 text-sm text-amber-800">{importedError}</p>
             </div>
           ) : patient ? (
             <>
