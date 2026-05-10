@@ -4,6 +4,16 @@ import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { configureCognito, getIdToken } from "@/lib/aws/cognito";
 import { cn } from "@/lib/utils";
+import {
+  EMPTY_DELIVERY_ADDRESS,
+  formatDeliveryAddress,
+  getDeliveryAddressStorageKey,
+  hasCompleteDeliveryAddress,
+  normalizeDeliveryAddress,
+  readSavedDeliveryAddress,
+  saveDeliveryAddress,
+  type DeliveryAddress,
+} from "@/lib/patientDeliveryAddress";
 
 interface ProfileData {
   name: string;
@@ -24,6 +34,10 @@ export default function ProfilePage() {
   const [profileLoading, setProfileLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [nhiState, setNhiState] = useState<NhiState>({ status: "hidden" });
+  const [deliveryAddress, setDeliveryAddress] = useState<DeliveryAddress>(
+    EMPTY_DELIVERY_ADDRESS
+  );
+  const [addressMessage, setAddressMessage] = useState<string | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -45,12 +59,39 @@ export default function ProfilePage() {
   }, []);
 
   const msid = profile?.msid ?? (patient as { msid?: string })?.msid ?? "";
+  const addressStorageKey = getDeliveryAddressStorageKey(patient?.userId);
+
+  useEffect(() => {
+    if (!patient?.userId) return;
+    const savedAddress = readSavedDeliveryAddress(addressStorageKey);
+    if (savedAddress) setDeliveryAddress(savedAddress);
+  }, [addressStorageKey, patient?.userId]);
 
   const handleCopy = async () => {
     if (!msid) return;
     await navigator.clipboard.writeText(msid);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const updateDeliveryAddress = (
+    field: keyof DeliveryAddress,
+    value: string
+  ) => {
+    setDeliveryAddress((prev) => ({ ...prev, [field]: value }));
+    setAddressMessage(null);
+  };
+
+  const handleSaveDeliveryAddress = () => {
+    const normalized = normalizeDeliveryAddress(deliveryAddress);
+    if (!hasCompleteDeliveryAddress(normalized)) {
+      setAddressMessage("Please complete the required address fields first.");
+      return;
+    }
+
+    saveDeliveryAddress(addressStorageKey, normalized);
+    setDeliveryAddress(normalized);
+    setAddressMessage("Default delivery address saved for supply requests.");
   };
 
   const handleRevealNhi = async () => {
@@ -225,7 +266,118 @@ export default function ProfilePage() {
           </p>
         </section>
 
-        {/* SECTION 4 — Notification Preferences */}
+        {/* SECTION 4 — Default Delivery Address */}
+        <section className="bg-white border border-sand rounded-2xl p-6 md:p-7 space-y-5">
+          <div>
+            <h2 className="font-display text-2xl font-semibold text-navy leading-snug">Default delivery address</h2>
+            <p className="text-lg leading-7 text-charcoal/80 mt-1">
+              Used for supply requests unless you choose a different delivery
+              address for a specific request.
+            </p>
+          </div>
+
+          {hasCompleteDeliveryAddress(deliveryAddress) && (
+            <div className="rounded-xl border border-sand bg-sand-pale/50 p-5">
+              <p className="mb-2 font-mono text-sm uppercase tracking-wide text-charcoal/80">
+                Saved address
+              </p>
+              <div className="space-y-1 text-lg leading-7 text-charcoal">
+                {formatDeliveryAddress(deliveryAddress).map((line) => (
+                  <p key={line}>{line}</p>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="block md:col-span-2">
+              <span className="mb-2 block text-base font-medium text-charcoal">
+                Address line 1
+              </span>
+              <input
+                value={deliveryAddress.line1}
+                onChange={(event) => updateDeliveryAddress("line1", event.target.value)}
+                className="min-h-[52px] w-full rounded-lg border border-sand bg-white px-4 py-3 text-lg text-charcoal placeholder:text-charcoal/45 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-deep-teal"
+                placeholder="Street address"
+              />
+            </label>
+
+            <label className="block md:col-span-2">
+              <span className="mb-2 block text-base font-medium text-charcoal">
+                Address line 2 <span className="font-normal text-charcoal/60">(optional)</span>
+              </span>
+              <input
+                value={deliveryAddress.line2}
+                onChange={(event) => updateDeliveryAddress("line2", event.target.value)}
+                className="min-h-[52px] w-full rounded-lg border border-sand bg-white px-4 py-3 text-lg text-charcoal placeholder:text-charcoal/45 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-deep-teal"
+                placeholder="Apartment, unit, or care of"
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-2 block text-base font-medium text-charcoal">
+                City
+              </span>
+              <input
+                value={deliveryAddress.city}
+                onChange={(event) => updateDeliveryAddress("city", event.target.value)}
+                className="min-h-[52px] w-full rounded-lg border border-sand bg-white px-4 py-3 text-lg text-charcoal placeholder:text-charcoal/45 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-deep-teal"
+                placeholder="Hamilton"
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-2 block text-base font-medium text-charcoal">
+                Region
+              </span>
+              <input
+                value={deliveryAddress.region}
+                onChange={(event) => updateDeliveryAddress("region", event.target.value)}
+                className="min-h-[52px] w-full rounded-lg border border-sand bg-white px-4 py-3 text-lg text-charcoal placeholder:text-charcoal/45 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-deep-teal"
+                placeholder="Waikato"
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-2 block text-base font-medium text-charcoal">
+                Postcode
+              </span>
+              <input
+                value={deliveryAddress.postcode}
+                onChange={(event) => updateDeliveryAddress("postcode", event.target.value)}
+                className="min-h-[52px] w-full rounded-lg border border-sand bg-white px-4 py-3 text-lg text-charcoal placeholder:text-charcoal/45 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-deep-teal"
+                inputMode="numeric"
+                placeholder="3204"
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-2 block text-base font-medium text-charcoal">
+                Country
+              </span>
+              <input
+                value={deliveryAddress.country}
+                onChange={(event) => updateDeliveryAddress("country", event.target.value)}
+                className="min-h-[52px] w-full rounded-lg border border-sand bg-white px-4 py-3 text-lg text-charcoal placeholder:text-charcoal/45 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-deep-teal"
+                placeholder="New Zealand"
+              />
+            </label>
+          </div>
+
+          {addressMessage && (
+            <p className="text-base leading-6 text-charcoal/80">{addressMessage}</p>
+          )}
+
+          <button
+            onClick={handleSaveDeliveryAddress}
+            className="bg-[#0B5C6C] text-white px-7 py-3.5 rounded-lg text-lg font-medium
+                       min-h-[52px] hover:bg-[#0B5C6C]/90 transition-colors"
+          >
+            Save default delivery address
+          </button>
+        </section>
+
+        {/* SECTION 5 — Notification Preferences */}
         <section className="bg-white border border-sand rounded-2xl p-6 md:p-7 space-y-5">
           <div>
             <h2 className="font-display text-2xl font-semibold text-navy leading-snug">Notification preferences</h2>
@@ -236,8 +388,8 @@ export default function ProfilePage() {
 
           <div>
             {[
-              { label: "Email notifications", detail: "Supply requests and appointment reminders" },
-              { label: "SMS notifications", detail: "Urgent updates and delivery notifications" },
+              { label: "Email notifications", detail: "General portal messages" },
+              { label: "SMS notifications", detail: "Urgent clinic updates" },
             ].map(({ label, detail }) => (
               <div
                 key={label}
