@@ -2,7 +2,7 @@
 
 ## What Midland OS v1 Is
 
-Midland OS v1 is the operating layer for the Midland Sleep portal. It collects the current context, workflows, SOPs, limitations, risks, evidence, and support boundaries needed to run and explain Phase 1.
+Midland OS v1 is handover-ready as the operating and documentation layer for Phase 1 admin, import, review, and release workflows. Future expansion should be handled through scoped change requests and later-phase delivery, not assumed within Phase 1.
 
 It is not a separate AI product, a second app, or a fake expansion of the portal. It is the handover documentation around the portal: how the platform should be used, reviewed, supported, and safely extended.
 
