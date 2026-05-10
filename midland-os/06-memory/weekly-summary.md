@@ -19,6 +19,13 @@ Day 30 started:
 - Production rehearsal documentation and safety scan started.
 - Midland OS v1 documentation structure created.
 
+Day 35 completed:
+
+- Phase 1D admin review and visibility demo script created.
+- Phase 1D closeout summary created.
+- Demo story uses existing Day 31 evidence and keeps dry run, controlled execute, created/skipped/failed outcomes, admin list visibility, drawer review, equipment details, no fake mask fallback, and NHI safety explicit.
+- Export bridge is treated as a checkpoint to demonstrate only when present in the target environment.
+
 Next work:
 
 - Production rehearsal.
