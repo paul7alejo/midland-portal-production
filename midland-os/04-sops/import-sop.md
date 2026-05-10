@@ -35,10 +35,44 @@ Execute only if preflight has passed.
 
 After execution, review:
 
-- Created rows
-- Skipped rows
-- Failed rows
 - Import batch ID
+- Created count
+- Skipped count
+- Failed count
+- Created row summaries
+- Skipped row reasons
+- Failed row reasons
+
+Use the import batch ID as the reference for the review. If the batch was blocked before execution, record that the import batch ID was not created because preflight did not pass.
+
+## Explaining Batch Results
+
+When explaining an import batch to Midland, use this structure:
+
+1. State the import batch ID, or state that no batch ID was created because the import was blocked.
+2. State created, skipped, and failed counts.
+3. State whether duplicate NHI checks passed or produced skipped rows.
+4. State whether duplicate machine serial checks passed or produced skipped rows.
+5. State whether invalid or missing required fields blocked rows.
+6. List the admin action required before retrying any skipped or failed row.
+
+Duplicate NHI outcome:
+
+- If a matching NHI already exists, the row must be skipped.
+- Midland admin must confirm whether this is a true duplicate, a source-data error, or a patient record that needs separate review.
+- Do not retry the row unchanged.
+
+Duplicate machine serial outcome:
+
+- If a matching machine serial already exists, the row must be skipped.
+- Midland admin must confirm whether this is an existing device, a source-data typo, or an equipment assignment issue.
+- Do not create a duplicate device through import.
+
+Invalid or missing required field outcome:
+
+- Missing or invalid required fields must be corrected in the source spreadsheet.
+- Keep row numbers from the error report so the source owner can fix the correct rows.
+- Re-run preflight after correction.
 
 ## Duplicate or Failed Rows
 
