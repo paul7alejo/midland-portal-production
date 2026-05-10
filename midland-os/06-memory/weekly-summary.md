@@ -26,6 +26,13 @@ Day 34 completed:
 - Duplicate NHI, duplicate machine serial, and invalid required-field outcomes are documented with required Midland admin actions.
 - Day 34 evidence docs added under `midland-os/07-outputs/phase-1/day-34-import-batch-results/`.
 
+Day 35 completed:
+
+- Phase 1D admin review and visibility demo script created.
+- Phase 1D closeout summary created.
+- Demo story uses existing Day 31 evidence and keeps dry run, controlled execute, created/skipped/failed outcomes, admin list visibility, drawer review, equipment details, no fake mask fallback, and NHI safety explicit.
+- Export bridge is treated as a checkpoint to demonstrate only when present in the target environment.
+
 Next work:
 
 - Production rehearsal.
