@@ -19,10 +19,16 @@ Day 30 started:
 - Production rehearsal documentation and safety scan started.
 - Midland OS v1 documentation structure created.
 
+Day 34 completed:
+
+- Import batch result explanation documented for Midland admin review.
+- Created, skipped, and failed counts are now described in operational terms.
+- Duplicate NHI, duplicate machine serial, and invalid required-field outcomes are documented with required Midland admin actions.
+- Day 34 evidence docs added under `midland-os/07-outputs/phase-1/day-34-import-batch-results/`.
+
 Next work:
 
 - Production rehearsal.
 - Midland review of SOPs.
 - Support model confirmation.
-- Export and review improvements later.
 - Editable admin review status later.
