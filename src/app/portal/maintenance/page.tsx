@@ -40,7 +40,7 @@ export default function MaintenancePage() {
   const { patient } = useAuth();
   const { device, mask, loading } = usePatientData();
 
-  if (loading) return <div className="p-8 text-charcoal/60">Loading...</div>;
+  if (loading) return <div className="p-8 text-charcoal/80 text-lg leading-7">Loading...</div>;
   if (!patient) return null;
 
   const maintenance: MaintenanceCheck[] = [];
@@ -77,25 +77,25 @@ export default function MaintenancePage() {
 
   return (
     <>
-      <h1 className="font-display text-[34px] font-semibold text-navy mb-2">
+      <h1 className="font-display text-[34px] md:text-[38px] leading-tight font-semibold text-navy mb-2">
         Maintenance
       </h1>
-      <p className="text-base text-charcoal/70 mb-6">
-        Keeping your CPAP equipment safe and effective.
+      <p className="text-lg leading-7 text-charcoal/80 mb-7">
+        Check when your CPAP equipment may need a Midland Sleep review.
       </p>
 
-      <div className="space-y-6">
+      <div className="space-y-7">
 
         {/* Machine info header */}
         {device && (
-          <div className="bg-white border border-sand rounded-2xl p-4">
-            <p className="text-sm uppercase tracking-wide text-charcoal/70 font-mono mb-1">
+          <div className="bg-white border border-sand rounded-2xl p-5">
+            <p className="text-sm uppercase tracking-wide text-charcoal/80 font-mono mb-1.5">
               Your machine
             </p>
-            <p className="text-charcoal font-medium">
+            <p className="text-lg leading-7 text-charcoal font-medium">
               {device.brand} {device.name}
             </p>
-            <p className="text-sm text-charcoal/70">
+            <p className="text-base leading-6 text-charcoal/80 break-words">
               Set up {formatDate(device.setup_date)} - Serial: {device.serial_number}
             </p>
           </div>
@@ -110,24 +110,24 @@ export default function MaintenancePage() {
             <section
               key={check.check_type}
               className={cn(
-                "bg-white border rounded-2xl p-6 space-y-4",
+                "bg-white border rounded-2xl p-6 md:p-7 space-y-5",
                 isOverdue ? "border-amber/40" : "border-sand"
               )}
             >
               <div className="flex justify-between items-start gap-3">
                 <div>
-                  <h2 className="font-display text-[22px] font-semibold text-navy">
+                  <h2 className="font-display text-2xl font-semibold text-navy leading-snug">
                     {check.label}
                   </h2>
-                  <p className="text-base text-charcoal/70 mt-1">
+                  <p className="text-lg leading-7 text-charcoal/80 mt-1">
                     {isSafetyCheck
-                      ? "Annual electrical safety check required for all CPAP machines."
-                      : "Mask and cushion should be checked regularly for hygiene and fit."}
+                      ? "Midland Sleep can arrange an annual machine safety check."
+                      : "Midland Sleep can review your mask and cushion if they need attention."}
                   </p>
                 </div>
                 <span
                   className={cn(
-                    "inline-flex items-center rounded-full px-3 py-1 text-sm font-medium whitespace-nowrap",
+                    "inline-flex items-center rounded-full px-3 py-1.5 text-base font-medium whitespace-nowrap",
                     isOverdue
                       ? "bg-amber/10 text-amber border border-amber/30"
                       : "bg-seafoam-pale text-charcoal border border-seafoam/30"
@@ -137,9 +137,9 @@ export default function MaintenancePage() {
                 </span>
               </div>
 
-              <dl className="grid gap-3 md:grid-cols-2 text-base">
+              <dl className="grid gap-x-8 gap-y-5 md:grid-cols-2 text-lg leading-7">
                 <div>
-                  <dt className="text-sm uppercase tracking-wide text-charcoal/70 font-mono">
+                  <dt className="text-sm uppercase tracking-wide text-charcoal/80 font-mono mb-1.5">
                     Last completed
                   </dt>
                   <dd className="text-charcoal">
@@ -147,7 +147,7 @@ export default function MaintenancePage() {
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-sm uppercase tracking-wide text-charcoal/70 font-mono">
+                  <dt className="text-sm uppercase tracking-wide text-charcoal/80 font-mono mb-1.5">
                     Next due
                   </dt>
                   <dd className={cn("font-medium", isOverdue ? "text-amber" : "text-charcoal")}>
@@ -157,21 +157,21 @@ export default function MaintenancePage() {
               </dl>
 
               {isOverdue && (
-                <div className="bg-sand-pale border border-amber/20 rounded-md p-3">
-                  <p className="text-base text-charcoal">
+                <div className="bg-sand-pale border border-amber/20 rounded-md p-4">
+                  <p className="text-lg leading-7 text-charcoal">
                     {isSafetyCheck
                       ? "This check is overdue. Please contact Midland Sleep to arrange an appointment."
                       : "Your mask is due for a check. Please contact Midland Sleep to arrange a review."}
                   </p>
-                  <p className="text-base text-charcoal/80 mt-2">
+                  <p className="text-lg leading-7 text-charcoal/85 mt-2">
                     Call {phoneLink} or email {emailLink}
                   </p>
                 </div>
               )}
 
               {!isOverdue && (
-                <p className="text-base text-charcoal/70">
-                  Nothing to do right now. We will remind you when this is due.
+                <p className="text-lg leading-7 text-charcoal/80">
+                  Nothing to arrange right now. Contact Midland Sleep if your equipment details look wrong.
                 </p>
               )}
             </section>
@@ -179,28 +179,26 @@ export default function MaintenancePage() {
         })}
 
         {maintenance.length === 0 && (
-          <div className="bg-white border border-sand rounded-2xl p-6">
-            <p className="text-base text-charcoal/70">
-              No maintenance records on file.
+          <div className="bg-white border border-sand rounded-2xl p-6 md:p-7">
+            <p className="text-lg leading-7 text-charcoal/80">
+              No maintenance records are on file. Contact Midland Sleep if you think a check is due.
             </p>
           </div>
         )}
 
         {/* General info */}
-        <section className="bg-sand-pale border border-sand rounded-lg p-6">
-          <h2 className="font-display text-[22px] font-semibold text-navy mb-2">
+        <section className="bg-sand-pale border border-sand rounded-lg p-6 md:p-7">
+          <h2 className="font-display text-2xl font-semibold text-navy mb-3 leading-snug">
             About CPAP maintenance
           </h2>
-          <div className="text-base text-charcoal/80 space-y-2">
+          <div className="text-lg leading-7 text-charcoal/85 space-y-3">
             <p>
               <span className="font-medium text-charcoal">Safety checks</span> are
-              required annually for all CPAP machines. These involve an electrical
-              safety inspection by a qualified technician.
+              arranged by Midland Sleep when needed for your machine.
             </p>
             <p>
               <span className="font-medium text-charcoal">Mask checks</span> ensure
-              your mask continues to fit correctly and maintain a good seal for
-              effective therapy.
+              Midland Sleep can review your mask, cushion, and fit if something feels wrong.
             </p>
             <p>
               For any maintenance questions, call {phoneLink}.

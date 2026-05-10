@@ -46,7 +46,7 @@ export default function DashboardPage() {
   const entitlement = entitlementData?.items ?? [];
   const maintenance = (patient as any).maintenance ?? [];
 
-  if (dataLoading) return <div className="p-8 text-gray-700 font-body text-base">Loading your data...</div>;
+  if (dataLoading) return <div className="p-8 text-gray-700 font-body text-lg leading-7">Loading your data...</div>;
 
   const canReorderNow = entitlement.some((item: any) => item.status === "ELIGIBLE");
   const overdueChecks = maintenance.filter((c: any) => c.status === "OVERDUE");
@@ -67,45 +67,45 @@ export default function DashboardPage() {
   return (
     <>
       {/* Greeting — time-of-day, first name only */}
-      <h1 className="font-display text-[34px] font-semibold text-navy mb-8">
+      <h1 className="font-display text-[34px] md:text-[38px] leading-tight font-semibold text-navy mb-8">
         {getGreeting()}, {(patient.name ?? "Patient").split(" ")[0]}.
       </h1>
 
-      <div className="space-y-6">
+      <div className="space-y-7">
 
         {/* CARD 1 — MY EQUIPMENT */}
-        <section className="bg-white border border-sand rounded-2xl p-6 space-y-4">
-          <div className="flex justify-between items-start">
-            <h2 className="font-display text-[22px] font-semibold text-navy">My Equipment</h2>
+        <section className="bg-white border border-sand rounded-2xl p-6 md:p-7 space-y-5">
+          <div className="flex flex-wrap justify-between items-start gap-3">
+            <h2 className="font-display text-2xl font-semibold text-navy leading-snug">My equipment</h2>
             <Link
               href="/portal/equipment"
-              className="text-base text-deep-teal hover:underline font-medium"
+              className="text-lg text-deep-teal hover:underline font-medium"
             >
               View full details
             </Link>
           </div>
 
-          <div className="grid gap-x-8 gap-y-4 md:grid-cols-2 text-[17px]">
+          <div className="grid gap-x-8 gap-y-5 md:grid-cols-2 text-lg leading-7">
             <div>
-              <p className="text-sm uppercase tracking-wide text-charcoal/70 font-mono mb-1">Machine</p>
+              <p className="text-sm uppercase tracking-wide text-charcoal/80 font-mono mb-1.5">Machine</p>
               <p className="text-charcoal font-medium">
-                {device ? `${device.brand} ${device.name}` : "-"}
+                {device ? `${device.brand} ${device.name}` : "No machine on file"}
               </p>
             </div>
             <div>
-              <p className="text-sm uppercase tracking-wide text-charcoal/70 font-mono mb-1">Device ID</p>
-              <p className="text-charcoal font-mono">
-                {device ? device.serial_number : "-"}
+              <p className="text-sm uppercase tracking-wide text-charcoal/80 font-mono mb-1.5">Serial number</p>
+              <p className="text-charcoal font-mono break-all">
+                {device ? device.serial_number : "No serial on file"}
               </p>
             </div>
             <div>
-              <p className="text-sm uppercase tracking-wide text-charcoal/70 font-mono mb-1">Issued</p>
+              <p className="text-sm uppercase tracking-wide text-charcoal/80 font-mono mb-1.5">Issued</p>
               <p className="text-charcoal">
-                {device ? formatDate(device.setup_date) : "-"}
+                {device ? formatDate(device.setup_date) : "Not recorded"}
               </p>
             </div>
             <div>
-              <p className="text-sm uppercase tracking-wide text-charcoal/70 font-mono mb-1">Funded by</p>
+              <p className="text-sm uppercase tracking-wide text-charcoal/80 font-mono mb-1.5">Funded by</p>
               <p className="text-charcoal font-medium">
                 {(device?.funding_stream ?? (patient as any).funding_stream ?? "ACC") === "ACC" ? "ACC" : "Health NZ"}
               </p>
@@ -114,12 +114,12 @@ export default function DashboardPage() {
             {/* Safety check + Water chamber status badges */}
             {maintenance.map((check: any) => (
               <div key={check.check_type}>
-                <p className="text-sm uppercase tracking-wide text-charcoal/70 font-mono mb-1">
+                <p className="text-sm uppercase tracking-wide text-charcoal/80 font-mono mb-1.5">
                   {check.check_type === "safety_check" ? "Safety Check" : "Water Chamber"}
                 </p>
                 <span
                   className={cn(
-                    "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium",
+                    "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-base font-medium",
                     check.status === "OVERDUE"
                       ? "bg-amber/10 text-amber border border-amber/30"
                       : check.status === "DUE"
@@ -138,50 +138,50 @@ export default function DashboardPage() {
 
             {/* Mask info */}
             <div>
-              <p className="text-sm uppercase tracking-wide text-charcoal/70 font-mono mb-1">Mask</p>
+              <p className="text-sm uppercase tracking-wide text-charcoal/80 font-mono mb-1.5">Mask</p>
               <p className="text-charcoal font-medium">
-                {mask ? `${mask.brand} ${mask.name} ${formatMaskType(mask.type)}` : "-"}
+                {mask ? `${mask.brand} ${mask.name} ${formatMaskType(mask.type)}` : "No mask on file"}
               </p>
             </div>
             <div>
-              <p className="text-sm uppercase tracking-wide text-charcoal/70 font-mono mb-1">Size</p>
+              <p className="text-sm uppercase tracking-wide text-charcoal/80 font-mono mb-1.5">Size</p>
               <p className="text-charcoal font-medium">
-                {mask ? mask.size : "-"}
+                {mask ? mask.size : "Not recorded"}
               </p>
             </div>
             <div className="md:col-span-2">
-              <p className="text-sm uppercase tracking-wide text-charcoal/70 font-mono mb-1">Last Issued</p>
+              <p className="text-sm uppercase tracking-wide text-charcoal/80 font-mono mb-1.5">Last issued</p>
               <p className="text-charcoal">
-                {mask ? formatDate(mask.fitted_date) : "-"}
+                {mask ? formatDate(mask.fitted_date) : "Not recorded"}
               </p>
             </div>
           </div>
         </section>
 
         {/* CARD 2 — MY SUPPLIES STATUS */}
-        <section className="bg-white border border-sand rounded-2xl p-6 space-y-4">
-          <h2 className="font-display text-[22px] font-semibold text-navy">My Supplies Status</h2>
+        <section className="bg-white border border-sand rounded-2xl p-6 md:p-7 space-y-5">
+          <h2 className="font-display text-2xl font-semibold text-navy leading-snug">My supplies status</h2>
 
           {canReorderNow ? (
-            <div className="bg-seafoam-pale rounded-lg p-4 space-y-3">
-              <p className="text-charcoal font-medium flex items-center gap-2 text-base">
+            <div className="bg-seafoam-pale rounded-lg p-5 space-y-4">
+              <p className="text-charcoal font-medium flex items-center gap-2 text-lg leading-7">
                 <span className="text-seafoam">&#9989;</span>
                 You can request mask supplies
               </p>
               <Link
                 href="/portal/reorder"
-                className="inline-flex items-center gap-2 bg-[#0B5C6C] text-white px-6 py-3 rounded-lg text-base font-medium min-h-[48px] hover:bg-[#0B5C6C]/90 transition-colors"
+                className="inline-flex items-center justify-center gap-2 bg-[#0B5C6C] text-white px-7 py-3.5 rounded-lg text-lg font-medium min-h-[52px] hover:bg-[#0B5C6C]/90 transition-colors"
               >
                 Request Supplies
               </Link>
             </div>
           ) : (
-            <div className="bg-sand-pale rounded-lg p-4 space-y-2">
-              <p className="text-charcoal font-medium text-base">
+            <div className="bg-sand-pale rounded-lg p-5 space-y-2">
+              <p className="text-charcoal font-medium text-lg leading-7">
                 Your supplies are not yet available to reorder.
               </p>
               {entitlement.some((item) => item.next_eligible_date) && (
-                <p className="text-base text-gray-700">
+                <p className="text-lg leading-7 text-gray-800">
                   Next eligible from{" "}
                   {formatDate(
                     entitlement
@@ -199,17 +199,17 @@ export default function DashboardPage() {
             {entitlement.map((item) => (
               <li
                 key={item.item_type}
-                className="border border-sand rounded-md p-3 space-y-1"
+                className="border border-sand rounded-md p-4 space-y-1.5"
               >
-                <p className="text-base font-medium text-charcoal">
+                <p className="text-lg font-medium text-charcoal leading-7">
                   {ITEM_LABELS[item.item_type]}
                 </p>
                 {item.status === "ELIGIBLE" ? (
-                  <p className="text-sm">
+                  <p className="text-base">
                     <span className="text-seafoam font-medium">Available now</span>
                   </p>
                 ) : (
-                  <p className="text-sm text-charcoal/70">
+                  <p className="text-base text-charcoal/80 leading-6">
                     From{" "}
                     {item.next_eligible_date
                       ? formatDate(item.next_eligible_date)
@@ -223,23 +223,23 @@ export default function DashboardPage() {
 
         {/* CARD 3 — SAFETY AND MAINTENANCE */}
         {(overdueChecks.length > 0 || dueSoonChecks.length > 0) && (
-          <section className="bg-white border border-sand rounded-2xl p-6 space-y-4">
-            <h2 className="font-display text-[22px] font-semibold text-navy">
+          <section className="bg-white border border-sand rounded-2xl p-6 md:p-7 space-y-5">
+            <h2 className="font-display text-2xl font-semibold text-navy leading-snug">
               Safety and maintenance
             </h2>
 
-            <div className="space-y-3">
+            <div className="space-y-4">
               {overdueChecks.map((check: any) => (
                 <div
                   key={check.check_type}
-                  className="border border-amber/40 bg-sand-pale rounded-md p-3 flex items-start gap-3"
+                  className="border border-amber/40 bg-sand-pale rounded-md p-4 flex items-start gap-3"
                 >
                   <span className="mt-1.5 h-2 w-2 rounded-full bg-amber shrink-0" />
                   <div className="flex-1">
-                    <p className="text-base font-medium text-charcoal">
+                    <p className="text-lg font-medium text-charcoal leading-7">
                       {check.label} - Overdue
                     </p>
-                    <p className="text-sm text-charcoal/70 mt-0.5">
+                    <p className="text-base text-charcoal/80 mt-1 leading-6">
                       Due {formatDate(check.due_date)}. Please call Midland Sleep on{" "}
                       {phoneLink} to arrange this.
                     </p>
@@ -250,15 +250,15 @@ export default function DashboardPage() {
               {dueSoonChecks.map((check: any) => (
                 <div
                   key={check.check_type}
-                  className="border border-sand rounded-md p-3 flex items-start gap-3"
+                  className="border border-sand rounded-md p-4 flex items-start gap-3"
                 >
                   <span className="mt-1.5 h-2 w-2 rounded-full bg-sand shrink-0" />
                   <div className="flex-1">
-                    <p className="text-base font-medium text-charcoal">
+                    <p className="text-lg font-medium text-charcoal leading-7">
                       {check.label} - Due soon
                     </p>
-                    <p className="text-sm text-charcoal/70 mt-0.5">
-                      Due {formatDate(check.due_date)}. Midland will be in touch closer to the time.
+                    <p className="text-base text-charcoal/80 mt-1 leading-6">
+                      Due {formatDate(check.due_date)}. Contact Midland Sleep if you have questions.
                     </p>
                   </div>
                 </div>
@@ -268,9 +268,9 @@ export default function DashboardPage() {
         )}
 
         {/* CARD 4 — NEED HELP */}
-        <section className="bg-sand-pale border border-sand rounded-2xl p-6">
-          <h2 className="font-display text-[22px] font-semibold text-navy mb-2">Need help?</h2>
-          <p className="text-base text-gray-700">
+        <section className="bg-sand-pale border border-sand rounded-2xl p-6 md:p-7">
+          <h2 className="font-display text-2xl font-semibold text-navy mb-3 leading-snug">Need help?</h2>
+          <p className="text-lg leading-7 text-gray-800">
             Call Midland Sleep on {phoneLink} or email {emailLink}. We are open Monday to Friday, 8:30am to 5pm.
           </p>
         </section>
