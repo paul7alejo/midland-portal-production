@@ -1,187 +1,149 @@
 # Support Model
 
-## Purpose
+> Retainer rules. Inclusive and exclusive boundaries. Response targets.
 
-This support model defines practical post-release support boundaries for Midland Sleep.
+## Anchor
 
-It is designed to keep the portal safe, maintainable, and commercially sustainable after Phase 1. It does not create unlimited support, emergency SLA guarantees, clinical responsibility, or open-ended feature delivery.
+```text
+Retainer:        NZD 2,300 / month incl GST
+Notice period:   3 months either way
+Hosting:         charged separately, NZD 150–300 / month, on monthly invoice
+Term:            month-to-month after Phase 1 close
+```
 
-## Retainer Anchor
+## INCLUDED in retainer
 
-Recommended monthly support retainer:
+```text
+- maintenance + minor fixes (P1–P3)
+- monthly improvement review (1 hour, scheduled)
+- AWS / hosting monitoring + adjustments
+- Cognito user pool admin assistance
+- support questions from admin staff (reasonable volume)
+- audit log spot-checks
+- backup verification
+- release oversight
+- small UI / copy improvements within agreed monthly capacity
+- one new staff training session per year
+```
 
-**NZD 2,300 per month including GST**
+## EXCLUDED from retainer (separate scope + price)
 
-This is the anchor support level unless commercial terms change in writing.
+```text
+- major new features
+- checkout / Stripe / shop reactivation (Phase 2 conversation)
+- inventory or supplier integration
+- mobile app build
+- patient invitation automation
+- bulk patient email sends
+- unlimited spreadsheet format support
+- multi-clinic onboarding
+- Terraform / IaC implementation
+- legal / compliance certification responsibility
+- clinical decision responsibility
+- training new admin staff beyond first session/year
+```
 
-The retainer is intended to cover agreed operational support, maintenance, minor improvements, release care, and import/admin workflow assistance. Work outside these boundaries should be quoted separately or scheduled through a change request.
+## Response targets (commercial — not contractual SLAs)
 
-## Included Monthly Support
+```text
+P1 — production down / patient data risk      acknowledged within 4 hours
+P2 — admin can't perform a core task          acknowledged within 1 business day
+P3 — minor bug, cosmetic issue                acknowledged within 3 business days
+P4 — feature request                           acknowledged within 5 business days,
+                                              triaged into change-request flow
+```
 
-Included within the monthly retainer:
+### Triage examples
 
-- production issue triage for agreed Phase 1 workflows
-- bug fixes for agreed production workflows
-- admin/import workflow support
-- support for agreed import batches
-- minor operational guidance for Midland admin users
-- clarification of documented SOPs
-- deployment checks for agreed releases
-- small copy or display corrections where low-risk
-- review of logs or evidence provided by Midland for a reported issue
-- monthly prioritisation call or written support check-in
-- small maintenance updates that protect the existing system
+```text
+P1
+  - production portal returns 5xx for any role
+  - NHI visible in URL, log, or unauthorised UI
+  - patient data missing or corrupted
+  - backup system failure not self-healing
+  - export or audit log inaccessible
 
-Included support is bounded by reasonable monthly capacity. It is not a bank of unlimited development hours.
+P2
+  - import dry-run failing on valid batch
+  - admin drawer not opening for some records
+  - export button returning empty CSV
+  - on-demand backup failing intermittently
 
-## Excluded Work
+P3
+  - typo in copy
+  - layout off on a specific browser
+  - status badge wrong colour
 
-Excluded unless separately scoped and approved:
+P4
+  - "can we add filter X"
+  - "can we see metric Y"
+  - "can we automate Z"
+  - "can we connect tool A"
+```
 
-- new patient portal features
-- checkout, Stripe, payments, refunds, or subscription work
-- inventory or fulfilment system development
-- email campaigns, patient invites, or communication automation
-- Cognito/account workflow changes
-- new clinical workflows or clinical decisioning
-- new analytics dashboards
-- advanced audit dashboard development
-- new backup or disaster-recovery systems
-- large UI redesigns
-- new database tables or major data model changes
-- support for unlimited spreadsheet formats
-- bulk data correction requiring Midland judgement
-- legal, privacy, compliance, or clinical sign-off
-- after-hours emergency cover unless separately contracted
+## Change request flow
 
-## Response Expectations
+```text
+1. Midland emails request to paul@oneofzero.co.nz
+2. Paul triages: bug fix (within retainer) vs change request (separate)
+3. If change request:
+   a. scope clarification call (15 min, not billed)
+   b. quote sent (one-line price + estimated days)
+   c. Midland approves in writing
+   d. work scheduled
+   e. work delivered, milestone billed
+4. If bug fix:
+   a. Paul fixes within priority window
+   b. note in monthly improvement review
+```
 
-Response expectations should be agreed in writing with Midland.
+## Monthly improvement review (60 min, scheduled)
 
-Default working expectation:
+```text
+Agenda
+  [ ] last month's tickets summary
+  [ ] uptime + AWS billing
+  [ ] backup status (verified)
+  [ ] audit log anomalies (if any)
+  [ ] portal usage metrics
+  [ ] Midland-side feedback
+  [ ] proposed improvements (queue, not commitment)
+  [ ] new risks or known limitations
+  [ ] next month focus
+```
 
-- Critical production-blocking issue: acknowledge within 1 business day.
-- Normal production issue: acknowledge within 2 business days.
-- Minor question or low-impact request: acknowledge within 3 business days.
-- Feature or change request: acknowledge and route to change-request review, not immediate delivery.
+## Emergency / out-of-hours
 
-These are response expectations, not guaranteed resolution times. Resolution depends on issue complexity, access, vendor/platform availability, and whether Midland decisions or data are required.
+```text
+Definition       P1 only (production down or patient data risk)
+Contact          phone (provided to Midland clinical lead at handover)
+Response         within 4 hours, best effort
+Resolution       same business day where possible
+Compensation     no after-hours surcharge for P1 — included in retainer
+                 P2/P3/P4 are next-business-day
+```
 
-## Emergency Handling
+## Quarterly summary email (provided to Midland)
 
-Emergency support is for true production-blocking issues affecting agreed Phase 1 workflows, such as:
+```text
+Subject:        Midland portal — Q[N] [year] summary
+Includes:
+  - imports run (counts + batch summary)
+  - exports run (counts only — never patient data in email)
+  - backup status (PITR healthy, weekly snapshots run/missed)
+  - uptime
+  - billing (AWS line items if material change)
+  - incidents (none / brief)
+  - next quarter focus
+```
 
-- authorised admin cannot access the system
-- import workflow is unexpectedly writing unsafe data
-- raw NHI appears where it should not
-- imported patient records cannot be reviewed after a confirmed successful import
+## What this is NOT
 
-Emergency handling does not include:
-
-- new feature requests
-- routine import preparation
-- source spreadsheet corrections
-- clinical or identity decisions
-- after-hours response unless separately agreed
-
-If after-hours or guaranteed emergency SLA support is required, it must be priced and agreed separately.
-
-## Bug vs Feature Request
-
-Bug:
-
-- existing agreed workflow does not behave as documented
-- safe field display is incorrect
-- imported patient drawer fails for records it should support
-- dry run or execute behaves differently from the approved SOP
-
-Feature request:
-
-- new workflow
-- new field or data source
-- new export shape
-- new dashboard
-- new automation
-- new patient-facing behaviour
-- new admin action that changes state
-
-Bugs may be handled within support if they affect agreed workflows. Feature requests require prioritisation and may need a separate estimate.
-
-## Change Request Process
-
-For any request outside included support:
-
-1. Midland describes the requested outcome.
-2. Technical support confirms whether it is a bug, minor support item, or change request.
-3. If it is a change request, define scope, assumptions, exclusions, and acceptance criteria.
-4. Estimate cost, timing, and risk.
-5. Midland approves in writing before work starts.
-6. Release and SOP updates are planned if the change affects operations.
-
-No work should proceed on vague or unlimited change requests.
-
-## Monthly Improvement Cadence
-
-Recommended cadence:
-
-1. Monthly check-in with Midland owner.
-2. Review support issues from the previous month.
-3. Review import/admin workflow friction.
-4. Confirm any upcoming import batches.
-5. Prioritise one or two small improvements if capacity allows.
-6. Separate larger initiatives into scoped proposals.
-
-The cadence should protect production stability first. Improvements should not quietly become a major redesign or unapproved new product phase.
-
-## AWS and Hosting Boundaries
-
-Support can include reasonable review of application behaviour in the hosted environment.
-
-Unless separately agreed, support does not include:
-
-- AWS account ownership
-- AWS billing responsibility
-- formal cloud security management
-- disaster recovery guarantees
-- backup system design
-- infrastructure cost optimisation programme
-- third-party outage responsibility
-
-If Midland requires formal hosting management, backup policy, disaster recovery, security monitoring, or cloud cost governance, these should be scoped separately.
-
-## Clinic Staff Support Boundaries
-
-Clinic staff may request help with:
-
-- how to use documented admin workflows
-- interpreting import result categories
-- finding imported patients
-- understanding drawer fields
-- confirming where to escalate duplicate or failed rows
-
-Clinic staff should not ask technical support to:
-
-- decide whether two patients are the same person
-- decide whether a machine serial belongs to a patient
-- correct clinical/source data without Midland approval
-- provide clinical advice
-- bypass import safety checks
-- trigger patient communications outside approved workflows
-
-Midland should nominate one operational owner for source-data and workflow decisions.
-
-## Retainer Review
-
-Review the retainer after the first agreed support period or after any major scope change.
-
-Reasons to revise commercial terms:
-
-- more frequent import batches
-- new patient portal workflows
-- checkout or Stripe activation
-- inventory/fulfilment build-out
-- after-hours emergency support requirement
-- advanced reporting/audit requirements
-- larger monthly improvement expectations
-
-Until terms change in writing, the support anchor remains **NZD 2,300/month including GST** with the boundaries above.
+```text
+- a help desk for patients (admin staff funnel patient questions)
+- 24/7 SLA (it's a 1-person retainer)
+- legal / clinical advice
+- training / onboarding for unrelated clinical software
+- a free unlimited support buffer
+- a justification to defer Phase 2+ commercial conversations
+```

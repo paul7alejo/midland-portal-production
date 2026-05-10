@@ -1,0 +1,13 @@
+# Evidence pack folder — Phase 1
+# 
+# Each completed slice/day drops evidence here:
+#   day-31-rehearsal/            full proof rehearsal screenshots + notes
+#   day-37-batch-evidence/       import batch screenshots + counts
+#   day-38-demo-script/          1D closeout demo script + recording
+#   import-batch-<id>-<date>/    each production import
+#
+# DO NOT commit raw patient data. Only:
+#   - aggregate counts (created/skipped/failed)
+#   - sanitised screenshots (no NHI visible, no real names)
+#   - decision notes
+#   - audit log spot-checks (action types, no patient identifiers)

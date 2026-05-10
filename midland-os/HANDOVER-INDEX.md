@@ -1,96 +1,138 @@
-# Midland OS Handover Index
+# Handover Index — Midland OS v1
 
-## What Midland OS v1 Is
+> Single entry point for Midland staff after June 30 go-live.
+> If you only read one file, read this.
 
-Midland OS v1 is handover-ready as the operating and documentation layer for Phase 1 admin, import, review, and release workflows. Future expansion should be handled through scoped change requests and later-phase delivery, not assumed within Phase 1.
+---
 
-It is not a separate AI product, a second app, or a fake expansion of the portal. It is the handover documentation around the portal: how the platform should be used, reviewed, supported, and safely extended.
+## What Midland OS v1 is
 
-## What Phase 1 Includes
+The operating layer beside the patient portal. It is a curated set of context, workflows, SOPs, decisions, risks, and handover material that lets Midland operate the portal safely.
 
-Phase 1 currently includes:
+It is **not** a separate AI product. It is **not** a chatbot. It is **not** a feature you log in to. It is the documentation, procedures, and visibility layer that makes the portal a real operating system.
 
-- admin portal foundation
-- patient portal foundation
-- controlled biomedical CSV import workflow
-- dry-run validation and preflight before writes
-- controlled execute import when preflight passes
-- created/skipped/failed import result summaries
-- duplicate NHI and duplicate machine serial checks
-- imported patient visibility in the admin patient list
-- imported patient drawer with patient, machine, mask, funding, and import metadata
-- NHI-safe imported patient admin handling
-- no fake mask fallback when mask data is missing
-- SOPs for import, admin review, release, and support boundaries
-- Phase 1D demo and closeout evidence
+---
 
-Phase 1 does not include checkout/Stripe, inventory or fulfilment operations, mobile app workflows, patient invites, patient email flows, advanced audit dashboards, fake analytics, or a complete reporting platform.
+## What Phase 1 delivered
 
-## Canonical Docs
+```text
+✅ Patient portal — login, dashboard, equipment, reorder, maintenance, contact, profile
+✅ Admin portal — patient list, drawer, review, exports, backup status, AWS state visibility
+✅ Controlled import — Biomedical-style spreadsheet → DynamoDB with audit
+✅ Admin Data Operations — 4 export types, 3-layer backup, AWS state visibility
+✅ Audit log — append-only, 10-year retention, IAM-enforced
+✅ HIPC alignment — privacy notices, NHI encryption + masking + reveal flow
+✅ Backup discipline — DynamoDB PITR + on-demand + weekly S3 snapshot
+✅ SOPs — import, admin review, release, support, onboarding, export, backup
+✅ Documentation — this Midland OS v1 pack
+```
 
-Start here:
+---
 
-- [Midland Sleep Portal Overview](00-core-context/midland-overview.md)
-- [Phase Map](00-core-context/phase-map.md)
-- [Weekly Summary](06-memory/weekly-summary.md)
-- [Decision Log](06-memory/decision-log.md)
+## Daily entry points (post go-live)
 
-Clinic operations:
+```text
+What to do today      01-clinic-operations/admin-review-workflow.md
+Daily admin checklist  04-sops/admin-review-sop.md
+Run an export          04-sops/export-sop.md
+Trigger a backup       04-sops/backup-sop.md
+Onboard a new admin    04-sops/onboarding-sop.md
+Report a problem       01-clinic-operations/support-workflow.md
+```
 
-- [Biomedical Import Workflow](01-clinic-operations/biomedical-import-workflow.md)
-- [Admin Review Workflow](01-clinic-operations/admin-review-workflow.md)
+---
 
-SOPs:
+## Reference (read once, refer back)
 
-- [Import SOP](04-sops/import-sop.md)
-- [Admin Review SOP](04-sops/admin-review-sop.md)
-- [Release SOP](04-sops/release-sop.md)
+```text
+What we built          00-core-context/midland-overview.md
+The phase plan         00-core-context/phase-map.md
+Non-negotiables        00-core-context/non-negotiables.md
+What's where           00-core-context/data-boundaries.md
+Pricing + scope        00-core-context/pricing-scope.md
+Clinic workflows       01-clinic-operations/
+Product rules          02-product/mvp-rules.md
+Backlog (parking lot)  02-product/feature-backlog.md
+Decision log           02-product/decision-log.md
+Architecture           03-technical/architecture.md
+Systems design         03-technical/systems-design.md
+AWS stack              03-technical/aws-stack.md
+Audit log rules        03-technical/audit-logging-rules.md
+Admin Data Operations  03-technical/admin-data-operations.md
+Deployment runbook     03-technical/deployment-runbook.md
+SOPs                   04-sops/
+```
 
-Memory and governance:
+---
 
-- [Known Limitations](06-memory/known-limitations.md)
-- [Risks](06-memory/risks.md)
-- [Support Model](06-memory/support-model.md)
+## Memory & history
 
-Phase 1 outputs:
+```text
+Weekly summary         06-memory/weekly-summary.md
+Risks (open + closed)  06-memory/risks.md
+Known limitations      06-memory/known-limitations.md
+Learnings              06-memory/learnings.md
+Open loops             06-memory/open-loops.md
+Phase 1 evidence       07-outputs/phase-1/
+```
 
-- [Phase 1D Demo Script](07-outputs/phase-1/phase-1d-demo-script.md)
-- [Phase 1D Closeout Summary](07-outputs/phase-1/phase-1d-closeout-summary.md)
-- [Phase 1E Closeout Summary](07-outputs/phase-1/phase-1e-closeout-summary.md)
+---
 
-## How To Request Changes
+## How to request a change
 
-Use this process for changes after handover:
+```text
+1. Email paul@oneofzero.co.nz with:
+   - what you want
+   - why (operational impact)
+   - urgency (P1 / P2 / P3 / P4)
+2. Paul triages within retainer SLA (see 04-sops/support-model.md)
+3. If it's a bug fix → fixed within retainer
+4. If it's a change request → quoted separately, scheduled
+5. Outcome lands in 02-product/release-notes.md
+```
 
-1. State the operational problem or desired outcome.
-2. Identify whether it is a bug, support request, or feature request.
-3. Link the relevant SOP or workflow.
-4. State the affected users and patient-data risk.
-5. Confirm whether the request changes Phase 1 boundaries.
-6. Define acceptance criteria before implementation.
-7. Treat work outside support boundaries as a scoped change request.
+---
 
-Do not start vague or unlimited work. Do not treat clinical, identity, funding, or source-data decisions as technical implementation decisions.
+## What happens after Phase 1 go-live
 
-## After Go-Live
+```text
+Month 1–11   monthly improvement reviews (1 hour, scheduled)
+             retainer covers maintenance + minor improvements
+             quarterly summary email at end of every Q
+Month 12     Phase 2 conversation — shop, Stripe, revenue share, patient invite
+             contract review
+Year 2+      Phase 3+ as agreed; multi-clinic option available
+```
 
-After go-live, Midland should use this index as the navigation page for operating the portal.
+---
 
-Recommended rhythm:
+## What this is NOT
 
-- review known limitations before stakeholder demos
-- use the import SOP before import batches
-- use the admin review SOP after imports
-- use the release SOP for release/rehearsal checks
-- route support and changes through the support model
-- update weekly summary and decision log when decisions change
+```text
+- a clinical record system
+- a marketing or outreach engine (Phase 2)
+- an order management system (Phase 4)
+- a 24/7 SLA support contract
+- legal / compliance certification
+- responsible for clinical decisions
+```
 
-## Ownership Boundary
+---
 
-OneOfZero / technical support owns implementation support, release support, and technical triage within agreed boundaries.
+## Contacts
 
-Midland owns clinical decisions, patient-care decisions, source-data correctness, identity decisions, funding interpretation, privacy/legal sign-off, and operational approval to proceed with imported records.
+```text
+OneOfZero (Paul Alejo)    paul@oneofzero.co.nz
+Production portal         portal.midlandsleep.co.nz (or as configured)
+AWS billing               Paul (forwarded summary to Midland monthly)
+Privacy Officer           [Midland-side; insert name + contact]
+Clinical lead             [Midland-side; insert name + contact]
+```
 
-## Handover Position
+---
 
-Midland OS v1 is handover-ready as an operating layer for Phase 1 admin/import/review visibility. It should be kept current as the product moves into later phases.
+## Pack version
+
+```text
+v3.1 — May 9, 2026
+```

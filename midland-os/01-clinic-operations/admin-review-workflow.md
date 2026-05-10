@@ -1,71 +1,113 @@
 # Admin Review Workflow
 
-Admin staff review imported patients from the admin patient register after a controlled import.
+> What admin staff do every day in the portal. Operations software, not CRM.
 
-## Workflow
+## Daily admin loop
 
-1. Open `/admin/patients`.
-2. Search for the imported patient by name or MSID / portal ID.
-3. Identify imported records marked `Pending review`.
-4. Open the patient drawer using `View` or `Review record`.
-5. Review patient identity and contact details:
-   - Name
-   - MSID / portal ID
-   - Date of birth
-   - Phone
-   - Email
-   - Address
-6. Review import metadata:
-   - Imported badge or segment
-   - Import batch ID
-   - Review status
-   - Imported / created timestamp where available
-7. Review equipment details:
-   - Machine brand
-   - Machine model
-   - Machine serial
-   - Setup date
-   - Device ID
-8. Review mask details when present:
-   - Mask brand
-   - Mask model
-   - Mask size
-   - Fitted or last-issued date where available
-9. Confirm funding source and funding notes where shown.
-10. Record follow-up issues using the agreed Midland operational process.
+```text
+1. Log in (MFA required)
+2. Open patient list → check imported batch summary
+3. Drawer-review high-priority records (overdue, recently imported, failed)
+4. Action where needed (export for outreach, export for clinical handoff)
+5. Check AWS state visibility panel (records present, last backup, no alarms)
+6. End of day → audit log spot-check (last 24h)
+```
 
-## Missing or Incomplete Data
+## Patient list
 
-Device data:
+```text
+Columns:
+  MSID
+  Name
+  Last imported
+  Device serial (truncated, full on hover/drawer)
+  Mask model (or "—" if none)
+  Status (Pending review / Reviewed / Action needed)
+  Imported badge (if from a recent batch)
 
-- Do not assume missing machine brand, model, serial, setup date, or device ID.
-- Check the source spreadsheet or biomedical source system.
-- Escalate unclear equipment assignment or serial conflicts to the nominated Midland owner.
+Filters:
+  by org_id
+  by status
+  by import batch ID
+  by date range (imported_at)
 
-Mask data:
+Search:
+  by MSID
+  by surname (case-insensitive prefix)
+  NEVER search by NHI in the URL
+```
 
-- If no mask data was imported, the drawer shows `No mask record imported`.
-- Staff should not assume a default mask exists.
-- Missing mask brand, model, or size requires source-data review or Midland owner escalation.
+## Drawer / detail view
 
-## Review Status
+```text
+Top section
+  Name, MSID, Date of birth (year only by default; full DOB on click + audit)
+  NHI: ZZZ**** masked. 30-second reveal in Profile only — admin reveals in
+       drawer require a written reason → audit row BEFORE reveal renders.
 
-`Pending review` is an operational label for imported records that need staff review.
+Equipment section
+  Machine model, serial, supplied date, warranty
+  Mask model + size (or honest "no mask on record" — never fake fallback)
 
-In Phase 1, review status is display-only unless a separate approved review-state workflow is available. It does not trigger invites, emails, orders, fulfilment, or patient portal access.
+Entitlement section
+  Funded year
+  Last claim
+  Next eligible
+  Status: ✅ CAN REORDER / ⏳ NOT YET / ⚠️ NEEDS REVIEW
+  NEVER show a dollar amount
 
-## Export
+Audit section (read-only)
+  Last 5 events on this record (action, who, when)
+```
 
-If the approved imported-patient export is available, staff may use it for operational review and batch follow-up.
+## Review status
 
-The export should contain safe operational fields only and must not include raw NHI, encrypted NHI, or NHI hashes.
+```text
+Pending review     just imported, not touched
+Reviewed           admin looked at it, no action needed
+Action needed      something missing or wrong (mask gap, expired warranty, contact data missing)
+Escalated          clinical decision required, Midland-side
+```
 
-If export is unavailable in the target environment, staff should use the admin list, patient drawer, and import evidence outputs rather than creating an unofficial export.
+## What admins can do (Phase 1B)
 
-## Safety Notes
+```text
+[ ] view list, drawer
+[ ] update review status (display-only if mutation isn't safely wired — see known-limitations)
+[ ] export imported batch to CSV (Admin Data Operations)
+[ ] export combined / entitlement / audit window CSVs
+[ ] trigger on-demand backup (with reason)
+[ ] view AWS state visibility panel
+```
 
-- NHI reveal is not enabled for imported admin records in the MVP.
-- The NHI tab states that NHI is stored securely and admin reveal is not enabled in this MVP.
-- This workflow is not clinical advice.
-- This workflow does not create patient invites or email flows.
-- This workflow does not create patient accounts, orders, fulfilment tasks, or inventory movements.
+## What admins CANNOT do (Phase 1B)
+
+```text
+[ ] edit patient record fields directly (data correction goes through controlled import)
+[ ] delete a patient record (AWS console only, IAM-protected)
+[ ] restore from backup (AWS console only, IAM-protected)
+[ ] create a Cognito patient user (Phase 2)
+[ ] send patient email (Phase 2)
+[ ] place an order on a patient's behalf (out of scope in 1B)
+```
+
+## Escalation paths
+
+```text
+Clinical question        → Midland clinical lead
+Privacy concern          → Midland Privacy Officer
+NHI exposure suspected   → STOP, contact Paul, do not export, write incident note
+Backup failure alert     → Paul (CloudWatch alarm email)
+AWS billing anomaly      → Paul
+Bug or system error      → Paul (within retainer SLA)
+```
+
+## What this is NOT
+
+```text
+- a CRM (no notes, tags, marketing)
+- a clinical record system (no diagnostic data)
+- an outreach engine (Phase 2)
+- a reporting / analytics dashboard (export to CSV instead)
+- an order management system (Phase 1B is import + review, not orders)
+```

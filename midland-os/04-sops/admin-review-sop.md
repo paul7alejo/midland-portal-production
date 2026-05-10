@@ -1,190 +1,114 @@
 # Admin Review SOP
 
+> What admin staff do when reviewing imported records or supporting patient queries.
+> Operations procedure, not clinical advice.
+
 ## Purpose
 
-This SOP describes how Midland staff review imported patients after a controlled import.
+Provide consistent, auditable handling of imported patient records and admin tasks, so the portal stays an operating layer rather than a black box.
 
-The review workflow is an admin data-quality and operational visibility process. It is not clinical advice, does not replace Midland clinical judgement, and does not make clinical decisions for staff.
+## Owner
 
-This workflow does not create patient invites, patient emails, patient portal accounts, orders, fulfilment tasks, or inventory movements.
+Midland admin staff (any one of them; rotating responsibility).
 
-## Review Ownership
+## Preconditions
 
-Midland owns the review decision.
+```text
+[ ] admin login works (MFA confirmed)
+[ ] last import batch succeeded
+[ ] no open P1 incidents
+[ ] AWS state visibility panel shows green
+```
 
-Admin staff should use the portal to inspect imported records, identify incomplete or conflicting data, and route issues to the correct Midland owner. Technical support can help with system behaviour, but Midland remains responsible for patient identity, source-data accuracy, funding interpretation, and equipment review decisions.
+## Daily loop
 
-## Patient List Workflow
+### 1. Open imported batch
 
-1. Open `/admin/patients`.
-2. Use search to find the imported patient by name or MSID / portal ID.
-3. Look for imported records marked `Pending review`.
-4. Confirm the record appears in the expected imported patient list.
-5. Open the patient drawer using `View` or `Review record`.
+```text
+[ ] /admin/patients
+[ ] filter by latest batch_id
+[ ] read created/skipped/failed summary
+```
 
-If the patient does not appear:
+### 2. Drawer-review high-priority records
 
-1. Confirm the import batch created the row.
-2. Confirm the correct name or MSID is being searched.
-3. Check the import result for skipped or failed rows.
-4. Escalate to technical support if the batch says the row was created but it cannot be found.
+Priority order:
 
-## Patient Drawer Workflow
+```text
+- records with FAIL status (escalate to Midland clinical lead)
+- records with SKIP duplicate (verify the existing record is correct)
+- records flagged "Action needed"
+- recently overdue safety / water chamber checks
+```
 
-In the patient drawer, review each tab that contains imported data:
+### 3. Drawer fields to confirm
 
-1. Overview
-2. Equipment
-3. Entitlement / funding summary where available
-4. NHI tab safety message
+```text
+[ ] name and DOB year render correctly (no garbled characters)
+[ ] MSID present and unique-looking (MS-XXXXXX)
+[ ] device model and serial present
+[ ] mask: shown honestly (model + size, OR "no mask on record" — never blank, never fake)
+[ ] entitlement status: ✅ CAN REORDER / ⏳ NOT YET / ⚠️ NEEDS REVIEW
+[ ] no dollar amount visible to admin in entitlement section either
+[ ] last 5 audit events look reasonable
+```
 
-For imported patients, NHI reveal is not enabled in the MVP. Staff should not expect raw NHI to be shown in the drawer.
+### 4. Action where needed
 
-## Fields Staff Should Review
+```text
+NHI reveal              click reveal, ENTER REASON, view 30s, never screenshot
+Export for outreach     /admin/exports → combined CSV → opens in spreadsheet
+Export for funder       /admin/exports → entitlement summary → 90-day window
+Update review status    set to Reviewed / Action needed / Escalated
+Trigger ad-hoc backup   /admin/aws-status → trigger on-demand → enter REASON
+```
 
-Patient identity and contact:
+### 5. End-of-day check
 
-- Name
-- MSID / portal ID
-- Date of birth
-- Phone
-- Email
-- Address
+```text
+[ ] /admin/aws-status panel green (no alarm flags)
+[ ] last weekly snapshot timestamp is < 7 days
+[ ] no failed PITR status
+[ ] no anomalous NHI_REVEAL or EXPORT_RUN counts
+```
 
-Import metadata:
+## Escalation paths
 
-- Imported badge or imported segment
-- Import batch ID where available
-- Review status
-- Imported / created timestamp where available
+```text
+Clinical question                   Midland clinical lead
+Privacy concern                     Midland Privacy Officer
+NHI exposure suspected              STOP, do not export, contact Paul same day
+Backup failure alert                Paul (P1)
+Unknown bug or 5xx                  Paul (within retainer SLA)
+```
 
-Funding:
+## Forbidden in admin portal (Rule 17)
 
-- Funded by
-- Any funding note shown in the drawer
-- Whether funding source matches Midland source records
+```text
+[ ] do NOT delete a patient record (AWS console only)
+[ ] do NOT restore from backup (AWS console only)
+[ ] do NOT export NHI without a reason (gated; reason required)
+[ ] do NOT take a screenshot of the NHI reveal
+[ ] do NOT share an export URL — links are single-use 24h
+```
 
-Machine / device:
+## What admins are NOT responsible for
 
-- Machine brand
-- Machine model
-- Machine serial number
-- Device ID
-- Setup date
-- Funded by, if shown at device level
+```text
+- clinical decisions
+- legal / compliance certification
+- AWS account-level config
+- Cognito user pool changes (Paul's job)
+- production database schema changes
+- backup restore (AWS console + Paul, jointly)
+```
 
-Mask:
+## Records
 
-- Mask brand
-- Mask model
-- Mask size
-- Last issued or fitted date where available
+```text
+Every export run, NHI reveal, on-demand backup, and review status change
+auto-writes to the audit log. No manual record-keeping required beyond
+that for routine admin tasks.
 
-## Incomplete or Missing Device Handling
-
-If machine or device data is incomplete:
-
-1. Do not assume the missing value.
-2. Check the source spreadsheet or biomedical source system.
-3. Confirm whether the missing value is a source-data issue, import mapping issue, or genuine unknown.
-4. Record the issue using the agreed Midland operational process.
-5. Escalate equipment assignment or serial-number uncertainty to the nominated Midland owner.
-
-Escalate to technical support if:
-
-- source data includes the device value but the drawer does not show it
-- the wrong device appears attached to the imported patient
-- long device IDs or serials cannot be read clearly in the UI
-
-## Incomplete or Missing Mask Handling
-
-If no mask was imported, the drawer should show:
-
-`No mask record imported`
-
-Staff must not assume a default mask exists.
-
-If mask data is incomplete:
-
-1. Check whether the source file intentionally omitted mask data.
-2. Confirm whether the patient has no current mask record or whether the source file is incomplete.
-3. Record missing mask brand, model, size, or fitted date using the agreed Midland operational process.
-4. Escalate unclear mask assignment to the nominated Midland owner.
-
-Do not create or infer a mask from machine type, patient history, or common defaults inside this workflow.
-
-## Review Status Wording
-
-Imported records may show review status as `Pending review`.
-
-In Phase 1, review status is display-only unless a separate approved workflow is explicitly built and available. Staff should treat `Pending review` as an operational prompt to inspect the record and record any required follow-up through the agreed Midland process.
-
-Do not assume changing review status will trigger downstream actions, patient communication, orders, or fulfilment.
-
-## Export Workflow
-
-Use an imported-patient export only if the approved admin export is available in the target environment.
-
-When exporting:
-
-1. Export imported patient records only.
-2. Use the export for operational review, management visibility, or batch follow-up.
-3. Confirm the export contains safe operational fields only, such as:
-   - patient name
-   - MSID / portal ID
-   - phone
-   - funding
-   - machine brand, model, and serial
-   - mask brand, model, and size
-   - import batch ID
-   - review status
-   - imported / created timestamp
-4. Store the export only in approved Midland locations.
-5. Do not email exports externally unless Midland policy allows it.
-
-The export must not include:
-
-- raw NHI
-- encrypted NHI
-- NHI hashes
-- clinical advice
-- patient portal credentials
-- invite status unless separately implemented and approved
-
-If export is not available in the environment, do not invent one manually from browser logs or database access. Use the patient list, drawer, and import evidence outputs instead.
-
-## Escalation Path
-
-Escalate to the nominated Midland owner when:
-
-- patient identity is unclear
-- date of birth, name, or contact details conflict with source records
-- duplicate NHI or duplicate serial outcomes require a decision
-- funding source is unclear
-- machine assignment is unclear
-- mask assignment is unclear
-- staff are unsure whether a record should proceed to downstream operational use
-
-Escalate to technical support when:
-
-- an imported patient that should exist is missing from the admin list
-- drawer data does not match the import result or source evidence
-- imported device or mask data appears attached to the wrong patient
-- exported operational fields appear unsafe or incorrect
-- the admin UI blocks review of a record that should be visible
-
-## Scope Boundaries
-
-This review workflow does not:
-
-- provide clinical advice
-- create patient portal accounts
-- send patient invites
-- send patient emails
-- create orders
-- create fulfilment tasks
-- move inventory
-- resolve source-data ownership questions for Midland
-- replace Midland clinical or operational approval
-
-Imported records remain staff-review records until Midland completes its operational review.
+Notable events (escalations, anomalies, incidents) → escalate by email.
+```

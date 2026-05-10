@@ -1,82 +1,92 @@
-# Weekly Summary
+# weekly-summary.md
+# Weekly cadence log — update every Sunday
+# Midland OS v3.1 | May 10, 2026 | paul@oneofzero.co.nz
 
-Day 28 completed:
+## Template
+```
+Week ending:   [date]
+Days worked:   [number]
+Hours approx:  [number]
 
-- Controlled real import execution added.
-- Preflight gate enforced before DynamoDB writes.
-- Created, skipped, and failed summaries returned after execute.
-- Duplicate NHI and machine serial safety checks added.
+COMPLETED:
+  [ ] [task]
 
-Day 29 completed:
+PUSHED TO REPO:
+  [ ] [branch / commit]
 
-- Admin patients API added.
-- Imported patients visible in `/admin/patients`.
-- Imported patient drawer shows real imported patient, device, mask, funding, and import metadata.
-- Imported NHI reveal disabled for MVP.
+BLOCKERS:
+  [ ] [item]
 
-Day 30 started:
+CLIENT ACTIONS NEEDED:
+  [ ] [item]
 
-- Production rehearsal documentation and safety scan started.
-- Midland OS v1 documentation structure created.
+NEXT WEEK PRIORITY:
+  1. [top]
+  2. [second]
+  3. [third]
 
-Day 34 completed:
+RISKS UPDATED:
+  [ ] [risk ID and change]
 
-- Import batch result explanation documented for Midland admin review.
-- Created, skipped, and failed counts are now described in operational terms.
-- Duplicate NHI, duplicate machine serial, and invalid required-field outcomes are documented with required Midland admin actions.
-- Day 34 evidence docs added under `midland-os/07-outputs/phase-1/day-34-import-batch-results/`.
+MORALE / NOTES:
+  [honest one-liner]
+```
 
-Day 35 completed:
+## Week ending May 4, 2026
+```
+Days worked:   5
+Hours approx:  28
 
-- Phase 1D admin review and visibility demo script created.
-- Phase 1D closeout summary created.
-- Demo story uses existing Day 31 evidence and keeps dry run, controlled execute, created/skipped/failed outcomes, admin list visibility, drawer review, equipment details, no fake mask fallback, and NHI safety explicit.
-- Export bridge is treated as a checkpoint to demonstrate only when present in the target environment.
+COMPLETED:
+  [x] 1B-a Import Governance — done
+  [x] 1C Import Engine — technically complete
+  [x] Admin patients list — partial
+  [x] Patient drawer — partial (no fake mask, no raw NHI)
 
-Day 36 completed:
+PUSHED TO REPO:
+  [x] feature/import-engine
+  [x] feature/admin-patients
 
-- Import SOP rewritten as a clinic-ready operational runbook.
-- Source-data ownership, accepted formats, required fields, dry run, approval, execute, result definitions, duplicate handling, failed-row handling, post-import verification, evidence capture, escalation, and Phase 1 boundaries are explicit.
-- Biomedical import workflow updated to match the clinic SOP.
+BLOCKERS:
+  [ ] ALTER export format not confirmed
+  [ ] Privacy Officer review not scheduled
 
-Day 37 completed:
+CLIENT ACTIONS NEEDED:
+  [ ] Midland: confirm ALTER export owner + format
+  [ ] Midland: name Privacy Officer
 
-- Admin review SOP finalized as a clinic-ready workflow for reviewing imported patients after import.
-- Patient list, drawer review, field checks, missing device handling, missing mask handling, display-only review status, export use, escalation, and scope boundaries are explicit.
-- SOP states the workflow is not clinical advice and does not create patient invites or email flows.
+NEXT WEEK PRIORITY:
+  1. Day 30 closeout docs
+  2. Day 31 proof rehearsal
+  3. 1D admin visibility + export
 
-Day 38 completed:
+RISKS UPDATED:
+  RISK-001: still OPEN
+  RISK-002: still OPEN
 
-- Release SOP finalized as a bounded Phase 1 release/rehearsal runbook.
-- Go/no-go, pre-release checks, smoke tests, admin/import/export checks, rollback/escalation, signoff, and support boundaries are explicit.
-- Known limitations rewritten with Phase 1 truths, including no checkout/Stripe, no fulfilment/inventory system, no mobile app, no patient invites/accounts/emails, and no advanced audit dashboard.
+MORALE / NOTES:
+  Hard middle. Code works. Documentation and handover need to catch up.
+```
 
-Day 39 completed:
+## Week ending May 11, 2026
+```
+Days worked:
+Hours approx:
 
-- Support model and retainer boundaries were finalized.
-- Included support, exclusions, response expectations, emergency handling, bug vs feature distinction, change request process, monthly improvement cadence, AWS/hosting boundaries, and clinic staff support boundaries are now explicit.
-- Retainer anchor is documented at NZD 2,300/month incl GST unless commercial terms change in writing.
+COMPLETED:
 
-Day 40 completed:
+PUSHED TO REPO:
 
-- Midland OS handover index was added.
-- The handover pack now has a practical entry point describing what Phase 1 includes, what it excludes, what Midland can use immediately, and how to request changes after go-live.
+BLOCKERS:
 
-Day 41 completed:
+CLIENT ACTIONS NEEDED:
 
-- Risks, decisions, learnings, and weekly-summary memory were cleaned up.
-- Phase 1 operating truths are now easier to find and hand over.
-- No new scope or backend behavior was introduced.
+NEXT WEEK PRIORITY:
+  1.
+  2.
+  3.
 
-Day 42 completed:
+RISKS UPDATED:
 
-- Midland OS v1 handover pack was finalized.
-- HANDOVER-INDEX, Phase 1E closeout summary, support boundaries, release guidance, and known limitations are now aligned as one coherent handover layer.
-- The pack now clearly states what Midland can use now and what still requires future scoped work.
-
-Next work:
-
-- Production rehearsal.
-- Midland review of SOPs.
-- Support model confirmation.
-- Editable admin review status later.
+MORALE / NOTES:
+```
