@@ -193,7 +193,7 @@ export default function MaintenancePage() {
         )}
 
         {/* General info */}
-        <section className="bg-sand-pale border border-sand rounded-lg p-6 md:p-7">
+        <section className="bg-sand-pale border border-sand rounded-2xl p-6 md:p-7">
           <h2 className="font-display text-2xl font-semibold text-navy mb-3 leading-snug">
             About CPAP maintenance
           </h2>

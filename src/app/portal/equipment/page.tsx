@@ -39,7 +39,7 @@ function DetailItem({
 }) {
   return (
     <div className="min-w-0">
-      <dt className="mb-1.5 font-mono text-sm uppercase tracking-wide text-gray-700">
+      <dt className="mb-1.5 font-mono text-sm uppercase tracking-wide text-charcoal/70">
         {label}
       </dt>
       <dd
@@ -58,7 +58,7 @@ export default function EquipmentPage() {
   const { device, mask, loading } = usePatientData();
 
   if (!patient) return null;
-  if (loading) return <div className="p-8 text-gray-700 text-lg leading-7">Loading equipment...</div>;
+  if (loading) return <div className="p-8 text-charcoal/70 text-lg leading-7">Loading equipment...</div>;
 
   const machineName = device
     ? [device.brand, device.name ?? device.model].filter(Boolean).join(" ") ||
@@ -82,7 +82,7 @@ export default function EquipmentPage() {
         <section className="bg-white border border-sand rounded-2xl p-6 md:p-7 space-y-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="mb-1 font-mono text-sm uppercase tracking-wide text-gray-700">
+              <p className="mb-1 font-mono text-sm uppercase tracking-wide text-charcoal/70">
                 CPAP machine
               </p>
               <h2 className="font-display text-2xl font-semibold text-navy leading-snug">Current machine</h2>
@@ -100,7 +100,7 @@ export default function EquipmentPage() {
                 <div className="flex items-start gap-4">
                   <EquipmentVisual type="machine" className="h-20 w-28 shrink-0" />
                   <div className="min-w-0">
-                    <p className="mb-1 font-mono text-sm uppercase tracking-wide text-gray-700">
+                    <p className="mb-1 font-mono text-sm uppercase tracking-wide text-charcoal/70">
                       Machine name
                     </p>
                     <p className="text-2xl font-semibold leading-8 text-charcoal">
@@ -128,7 +128,7 @@ export default function EquipmentPage() {
               <p className="text-xl font-semibold text-charcoal">
                 No machine is on file
               </p>
-              <p className="mt-2 text-lg leading-7 text-gray-800">
+              <p className="mt-2 text-lg leading-7 text-charcoal/80">
                 If this looks wrong, please contact Midland Sleep so we can
                 check your equipment record.
               </p>
@@ -139,7 +139,7 @@ export default function EquipmentPage() {
         <section className="bg-white border border-sand rounded-2xl p-6 md:p-7 space-y-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="mb-1 font-mono text-sm uppercase tracking-wide text-gray-700">
+              <p className="mb-1 font-mono text-sm uppercase tracking-wide text-charcoal/70">
                 Mask
               </p>
               <h2 className="font-display text-2xl font-semibold text-navy leading-snug">Current mask</h2>
@@ -157,7 +157,7 @@ export default function EquipmentPage() {
                 <div className="flex items-start gap-4">
                   <EquipmentVisual type="mask" className="h-20 w-28 shrink-0" />
                   <div className="min-w-0">
-                    <p className="mb-1 font-mono text-sm uppercase tracking-wide text-gray-700">
+                    <p className="mb-1 font-mono text-sm uppercase tracking-wide text-charcoal/70">
                       Mask name
                     </p>
                     <p className="text-2xl font-semibold leading-8 text-charcoal">
@@ -184,7 +184,7 @@ export default function EquipmentPage() {
               <p className="text-xl font-semibold text-charcoal">
                 No mask is on file
               </p>
-              <p className="mt-2 text-lg leading-7 text-gray-800">
+              <p className="mt-2 text-lg leading-7 text-charcoal/80">
                 If you use a Midland Sleep mask, please contact us so we can
                 check your record.
               </p>
@@ -194,17 +194,17 @@ export default function EquipmentPage() {
 
         <section className="bg-white border border-sand rounded-2xl p-6 md:p-7 space-y-4">
           <h2 className="font-display text-2xl font-semibold text-navy leading-snug">Maintenance timeline</h2>
-          <p className="text-lg leading-7 text-gray-800">
+          <p className="text-lg leading-7 text-charcoal/80">
             Maintenance records will appear here once connected to Midland Sleep records.
           </p>
-          <p className="text-lg leading-7 text-gray-800 pt-4 border-t border-sand">
+          <p className="text-lg leading-7 text-charcoal/80 pt-4 border-t border-sand">
             To arrange checks, call Midland Sleep on <a href="tel:0800000000" className="text-deep-teal font-medium hover:underline">0800 000 000</a>.
           </p>
         </section>
 
         <section className="bg-white border border-sand rounded-2xl p-6 md:p-7 border-dashed">
           <h2 className="font-display text-2xl font-semibold text-navy mb-3 leading-snug">Previous equipment</h2>
-          <p className="text-lg leading-7 text-gray-800">
+          <p className="text-lg leading-7 text-charcoal/80">
             Your machine and mask history will appear here in a future update.
           </p>
         </section>

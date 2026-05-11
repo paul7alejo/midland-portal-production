@@ -299,7 +299,7 @@ export default function ReorderPage() {
       )}
 
       {/* Privacy notice — HIPC Rule 3: must appear ABOVE any data collection */}
-      <div className="bg-sky-blue border border-deep-teal/10 rounded-lg px-4 py-4 mb-7">
+      <div className="bg-deep-teal/5 border border-deep-teal/10 rounded-lg px-4 py-4 mb-7">
         <p className="text-base leading-6 text-charcoal/85">
           Your request will be reviewed by Midland Sleep staff. We collect your
           delivery address so staff can arrange supplies. Your information is handled in
@@ -323,7 +323,7 @@ export default function ReorderPage() {
         <div className="space-y-7">
           {/* Eligible items */}
           <div>
-            <h2 className="text-2xl font-semibold text-charcoal mb-4 leading-snug">
+            <h2 className="font-display text-2xl font-semibold text-navy mb-4 leading-snug">
               Available supplies
             </h2>
             <div className="grid gap-4 md:grid-cols-2">
@@ -383,7 +383,7 @@ export default function ReorderPage() {
           {/* Not-yet items */}
           {notYetItems.length > 0 && (
             <div>
-              <h2 className="text-xl font-medium text-charcoal/80 mb-3">
+              <h2 className="font-display text-xl font-semibold text-navy mb-3">
                 Not yet available
               </h2>
               <div className="grid gap-4 md:grid-cols-2">
@@ -416,7 +416,7 @@ export default function ReorderPage() {
           {/* Delivery address */}
           <section className="rounded-2xl border border-sand bg-white p-5 md:p-6 space-y-5">
             <div>
-              <h2 className="text-2xl font-semibold text-charcoal leading-snug">
+              <h2 className="font-display text-2xl font-semibold text-navy leading-snug">
                 Delivery address
               </h2>
               <p className="mt-1 text-base leading-6 text-charcoal/75">
@@ -438,7 +438,7 @@ export default function ReorderPage() {
                       ))}
                     </div>
                   </div>
-                  <span className="rounded-full border border-deep-teal/20 bg-sky-blue px-3 py-1 text-sm font-medium text-deep-teal">
+                  <span className="rounded-full border border-deep-teal/20 bg-seafoam-pale/40 px-3 py-1 text-sm font-medium text-deep-teal">
                     {useSavedAddress ? "Selected" : "Saved"}
                   </span>
                 </div>

@@ -121,12 +121,12 @@ export default function DashboardPage() {
           )}
 
           <div className="grid gap-x-8 gap-y-5 md:grid-cols-2 text-lg leading-7">
-            <div>
-              <p className="text-sm uppercase tracking-wide text-charcoal/80 font-mono mb-1.5">Machine</p>
-              <p className="text-charcoal font-medium">
-                {device ? `${device.brand} ${device.name}` : "No machine on file"}
-              </p>
-            </div>
+            {!device && (
+              <div>
+                <p className="text-sm uppercase tracking-wide text-charcoal/80 font-mono mb-1.5">Machine</p>
+                <p className="text-charcoal font-medium">No machine on file</p>
+              </div>
+            )}
             <div>
               <p className="text-sm uppercase tracking-wide text-charcoal/80 font-mono mb-1.5">Serial number</p>
               <p className="text-charcoal font-mono break-all">
@@ -216,7 +216,7 @@ export default function DashboardPage() {
                 Your supplies are not yet available to reorder.
               </p>
               {entitlement.some((item) => item.next_eligible_date) && (
-                <p className="text-lg leading-7 text-gray-800">
+                <p className="text-lg leading-7 text-charcoal/80">
                   Next eligible from{" "}
                   {formatDate(
                     entitlement
@@ -310,7 +310,7 @@ export default function DashboardPage() {
         {/* CARD 4 — NEED HELP */}
         <section className="bg-sand-pale border border-sand rounded-2xl p-6 md:p-7">
           <h2 className="font-display text-2xl font-semibold text-navy mb-3 leading-snug">Need help?</h2>
-          <p className="text-lg leading-7 text-gray-800">
+          <p className="text-lg leading-7 text-charcoal/80">
             Call Midland Sleep on {phoneLink} or email {emailLink}. We are open Monday to Friday, 8:30am to 5pm.
           </p>
         </section>
