@@ -67,6 +67,9 @@ const ITEM_ICONS: Record<string, React.ReactNode> = {
   ),
 };
 
+const REQUEST_TIMING_NOTE =
+  "Please allow 5–7 business days from your request for Midland Sleep staff to review and arrange supply delivery.";
+
 function formatDate(iso: string): string {
   const date = new Date(iso);
   if (isNaN(date.getTime())) return iso;
@@ -327,15 +330,15 @@ export default function ReorderPage() {
         </div>
       ) : (
         <div className="space-y-7">
-          {/* Eligible items */}
+          {/* Step 1: Eligible items */}
           <section className="rounded-2xl border border-sand bg-white p-5 md:p-6">
             <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <p className="mb-1 font-mono text-sm uppercase tracking-wide text-charcoal/70">
+                <p className="mb-1 font-mono text-sm font-semibold uppercase tracking-wide text-deep-teal">
                   Step 1
                 </p>
                 <h2 className="font-display text-2xl font-semibold text-navy leading-snug">
-                  Choose supplies to request
+                  Choose supplies
                 </h2>
                 <p className="mt-2 text-base leading-6 text-charcoal/75">
                   Select the items you would like Midland Sleep staff to review.
@@ -441,11 +444,14 @@ export default function ReorderPage() {
             </div>
           )}
 
-          {/* Delivery address */}
+          {/* Step 2: Delivery address */}
           <section className="rounded-2xl border border-sand bg-white p-5 md:p-6 space-y-5">
             <div>
+              <p className="mb-1 font-mono text-sm font-semibold uppercase tracking-wide text-deep-teal">
+                Step 2
+              </p>
               <h2 className="font-display text-2xl font-semibold text-navy leading-snug">
-                Delivery address
+                Confirm delivery address
               </h2>
               <p className="mt-1 text-base leading-6 text-charcoal/75">
                 Midland Sleep staff will use this address when reviewing this
@@ -536,19 +542,79 @@ export default function ReorderPage() {
             )}
           </section>
 
-          {/* Submit */}
-          <p className="text-base leading-6 text-charcoal/75">
-            Select at least one item and confirm a delivery address to send your request.
-          </p>
-          <button
-            onClick={handleSubmit}
-            disabled={!canSendRequest || isSubmitting}
-            className="bg-[#0B5C6C] text-white px-7 py-3.5 rounded-lg text-lg
-                       font-medium min-h-[52px] hover:bg-[#0B5C6C]/90 transition-colors
-                       disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isSubmitting ? "Sending..." : "Send request"}
-          </button>
+          {/* Step 3: Review and submit */}
+          <section className="rounded-2xl border border-sand bg-white p-5 md:p-6 space-y-5">
+            <div>
+              <p className="mb-1 font-mono text-sm font-semibold uppercase tracking-wide text-deep-teal">
+                Step 3
+              </p>
+              <h2 className="font-display text-2xl font-semibold text-navy leading-snug">
+                Review and send request
+              </h2>
+              <p className="mt-1 text-base leading-6 text-charcoal/75">
+                Midland Sleep staff will review this request before arranging supply delivery.
+              </p>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-xl border border-sand bg-sand-pale/40 p-4">
+                <p className="mb-2 font-mono text-sm uppercase tracking-wide text-charcoal/70">
+                  Supplies requested
+                </p>
+                {selectedItems.length > 0 ? (
+                  <ul className="space-y-2">
+                    {selectedItems.map((itemType) => (
+                      <li key={itemType} className="text-lg leading-7 text-charcoal font-medium">
+                        {ITEM_LABELS[itemType]}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-base leading-6 text-charcoal/65">
+                    Choose at least one supply item in Step 1.
+                  </p>
+                )}
+              </div>
+
+              <div className="rounded-xl border border-sand bg-sand-pale/40 p-4">
+                <p className="mb-2 font-mono text-sm uppercase tracking-wide text-charcoal/70">
+                  Delivery address
+                </p>
+                {hasCompleteDeliveryAddress(activeDeliveryAddress) ? (
+                  <div className="space-y-1 text-lg leading-7 text-charcoal">
+                    {formatDeliveryAddress(activeDeliveryAddress).map((line) => (
+                      <p key={line}>{line}</p>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-base leading-6 text-charcoal/65">
+                    Confirm a complete delivery address in Step 2.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-deep-teal/15 bg-deep-teal/5 p-4">
+              <p className="text-base leading-6 text-charcoal/85">
+                {REQUEST_TIMING_NOTE}
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <p className="text-base leading-6 text-charcoal/75">
+                Select at least one item and confirm a delivery address to send your request.
+              </p>
+              <button
+                onClick={handleSubmit}
+                disabled={!canSendRequest || isSubmitting}
+                className="bg-[#0B5C6C] text-white px-7 py-3.5 rounded-lg text-lg
+                           font-medium min-h-[52px] hover:bg-[#0B5C6C]/90 transition-colors
+                           disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSubmitting ? "Sending..." : "Send request"}
+              </button>
+            </div>
+          </section>
         </div>
       )}
     </>
