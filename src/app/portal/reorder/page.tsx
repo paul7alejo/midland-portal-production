@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { usePatientData } from "@/hooks/usePatientData";
 import { cn } from "@/lib/utils";
@@ -28,6 +28,42 @@ const ITEM_DESCRIPTIONS: Record<string, string> = {
   headgear: "Replacement headgear straps",
   mask_kit: "Complete mask frame, cushion, and headgear",
   filter: "Standard and hypoallergenic filter pack",
+};
+
+const ITEM_ICONS: Record<string, React.ReactNode> = {
+  cushion: (
+    <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+      <ellipse cx="14" cy="14" rx="11" ry="7" fill="#0B5C6C" fillOpacity="0.12" stroke="#0B5C6C" strokeOpacity="0.30" strokeWidth="1.5"/>
+      <ellipse cx="14" cy="14" rx="7" ry="4" fill="#0B5C6C" fillOpacity="0.18"/>
+    </svg>
+  ),
+  headgear: (
+    <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+      <path d="M4 14 Q4 7 14 7 Q24 7 24 14" stroke="#0B5C6C" strokeOpacity="0.40" strokeWidth="2" fill="none" strokeLinecap="round"/>
+      <path d="M4 14 Q4 20 7 22" stroke="#0B2A3C" strokeOpacity="0.28" strokeWidth="1.5" strokeLinecap="round" fill="none"/>
+      <path d="M24 14 Q24 20 21 22" stroke="#0B2A3C" strokeOpacity="0.28" strokeWidth="1.5" strokeLinecap="round" fill="none"/>
+      <rect x="5" y="20" width="4" height="5" rx="2" fill="#0B5C6C" fillOpacity="0.22"/>
+      <rect x="19" y="20" width="4" height="5" rx="2" fill="#0B5C6C" fillOpacity="0.22"/>
+    </svg>
+  ),
+  mask_kit: (
+    <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+      <ellipse cx="14" cy="17" rx="10" ry="8" fill="#0B5C6C" fillOpacity="0.09" stroke="#0B5C6C" strokeOpacity="0.28" strokeWidth="1.5"/>
+      <path d="M8 12 Q14 8 20 12" stroke="#0B5C6C" strokeOpacity="0.33" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+      <ellipse cx="14" cy="20" rx="6" ry="3.5" fill="#0B5C6C" fillOpacity="0.15"/>
+      <path d="M4 15 Q1 12 3 8" stroke="#0B2A3C" strokeOpacity="0.22" strokeWidth="1.5" strokeLinecap="round" fill="none"/>
+      <path d="M24 15 Q27 12 25 8" stroke="#0B2A3C" strokeOpacity="0.22" strokeWidth="1.5" strokeLinecap="round" fill="none"/>
+    </svg>
+  ),
+  filter: (
+    <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+      <rect x="4" y="4" width="20" height="20" rx="3" fill="#0B5C6C" fillOpacity="0.08" stroke="#0B5C6C" strokeOpacity="0.24" strokeWidth="1.5"/>
+      <line x1="4" y1="11" x2="24" y2="11" stroke="#0B5C6C" strokeOpacity="0.18" strokeWidth="1.2"/>
+      <line x1="4" y1="17" x2="24" y2="17" stroke="#0B5C6C" strokeOpacity="0.18" strokeWidth="1.2"/>
+      <line x1="11" y1="4" x2="11" y2="24" stroke="#0B5C6C" strokeOpacity="0.18" strokeWidth="1.2"/>
+      <line x1="17" y1="4" x2="17" y2="24" stroke="#0B5C6C" strokeOpacity="0.18" strokeWidth="1.2"/>
+    </svg>
+  ),
 };
 
 function formatDate(iso: string): string {
@@ -305,6 +341,9 @@ export default function ReorderPage() {
                         : "border-sand bg-white hover:border-deep-teal/40"
                     )}
                   >
+                    <div className="mb-4 h-11 w-11 rounded-xl bg-sand-pale flex items-center justify-center">
+                      {ITEM_ICONS[item.item_type]}
+                    </div>
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="text-xl font-semibold text-charcoal leading-7">
@@ -353,6 +392,9 @@ export default function ReorderPage() {
                     key={item.item_type}
                     className="border border-sand rounded-2xl p-5 bg-sand-pale/50"
                   >
+                    <div className="mb-4 h-11 w-11 rounded-xl bg-white/60 flex items-center justify-center opacity-60">
+                      {ITEM_ICONS[item.item_type]}
+                    </div>
                     <p className="text-xl font-semibold text-charcoal leading-7">
                       {ITEM_LABELS[item.item_type]}
                     </p>

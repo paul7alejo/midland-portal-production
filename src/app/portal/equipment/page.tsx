@@ -2,6 +2,7 @@
 
 import { usePatientData } from "@/hooks/usePatientData";
 import { useAuth } from "@/components/AuthProvider";
+import EquipmentVisual from "@/components/portal/EquipmentVisual";
 
 function formatDate(iso?: string): string {
   if (!iso) return "Not recorded";
@@ -96,18 +97,23 @@ export default function EquipmentPage() {
           {device ? (
             <div className="space-y-5">
               <div className="rounded-xl border border-sand bg-sand-pale/50 p-5">
-                <p className="mb-1 font-mono text-sm uppercase tracking-wide text-gray-700">
-                  Machine name
-                </p>
-                <p className="text-2xl font-semibold leading-8 text-charcoal">
-                  {machineName}
-                </p>
-                <p className="mt-3 text-base leading-7 text-charcoal/75">
-                  Serial number{" "}
-                  <span className="break-all font-mono text-charcoal">
-                    {displayValue(device.serial_number)}
-                  </span>
-                </p>
+                <div className="flex items-start gap-4">
+                  <EquipmentVisual type="machine" className="h-20 w-28 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="mb-1 font-mono text-sm uppercase tracking-wide text-gray-700">
+                      Machine name
+                    </p>
+                    <p className="text-2xl font-semibold leading-8 text-charcoal">
+                      {machineName}
+                    </p>
+                    <p className="mt-3 text-base leading-7 text-charcoal/75">
+                      Serial number{" "}
+                      <span className="break-all font-mono text-charcoal">
+                        {displayValue(device.serial_number)}
+                      </span>
+                    </p>
+                  </div>
+                </div>
               </div>
 
               <dl className="grid gap-x-8 gap-y-5 md:grid-cols-2">
@@ -148,16 +154,21 @@ export default function EquipmentPage() {
           {mask ? (
             <div className="space-y-5">
               <div className="rounded-xl border border-sand bg-sand-pale/50 p-5">
-                <p className="mb-1 font-mono text-sm uppercase tracking-wide text-gray-700">
-                  Mask name
-                </p>
-                <p className="text-2xl font-semibold leading-8 text-charcoal">
-                  {maskName}
-                </p>
-                <p className="mt-3 text-base leading-7 text-charcoal/75">
-                  {formatMaskType(mask.type)} mask
-                  {mask.size ? `, size ${mask.size}` : ""}
-                </p>
+                <div className="flex items-start gap-4">
+                  <EquipmentVisual type="mask" className="h-20 w-28 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="mb-1 font-mono text-sm uppercase tracking-wide text-gray-700">
+                      Mask name
+                    </p>
+                    <p className="text-2xl font-semibold leading-8 text-charcoal">
+                      {maskName}
+                    </p>
+                    <p className="mt-3 text-base leading-7 text-charcoal/75">
+                      {formatMaskType(mask.type)} mask
+                      {mask.size ? `, size ${mask.size}` : ""}
+                    </p>
+                  </div>
+                </div>
               </div>
 
               <dl className="grid gap-x-8 gap-y-5 md:grid-cols-2">
