@@ -246,8 +246,14 @@ export default function ReorderPage() {
             Your request has been received
           </h1>
           <p className="text-lg leading-7 text-charcoal/80">
-            Midland Sleep staff will review your request and contact you if anything else is needed.
+            Midland Sleep staff will review your request and contact you if any further information is needed.
           </p>
+          <div className="bg-seafoam-pale/40 border border-seafoam/20 rounded-2xl p-5 text-left">
+            <h2 className="text-xl font-semibold text-charcoal mb-3">What happens next</h2>
+            <p className="text-lg leading-7 text-charcoal/85">
+              Please allow 5–7 business days for your request to be reviewed and supply delivery to be arranged.
+            </p>
+          </div>
           <div className="bg-white border border-sand rounded-2xl p-5 text-left mt-6">
             <h2 className="text-xl font-semibold text-charcoal mb-3">Items requested</h2>
             <ul className="space-y-2">
