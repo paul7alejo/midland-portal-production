@@ -301,9 +301,42 @@ function MonoValue({ value }: { value: string }) {
   return <span className="block max-w-full break-all font-mono leading-6">{value}</span>;
 }
 
+function getReviewCues(patient: DrawerPatient): string[] {
+  const cues: string[] = [];
+  if (patient.imported) cues.push("Imported record requires staff review before operational use.");
+  if (patient.reviewStatus && patient.reviewStatus !== "—") cues.push(`Review status: ${humanizeLabel(patient.reviewStatus)}.`);
+  if (patient.machine.safetyCheckOverdue) cues.push("Machine safety-check cue is present.");
+  if (!patient.mask) cues.push("No mask record is on file for this patient.");
+  if (patient.funding.fundingNote) cues.push(patient.funding.fundingNote);
+  return cues;
+}
+
+function ReviewCues({ patient }: { patient: DrawerPatient }) {
+  const cues = getReviewCues(patient);
+  return (
+    <section className="rounded-xl border border-sky-200 bg-sky-50 p-4">
+      <h3 className="mb-3 text-sm font-semibold text-sky-900 uppercase tracking-wide">Review cues</h3>
+      {cues.length > 0 ? (
+        <ul className="space-y-2">
+          {cues.map((cue) => (
+            <li key={cue} className="flex gap-2 text-sm leading-6 text-sky-900">
+              <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500" />
+              <span>{cue}</span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm leading-6 text-sky-900">No immediate review cues are shown for this record.</p>
+      )}
+    </section>
+  );
+}
+
 function OverviewTab({ patient }: { patient: DrawerPatient }) {
   return (
     <div className="space-y-5">
+      <ReviewCues patient={patient} />
+
       <section className="rounded-xl border border-gray-200 bg-gray-50 p-4">
         <dl className="grid gap-5 sm:grid-cols-2">
           <div className="sm:col-span-2">
@@ -374,6 +407,9 @@ function EquipmentTab({ patient }: { patient: DrawerPatient }) {
               <span className="inline-flex items-center rounded-full px-3 py-1 text-sm font-medium bg-amber-100 text-amber-800 border border-amber-200">
                 Safety check overdue
               </span>
+              <p className="mt-2 text-sm leading-6 text-gray-600">
+                Use this as a staff visibility cue during patient review. No booking or outreach automation is triggered here.
+              </p>
             </div>
           )}
         </dl>
@@ -555,7 +591,9 @@ function NotesTab({
   return (
     <div className="space-y-5">
       <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
-        <p className="text-sm text-amber-800">Staff only — these notes are never shown to the patient.</p>
+        <p className="text-sm text-amber-800">
+          Staff only — these session notes are never shown to the patient and are not a persistent audit record.
+        </p>
       </div>
 
       <div className="space-y-2">
@@ -576,13 +614,13 @@ function NotesTab({
           className="bg-[#0B5C6C] text-white text-base font-medium px-5 py-2.5 rounded-lg min-h-[44px]
                      hover:bg-[#0B5C6C]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Save note
+          Save session note
         </button>
       </div>
 
       {savedNotes.length > 0 && (
         <div className="space-y-3">
-          <h4 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Saved notes</h4>
+          <h4 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Session notes</h4>
           {savedNotes.map((note) => (
             <div key={note.id} className="bg-gray-50 rounded-xl p-4 space-y-2">
               {editingNoteId === note.id ? (
@@ -885,6 +923,16 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName }: PatientDra
               {patient?.imported && (
                 <span className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700">
                   Imported
+                </span>
+              )}
+              {patient?.reviewStatus && patient.reviewStatus !== "—" && (
+                <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800">
+                  {humanizeLabel(patient.reviewStatus)}
+                </span>
+              )}
+              {patient?.machine.safetyCheckOverdue && (
+                <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800">
+                  Safety check cue
                 </span>
               )}
             </div>
