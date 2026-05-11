@@ -74,6 +74,13 @@ Day 42 completed:
 - HANDOVER-INDEX, Phase 1E closeout summary, support boundaries, release guidance, and known limitations are now aligned as one coherent handover layer.
 - The pack now clearly states what Midland can use now and what still requires future scoped work.
 
+Day 49 completed:
+
+- Stakeholder demo and handover walkthrough created for Phase 1.
+- Demo script now covers patient portal proof, admin portal proof, import/review/export proof, handover docs proof, and support boundary proof.
+- Capability vs limitation language is explicit: no full ecommerce, inventory system, advanced reporting platform, patient invite/email system, mobile app, or unscoped future features are claimed.
+- HANDOVER-INDEX now links to the Day 49 walkthrough.
+
 Next work:
 
 - Production rehearsal.
