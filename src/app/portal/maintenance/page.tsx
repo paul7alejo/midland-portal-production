@@ -3,6 +3,7 @@
 import { useAuth } from "@/components/AuthProvider";
 import { usePatientData } from "@/hooks/usePatientData";
 import { cn } from "@/lib/utils";
+import EquipmentVisual from "@/components/portal/EquipmentVisual";
 
 function formatDate(iso: string): string {
   const date = new Date(iso);
@@ -89,15 +90,20 @@ export default function MaintenancePage() {
         {/* Machine info header */}
         {device && (
           <div className="bg-white border border-sand rounded-2xl p-5">
-            <p className="text-sm uppercase tracking-wide text-charcoal/80 font-mono mb-1.5">
-              Your machine
-            </p>
-            <p className="text-lg leading-7 text-charcoal font-medium">
-              {device.brand} {device.name}
-            </p>
-            <p className="text-base leading-6 text-charcoal/80 break-words">
-              Set up {formatDate(device.setup_date)} - Serial: {device.serial_number}
-            </p>
+            <div className="flex items-center gap-4">
+              <EquipmentVisual type="machine" className="h-16 w-24 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-sm uppercase tracking-wide text-charcoal/80 font-mono mb-1">
+                  Your machine
+                </p>
+                <p className="text-lg leading-7 text-charcoal font-medium">
+                  {device.brand} {device.name}
+                </p>
+                <p className="text-base leading-6 text-charcoal/80 break-words">
+                  Set up {formatDate(device.setup_date)} · Serial {device.serial_number}
+                </p>
+              </div>
+            </div>
           </div>
         )}
 

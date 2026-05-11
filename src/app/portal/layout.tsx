@@ -4,38 +4,15 @@ import { useAuth } from "@/components/AuthProvider";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import PortalSidebar from "@/components/layout/PortalSidebar";
+import AccountMenu from "@/components/portal/AccountMenu";
 
 function TopBar() {
-  const { patient, logout } = useAuth();
-  const router = useRouter();
-
+  const { patient } = useAuth();
   if (!patient) return null;
 
-  const handleLogout = () => {
-    logout();
-    router.push("/login");
-  };
-
   return (
-    <div className="border-b border-sand bg-white px-4 py-3 md:px-8 flex items-center justify-end gap-3 sm:gap-5">
-      {/* User info */}
-      <div className="flex min-w-0 items-center gap-3">
-        <div className="h-8 w-8 rounded-full bg-deep-teal flex items-center justify-center text-white text-xs font-bold shrink-0">
-          {(patient.name ?? "Patient").split(" ").map((n) => n[0]).join("")}
-        </div>
-        <div className="min-w-0 text-right">
-          <p className="truncate text-base font-medium text-charcoal leading-tight">{patient.name}</p>
-          <p className="truncate text-sm text-charcoal/60 font-mono">{patient.msid}</p>
-        </div>
-      </div>
-
-      {/* Logout */}
-      <button
-        onClick={handleLogout}
-        className="shrink-0 text-sm text-charcoal/60 hover:text-deep-teal transition-colors"
-      >
-        Log out
-      </button>
+    <div className="border-b border-sand bg-white px-4 py-2 md:px-8 flex items-center justify-end">
+      <AccountMenu />
     </div>
   );
 }

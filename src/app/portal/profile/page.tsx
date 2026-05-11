@@ -267,7 +267,7 @@ export default function ProfilePage() {
         </section>
 
         {/* SECTION 4 — Default Delivery Address */}
-        <section className="bg-white border border-sand rounded-2xl p-6 md:p-7 space-y-5">
+        <section id="delivery-address" className="bg-white border border-sand rounded-2xl p-6 md:p-7 space-y-5">
           <div>
             <h2 className="font-display text-2xl font-semibold text-navy leading-snug">Default delivery address</h2>
             <p className="text-lg leading-7 text-charcoal/80 mt-1">
@@ -277,11 +277,16 @@ export default function ProfilePage() {
           </div>
 
           {hasCompleteDeliveryAddress(deliveryAddress) && (
-            <div className="rounded-xl border border-sand bg-sand-pale/50 p-5">
-              <p className="mb-2 font-mono text-sm uppercase tracking-wide text-charcoal/80">
-                Saved address
-              </p>
-              <div className="space-y-1 text-lg leading-7 text-charcoal">
+            <div className="rounded-xl border border-deep-teal/20 bg-seafoam-pale/30 p-5">
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <p className="font-mono text-sm uppercase tracking-wide text-charcoal/60">
+                  Saved address
+                </p>
+                <span className="shrink-0 rounded-full border border-deep-teal/20 bg-white px-2.5 py-0.5 text-xs font-medium text-deep-teal">
+                  Default
+                </span>
+              </div>
+              <div className="space-y-0.5 text-lg leading-7 text-charcoal font-medium">
                 {formatDeliveryAddress(deliveryAddress).map((line) => (
                   <p key={line}>{line}</p>
                 ))}
