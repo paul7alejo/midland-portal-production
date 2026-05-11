@@ -11,7 +11,7 @@ function TopBar() {
   if (!patient) return null;
 
   return (
-    <div className="border-b border-sand bg-white px-4 py-2 md:px-8 flex items-center justify-end">
+    <div className="relative z-10 border-b border-sand bg-white px-4 py-2 md:px-8 flex items-center justify-end">
       <AccountMenu />
     </div>
   );
@@ -65,9 +65,15 @@ function PortalInner({ children }: { children: React.ReactNode }) {
         )}
       </div>
 
-      <main className="md:ml-64 min-h-screen overflow-x-hidden">
+      <main className="relative md:ml-64 min-h-screen overflow-x-hidden">
+        <img
+          src="/portal-assets/logo/midland-logo-mark-deep-teal.png"
+          alt=""
+          className="pointer-events-none absolute bottom-[72px] right-[-120px] z-0 hidden h-[600px] w-[600px] object-contain opacity-[0.028] md:block lg:opacity-[0.033]"
+          aria-hidden="true"
+        />
         <TopBar />
-        <div className="max-w-5xl mx-auto px-4 py-6 md:px-8 md:py-8">
+        <div className="relative z-10 max-w-5xl mx-auto px-4 py-6 md:px-8 md:py-8">
           {children}
         </div>
       </main>
