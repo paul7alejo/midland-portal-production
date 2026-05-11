@@ -121,7 +121,7 @@ export default function EquipmentPage() {
                       label="Replacement due"
                       value={replacementDue ? formatDate(replacementDue) : "Not recorded"}
                     />
-                    <DetailItem label="Funded by" value={displayValue(device.funding_stream)} />
+                    <DetailItem label="Entitlement programme" value="Health New Zealand | Te Whatu Ora" />
                   </dl>
                 </div>
               </div>

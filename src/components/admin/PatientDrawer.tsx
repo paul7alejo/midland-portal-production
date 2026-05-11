@@ -378,7 +378,7 @@ function OverviewTab({ patient }: { patient: DrawerPatient }) {
           />
           {patient.imported && (
             <>
-              <FieldRow label="Funded by" value={safeValue(patient.fundedBy)} />
+              <FieldRow label="Entitlement programme" value={safeValue(patient.fundedBy)} />
               <FieldRow label="Import batch ID" value={<MonoValue value={safeValue(patient.importBatchId)} />} />
               <FieldRow label="Review status" value={safeValue(patient.reviewStatus)} />
             </>
@@ -401,7 +401,7 @@ function EquipmentTab({ patient }: { patient: DrawerPatient }) {
           <FieldRow label="Serial"     value={machine.serial} />
           <FieldRow label="Device ID"  value={<MonoValue value={machine.deviceId} />} />
           <FieldRow label="Setup date" value={machine.setupDate} />
-          <FieldRow label="Funded by"  value={machine.fundedBy} />
+          <FieldRow label="Entitlement programme" value={machine.fundedBy} />
           {machine.safetyCheckOverdue && (
             <div className="sm:col-span-2">
               <span className="inline-flex items-center rounded-full px-3 py-1 text-sm font-medium bg-amber-100 text-amber-800 border border-amber-200">

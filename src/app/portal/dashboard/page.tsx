@@ -6,13 +6,6 @@ import { cn } from "@/lib/utils";
 import { usePatientData } from "@/hooks/usePatientData";
 import EquipmentVisual from "@/components/portal/EquipmentVisual";
 
-const ITEM_LABELS: Record<string, string> = {
-  cushion: "Mask cushion",
-  headgear: "Headgear",
-  mask_kit: "Complete mask kit",
-  filter: "Filters",
-};
-
 function formatDate(iso: string): string {
   const date = new Date(iso);
   if (isNaN(date.getTime())) return iso;
@@ -57,6 +50,19 @@ export default function DashboardPage() {
   if (dataLoading) return <div className="p-8 text-gray-700 font-body text-lg leading-7">Loading your data...</div>;
 
   const canReorderNow = entitlement.some((item: any) => item.status === "ELIGIBLE");
+  const entitlementStatus = canReorderNow
+    ? {
+        label: "Entitlement available",
+        detail: "You can use your entitlement for replacement supplies.",
+        cardClass: "border-seafoam/40 bg-seafoam-pale text-deep-teal",
+        badgeClass: "bg-seafoam text-navy",
+      }
+    : {
+        label: "Entitlement exhausted",
+        detail: "Please contact Midland Sleep for next steps.",
+        cardClass: "border-[#E9A29A]/60 bg-[#FDECEC] text-[#7A2721]",
+        badgeClass: "bg-[#C85A4F] text-white",
+      };
   const overdueChecks = maintenance.filter((c: any) => c.status === "OVERDUE");
   const dueSoonChecks = maintenance.filter((c: any) => c.status === "DUE");
   const machineReplacementDue = device ? addYears(device.setup_date, 5) : null;
@@ -77,18 +83,40 @@ export default function DashboardPage() {
     <>
       {/* Hero */}
       <div className="relative overflow-hidden rounded-2xl bg-navy px-7 py-8 md:py-10 mb-8">
-        <div className="pointer-events-none absolute -bottom-10 -right-10 opacity-[0.06]" aria-hidden="true">
-          <svg width="220" height="220" viewBox="0 0 220 220" fill="none">
-            <circle cx="220" cy="220" r="70" stroke="#74C0A2" strokeWidth="44"/>
-            <circle cx="220" cy="220" r="120" stroke="#74C0A2" strokeWidth="28"/>
-            <circle cx="220" cy="220" r="160" stroke="#74C0A2" strokeWidth="18"/>
-          </svg>
+        <div className="relative grid gap-7 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-center">
+          <div>
+            <p className="text-seafoam/75 font-mono text-xs uppercase tracking-[0.22em] mb-3">Patient Portal</p>
+            <h1 className="font-display text-[36px] md:text-[44px] leading-tight font-semibold text-cream mb-2">
+              {getGreeting()}, {(patient.name ?? "Patient").split(" ")[0]}.
+            </h1>
+            <p className="text-cream/55 text-base leading-6">Your sleep care, made simple.</p>
+          </div>
+
+          <section
+            className={cn(
+              "rounded-xl border p-5 shadow-sm md:p-6",
+              entitlementStatus.cardClass
+            )}
+            aria-label="Entitlement status"
+          >
+            <div className="mb-4">
+              <span
+                className={cn(
+                  "inline-flex rounded-full px-3 py-1 text-xs font-bold uppercase tracking-[0.16em]",
+                  entitlementStatus.badgeClass
+                )}
+              >
+                Supplies
+              </span>
+            </div>
+            <p className="font-display text-[34px] font-semibold leading-[1.05] md:text-[40px]">
+              {entitlementStatus.label}
+            </p>
+            <p className="mt-2 text-base leading-6">
+              {entitlementStatus.detail}
+            </p>
+          </section>
         </div>
-        <p className="text-seafoam/75 font-mono text-xs uppercase tracking-[0.22em] mb-3">Patient Portal</p>
-        <h1 className="font-display text-[36px] md:text-[44px] leading-tight font-semibold text-cream mb-2">
-          {getGreeting()}, {(patient.name ?? "Patient").split(" ")[0]}.
-        </h1>
-        <p className="text-cream/55 text-base leading-6">Your sleep care, made simple.</p>
       </div>
 
       <div className="space-y-7">
@@ -180,13 +208,6 @@ export default function DashboardPage() {
                 {machineReplacementDue ? formatDate(machineReplacementDue) : "Not recorded"}
               </p>
             </div>
-            <div>
-              <p className="text-sm uppercase tracking-wide text-charcoal/80 font-mono mb-1.5">Funded by</p>
-              <p className="text-charcoal font-medium">
-                {(device?.funding_stream ?? (patient as any).funding_stream ?? "ACC") === "ACC" ? "ACC" : "Health NZ"}
-              </p>
-            </div>
-
             {/* Safety check + Water chamber status badges */}
             {maintenance.map((check: any) => (
               <div key={check.check_type}>
@@ -254,52 +275,10 @@ export default function DashboardPage() {
           ) : (
             <div className="bg-sand-pale rounded-lg p-5 space-y-2">
               <p className="text-charcoal font-medium text-lg leading-7">
-                Your supplies are not yet available to reorder.
+                Please contact Midland Sleep for next steps.
               </p>
-              {entitlement.some((item) => item.next_eligible_date) && (
-                <p className="text-lg leading-7 text-charcoal/80">
-                  Next eligible from{" "}
-                  {formatDate(
-                    entitlement
-                      .filter((item) => item.next_eligible_date)
-                      .map((item) => item.next_eligible_date as string)
-                      .sort()[0]
-                  )}
-                </p>
-              )}
             </div>
           )}
-
-          {/* Per-item breakdown */}
-          <ul className="grid gap-3 md:grid-cols-2">
-            {entitlement.map((item) => (
-              <li
-                key={item.item_type}
-                className={cn(
-                  "rounded-md border border-l-4 p-4 space-y-1.5",
-                  item.status === "ELIGIBLE"
-                    ? "border-sand border-l-seafoam bg-seafoam-pale/30"
-                    : "border-sand bg-white"
-                )}
-              >
-                <p className="text-base font-semibold text-charcoal leading-7">
-                  {ITEM_LABELS[item.item_type]}
-                </p>
-                {item.status === "ELIGIBLE" ? (
-                  <p className="text-base">
-                    <span className="text-deep-teal font-medium">Available now</span>
-                  </p>
-                ) : (
-                  <p className="text-base text-charcoal/70 leading-6">
-                    From{" "}
-                    {item.next_eligible_date
-                      ? formatDate(item.next_eligible_date)
-                      : "later this year"}
-                  </p>
-                )}
-              </li>
-            ))}
-          </ul>
         </section>
 
         {/* CARD 3 — SAFETY AND MAINTENANCE */}
