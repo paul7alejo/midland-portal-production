@@ -15,6 +15,14 @@ function formatDate(iso?: string): string {
   });
 }
 
+function addYears(iso?: string, years = 5): string | null {
+  if (!iso) return null;
+  const date = new Date(iso);
+  if (isNaN(date.getTime())) return null;
+  date.setFullYear(date.getFullYear() + years);
+  return date.toISOString();
+}
+
 function formatMaskType(type?: string): string {
   if (!type) return "Not recorded";
   if (type === "full_face") return "Full face";
@@ -68,6 +76,7 @@ export default function EquipmentPage() {
     ? [mask.brand, mask.name].filter(Boolean).join(" ") ||
       "Mask details not recorded"
     : "";
+  const replacementDue = addYears(device?.setup_date);
 
   return (
     <>
@@ -95,32 +104,31 @@ export default function EquipmentPage() {
           </div>
 
           {device ? (
-            <div className="space-y-5">
-              <div className="rounded-xl border border-sand bg-sand-pale/50 p-5">
-                <div className="flex items-start gap-4">
-                  <EquipmentVisual type="machine" className="h-20 w-28 shrink-0" />
-                  <div className="min-w-0">
-                    <p className="mb-1 font-mono text-sm uppercase tracking-wide text-charcoal/70">
-                      Machine name
-                    </p>
-                    <p className="text-2xl font-semibold leading-8 text-charcoal">
-                      {machineName}
-                    </p>
-                    <p className="mt-3 text-base leading-7 text-charcoal/75">
-                      Serial number{" "}
-                      <span className="break-all font-mono text-charcoal">
-                        {displayValue(device.serial_number)}
-                      </span>
-                    </p>
-                  </div>
+            <div className="space-y-6">
+              <div className="grid gap-6 rounded-xl border border-sand bg-sand-pale/50 p-5 md:grid-cols-[minmax(240px,0.9fr)_minmax(0,1.1fr)] md:items-center md:p-6">
+                <EquipmentVisual type="machine" className="h-56 w-full min-w-0 sm:h-64 md:h-72" />
+                <div className="min-w-0">
+                  <p className="mb-1 font-mono text-sm uppercase tracking-wide text-charcoal/70">
+                    Machine name
+                  </p>
+                  <p className="text-3xl font-semibold leading-tight text-charcoal">
+                    {machineName}
+                  </p>
+                  <dl className="mt-5 grid gap-4 sm:grid-cols-2">
+                    <DetailItem label="Serial number" value={displayValue(device.serial_number)} mono />
+                    <DetailItem label="Set up" value={formatDate(device.setup_date)} />
+                    <DetailItem
+                      label="Replacement due"
+                      value={replacementDue ? formatDate(replacementDue) : "Not recorded"}
+                    />
+                    <DetailItem label="Funded by" value={displayValue(device.funding_stream)} />
+                  </dl>
                 </div>
               </div>
 
               <dl className="grid gap-x-8 gap-y-5 md:grid-cols-2">
                 <DetailItem label="Brand" value={displayValue(device.brand)} />
                 <DetailItem label="Model" value={displayValue(device.name ?? device.model)} />
-                <DetailItem label="Set up" value={formatDate(device.setup_date)} />
-                <DetailItem label="Funded by" value={displayValue(device.funding_stream)} />
               </dl>
             </div>
           ) : (
@@ -152,31 +160,27 @@ export default function EquipmentPage() {
           </div>
 
           {mask ? (
-            <div className="space-y-5">
-              <div className="rounded-xl border border-sand bg-sand-pale/50 p-5">
-                <div className="flex items-start gap-4">
-                  <EquipmentVisual type="mask" className="h-20 w-28 shrink-0" />
-                  <div className="min-w-0">
-                    <p className="mb-1 font-mono text-sm uppercase tracking-wide text-charcoal/70">
-                      Mask name
-                    </p>
-                    <p className="text-2xl font-semibold leading-8 text-charcoal">
-                      {maskName}
-                    </p>
-                    <p className="mt-3 text-base leading-7 text-charcoal/75">
-                      {formatMaskType(mask.type)} mask
-                      {mask.size ? `, size ${mask.size}` : ""}
-                    </p>
-                  </div>
+            <div className="space-y-6">
+              <div className="grid gap-6 rounded-xl border border-sand bg-sand-pale/50 p-5 md:grid-cols-[minmax(240px,0.9fr)_minmax(0,1.1fr)] md:items-center md:p-6">
+                <EquipmentVisual type="mask" className="h-56 w-full min-w-0 sm:h-64 md:h-72" />
+                <div className="min-w-0">
+                  <p className="mb-1 font-mono text-sm uppercase tracking-wide text-charcoal/70">
+                    Mask name
+                  </p>
+                  <p className="text-3xl font-semibold leading-tight text-charcoal">
+                    {maskName}
+                  </p>
+                  <dl className="mt-5 grid gap-4 sm:grid-cols-2">
+                    <DetailItem label="Type" value={formatMaskType(mask.type)} />
+                    <DetailItem label="Size" value={displayValue(mask.size)} />
+                    <DetailItem label="Fitted" value={formatDate(mask.fitted_date)} />
+                  </dl>
                 </div>
               </div>
 
               <dl className="grid gap-x-8 gap-y-5 md:grid-cols-2">
                 <DetailItem label="Brand" value={displayValue(mask.brand)} />
                 <DetailItem label="Model" value={displayValue(mask.name)} />
-                <DetailItem label="Type" value={formatMaskType(mask.type)} />
-                <DetailItem label="Size" value={displayValue(mask.size)} />
-                <DetailItem label="Fitted" value={formatDate(mask.fitted_date)} />
               </dl>
             </div>
           ) : (

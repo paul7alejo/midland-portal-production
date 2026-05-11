@@ -5,6 +5,7 @@ import { useAuth } from "@/components/AuthProvider";
 import { usePatientData } from "@/hooks/usePatientData";
 import { cn } from "@/lib/utils";
 import { DEMO_MASKS } from "@/lib/demoData";
+import EquipmentVisual from "@/components/portal/EquipmentVisual";
 import {
   EMPTY_DELIVERY_ADDRESS,
   formatDeliveryAddress,
@@ -286,15 +287,20 @@ export default function ReorderPage() {
       </h1>
       {mask && (
         <div className="mb-6 rounded-xl border border-sand bg-white p-5">
-          <p className="mb-1 font-mono text-sm uppercase tracking-wide text-gray-700">
-            Current mask
-          </p>
-          <p className="text-xl font-semibold leading-7 text-charcoal">
-            {mask.brand} {mask.name}
-          </p>
-          <p className="mt-2 text-base leading-7 text-charcoal/75">
-            Supply options below are based on this mask record.
-          </p>
+          <div className="grid gap-4 sm:grid-cols-[160px_minmax(0,1fr)] sm:items-center">
+            <EquipmentVisual type="mask" className="h-32 w-full min-w-0" />
+            <div className="min-w-0">
+              <p className="mb-1 font-mono text-sm uppercase tracking-wide text-gray-700">
+                Current mask
+              </p>
+              <p className="text-2xl font-semibold leading-8 text-charcoal">
+                {mask.brand} {mask.name}
+              </p>
+              <p className="mt-2 text-base leading-7 text-charcoal/75">
+                Supply options below are based on this mask record and will be reviewed by Midland Sleep staff.
+              </p>
+            </div>
+          </div>
         </div>
       )}
 
@@ -322,10 +328,24 @@ export default function ReorderPage() {
       ) : (
         <div className="space-y-7">
           {/* Eligible items */}
-          <div>
-            <h2 className="font-display text-2xl font-semibold text-navy mb-4 leading-snug">
-              Available supplies
-            </h2>
+          <section className="rounded-2xl border border-sand bg-white p-5 md:p-6">
+            <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="mb-1 font-mono text-sm uppercase tracking-wide text-charcoal/70">
+                  Step 1
+                </p>
+                <h2 className="font-display text-2xl font-semibold text-navy leading-snug">
+                  Choose supplies to request
+                </h2>
+                <p className="mt-2 text-base leading-6 text-charcoal/75">
+                  Select the items you would like Midland Sleep staff to review.
+                </p>
+              </div>
+              <div className="rounded-xl border border-sand bg-sand-pale/50 px-4 py-3 text-base text-charcoal/80">
+                <span className="font-semibold text-charcoal">{selectedItems.length}</span>{" "}
+                selected
+              </div>
+            </div>
             <div className="grid gap-4 md:grid-cols-2">
               {eligibleItems.map((item) => {
                 const isSelected = selectedItems.includes(item.item_type);
@@ -335,16 +355,16 @@ export default function ReorderPage() {
                     aria-pressed={isSelected}
                     onClick={() => toggleItem(item.item_type)}
                     className={cn(
-                      "border rounded-2xl p-5 text-left transition-colors min-h-[160px] focus:outline-none focus:ring-2 focus:ring-deep-teal",
+                      "border rounded-2xl p-5 text-left transition-colors min-h-[190px] focus:outline-none focus:ring-2 focus:ring-deep-teal",
                       isSelected
                         ? "border-deep-teal bg-seafoam-pale/50 shadow-sm"
-                        : "border-sand bg-white hover:border-deep-teal/40"
+                        : "border-sand bg-white hover:border-deep-teal/40 hover:bg-sand-pale/30"
                     )}
                   >
-                    <div className="mb-4 h-11 w-11 rounded-xl bg-sand-pale flex items-center justify-center">
-                      {ITEM_ICONS[item.item_type]}
-                    </div>
                     <div className="flex items-start justify-between gap-3">
+                      <div className="h-14 w-14 rounded-2xl bg-sand-pale flex items-center justify-center shrink-0">
+                        {ITEM_ICONS[item.item_type]}
+                      </div>
                       <div className="min-w-0">
                         <p className="text-xl font-semibold text-charcoal leading-7">
                           {ITEM_LABELS[item.item_type]}
@@ -353,18 +373,16 @@ export default function ReorderPage() {
                           {ITEM_DESCRIPTIONS[item.item_type]}
                         </p>
                       </div>
-                      <div
+                      <span
                         className={cn(
-                          "h-6 w-6 rounded border-2 shrink-0 mt-0.5 flex items-center justify-center",
+                          "shrink-0 rounded-full px-3 py-1 text-sm font-semibold",
                           isSelected
-                            ? "border-deep-teal bg-deep-teal"
-                            : "border-sand"
+                            ? "bg-deep-teal text-white"
+                            : "border border-sand bg-white text-charcoal/70"
                         )}
                       >
-                        {isSelected && (
-                          <span className="text-white text-xs">&#10003;</span>
-                        )}
-                      </div>
+                        {isSelected ? "Selected" : "Select"}
+                      </span>
                     </div>
                     <div className="mt-4 flex flex-wrap items-center gap-2">
                       <span className="inline-flex rounded-full bg-seafoam-pale px-3 py-1 text-sm font-medium text-deep-teal">
@@ -378,7 +396,17 @@ export default function ReorderPage() {
                 );
               })}
             </div>
-          </div>
+            {selectedItems.length > 0 && (
+              <div className="mt-5 rounded-xl border border-deep-teal/15 bg-deep-teal/5 p-4">
+                <p className="text-base font-semibold text-charcoal">
+                  Selected for staff review
+                </p>
+                <p className="mt-1 text-base leading-6 text-charcoal/75">
+                  {selectedItems.map((itemType) => ITEM_LABELS[itemType]).join(", ")}
+                </p>
+              </div>
+            )}
+          </section>
 
           {/* Not-yet items */}
           {notYetItems.length > 0 && (
