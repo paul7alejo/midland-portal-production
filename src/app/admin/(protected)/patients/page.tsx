@@ -261,11 +261,11 @@ const STATUS_CONFIG: Record<PatientStatus, { label: string; classes: string }> =
 };
 
 const ACTION_CONFIG: Record<PatientStatus, { label: string; disabled: boolean }> = {
-  eligible:         { label: "Create order",   disabled: false },
-  not_eligible:     { label: "Not eligible",   disabled: true  },
-  overdue:          { label: "Start outreach", disabled: false },
-  needs_outreach:   { label: "Call patient",   disabled: false },
-  safety_check_due: { label: "Book check",     disabled: false },
+  eligible:         { label: "View patient",   disabled: false },
+  not_eligible:     { label: "View patient",   disabled: false },
+  overdue:          { label: "Open review",    disabled: false },
+  needs_outreach:   { label: "Open review",    disabled: false },
+  safety_check_due: { label: "Open review",    disabled: false },
   pending_review:   { label: "Review record",  disabled: false },
 };
 
@@ -380,6 +380,22 @@ function FundingBadge({ amount }: { amount: number }) {
       ${amount} left
     </span>
   );
+}
+
+function getOperationalCue(patient: Patient): string {
+  if (patient.source === "admin_csv") return "Imported record needs staff review";
+  if (patient.status === "safety_check_due") return "Safety-check visibility cue";
+  if (patient.status === "needs_outreach" || patient.status === "overdue") return "Outreach visibility cue";
+  if (patient.status === "eligible") return "Eligible for staff review";
+  return "View record details";
+}
+
+function getActionLabel(patient: Patient): string {
+  if (patient.source === "admin_csv" || patient.status === "pending_review") return "Review record";
+  if (patient.status === "needs_outreach" || patient.status === "overdue" || patient.status === "safety_check_due") {
+    return "Open review";
+  }
+  return "View patient";
 }
 
 // ─── Filter option data ────────────────────────────────────────────────────────
@@ -737,6 +753,7 @@ export default function AdminPatientsPage() {
   const allPatients = useMemo(() => [...importedPatients, ...PATIENTS], [importedPatients]);
   const totalPatients = allPatients.length;
   const eligibleNow = allPatients.filter((p) => p.status === "eligible").length;
+  const pendingReview = allPatients.filter((p) => p.status === "pending_review" || p.source === "admin_csv").length;
   const needsOutreach = allPatients.filter((p) => p.status === "needs_outreach" || p.status === "overdue").length;
   const safetyChecksDue = allPatients.filter((p) => p.status === "safety_check_due").length;
 
@@ -795,15 +812,18 @@ export default function AdminPatientsPage() {
           Patient operations
         </p>
         <h1 className="text-3xl font-bold text-navy">Patients</h1>
-        <p className="text-base leading-6 text-gray-600">Active and imported patient records for admin review.</p>
+        <p className="text-base leading-6 text-gray-600">
+          Operational worklist for patient review, imported records, outreach cues, and safety-check visibility.
+        </p>
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <SummaryCard label="Total patients"    value={totalPatients} />
-        <SummaryCard label="Eligible now"      value={eligibleNow}    accent="text-emerald-700" />
-        <SummaryCard label="Needs outreach"    value={needsOutreach}  accent="text-amber-700" />
-        <SummaryCard label="Safety checks due" value={safetyChecksDue} accent="text-amber-700" />
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+        <SummaryCard label="Total patients"      value={totalPatients} />
+        <SummaryCard label="Pending review"      value={pendingReview}   accent="text-sky-700" />
+        <SummaryCard label="Needs outreach"      value={needsOutreach}   accent="text-amber-700" />
+        <SummaryCard label="Safety checks due"   value={safetyChecksDue} accent="text-amber-700" />
+        <SummaryCard label="Eligible now"        value={eligibleNow}     accent="text-emerald-700" />
       </div>
 
       {/* Search + Filter & Sort button */}
@@ -900,9 +920,9 @@ export default function AdminPatientsPage() {
       {/* Table */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
         <div className="border-b border-gray-200 bg-white px-5 py-4">
-          <h2 className="text-base font-semibold text-gray-800">Patient register</h2>
+          <h2 className="text-base font-semibold text-gray-800">Patient review worklist</h2>
           <p className="mt-1 text-sm text-gray-500">
-            Imported records are marked and should be reviewed before operational use.
+            Imported records, outreach cues, and safety-check cues are marked for staff review.
           </p>
         </div>
         <div className="overflow-x-auto">
@@ -936,6 +956,8 @@ export default function AdminPatientsPage() {
                 displayedPatients.map((patient) => {
                   const statusCfg = STATUS_CONFIG[patient.status];
                   const actionCfg = ACTION_CONFIG[patient.status];
+                  const actionLabel = getActionLabel(patient);
+                  const operationalCue = getOperationalCue(patient);
                   const fundingCls =
                     patient.funding === "ACC"
                       ? "bg-blue-50 text-blue-700 border border-blue-200"
@@ -956,6 +978,7 @@ export default function AdminPatientsPage() {
                         {patient.source === "admin_csv" && patient.importedAt && patient.importedAt !== "—" && (
                           <span className="mt-1 block text-xs text-gray-500">Imported {patient.importedAt}</span>
                         )}
+                        <span className="mt-1 block text-xs font-medium text-gray-600">{operationalCue}</span>
                       </td>
                       <td className="px-4 py-4">
                         <span className="block max-w-[12rem] break-all font-mono text-sm leading-5 text-gray-700">
@@ -1005,14 +1028,7 @@ export default function AdminPatientsPage() {
                                 : "bg-[#0B5C6C] text-white text-sm font-medium rounded-lg px-3 py-2 min-h-[40px] hover:bg-[#0B5C6C]/90 transition-colors whitespace-nowrap"
                             }
                           >
-                            {actionCfg.label}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => openDrawer(patient.msid, patient.name)}
-                            className="border border-[#0B5C6C] text-[#0B5C6C] text-sm font-medium rounded-lg px-3 py-2 min-h-[40px] hover:bg-[#0B5C6C]/5 transition-colors whitespace-nowrap"
-                          >
-                            View
+                            {actionLabel}
                           </button>
                         </div>
                       </td>
