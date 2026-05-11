@@ -140,7 +140,7 @@ export default function AdminDashboardPage() {
 
         <div className="space-y-3">
           {/* Alert 1 */}
-          <div className="border border-amber/30 bg-amber/5 rounded-xl p-4 flex items-center justify-between gap-4 min-h-[72px]">
+          <div className="border border-amber/30 bg-amber/5 rounded-xl p-4 flex flex-col items-start justify-between gap-4 min-h-[72px] sm:flex-row sm:items-center">
             <div className="flex-1">
               <p className="text-base font-medium text-navy">
                 142 patients have overdue safety checks
@@ -158,7 +158,7 @@ export default function AdminDashboardPage() {
           </div>
 
           {/* Alert 2 */}
-          <div className="border border-amber/30 bg-amber/5 rounded-xl p-4 flex items-center justify-between gap-4 min-h-[72px]">
+          <div className="border border-amber/30 bg-amber/5 rounded-xl p-4 flex flex-col items-start justify-between gap-4 min-h-[72px] sm:flex-row sm:items-center">
             <div className="flex-1">
               <p className="text-base font-medium text-navy">
                 89 patients eligible but not ordered in 30+ days
@@ -176,7 +176,7 @@ export default function AdminDashboardPage() {
           </div>
 
           {/* Alert 3 */}
-          <div className="border border-amber/30 bg-amber/5 rounded-xl p-4 flex items-center justify-between gap-4 min-h-[72px]">
+          <div className="border border-amber/30 bg-amber/5 rounded-xl p-4 flex flex-col items-start justify-between gap-4 min-h-[72px] sm:flex-row sm:items-center">
             <div className="flex-1">
               <p className="text-base font-medium text-navy">
                 23 patients due for mask check

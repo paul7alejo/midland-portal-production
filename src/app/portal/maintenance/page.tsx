@@ -114,7 +114,7 @@ export default function MaintenancePage() {
                 isOverdue ? "border-amber/40" : "border-sand"
               )}
             >
-              <div className="flex justify-between items-start gap-3">
+              <div className="flex flex-col justify-between items-start gap-3 sm:flex-row">
                 <div>
                   <h2 className="font-display text-2xl font-semibold text-navy leading-snug">
                     {check.label}
