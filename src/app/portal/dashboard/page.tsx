@@ -23,6 +23,13 @@ function formatDate(iso: string): string {
   });
 }
 
+function addYears(iso: string, years: number): string | null {
+  const date = new Date(iso);
+  if (isNaN(date.getTime())) return null;
+  date.setFullYear(date.getFullYear() + years);
+  return date.toISOString();
+}
+
 function formatMaskType(type: string): string {
   if (type === "full_face") return "Full face";
   if (type === "nasal") return "Nasal";
@@ -52,6 +59,7 @@ export default function DashboardPage() {
   const canReorderNow = entitlement.some((item: any) => item.status === "ELIGIBLE");
   const overdueChecks = maintenance.filter((c: any) => c.status === "OVERDUE");
   const dueSoonChecks = maintenance.filter((c: any) => c.status === "DUE");
+  const machineReplacementDue = device ? addYears(device.setup_date, 5) : null;
 
   const phoneLink = (
     <a href="tel:0800000000" className="text-deep-teal font-medium hover:underline">
@@ -98,22 +106,49 @@ export default function DashboardPage() {
           </div>
 
           {(device || mask) && (
-            <div className="flex flex-wrap gap-4 pb-5 border-b border-sand">
+            <div className="grid gap-4 pb-5 border-b border-sand md:grid-cols-2">
               {device && (
-                <div className="flex items-center gap-3 min-w-0">
-                  <EquipmentVisual type="machine" className="h-16 w-24 shrink-0" />
-                  <div className="min-w-0">
+                <div className="rounded-xl border border-sand bg-sand-pale/40 p-4">
+                  <Link
+                    href="/portal/equipment"
+                    aria-label={`View equipment details for ${device.brand} ${device.name}`}
+                    className="block rounded-lg transition-colors hover:bg-white/50 focus:outline-none focus:ring-2 focus:ring-deep-teal"
+                  >
+                    <EquipmentVisual type="machine" className="h-32 w-full min-w-0 sm:h-36" />
+                  </Link>
+                  <div className="mt-4 min-w-0">
                     <p className="text-xs uppercase tracking-wide text-charcoal/60 font-mono">Machine</p>
-                    <p className="text-base font-semibold text-charcoal leading-snug">{device.brand} {device.name}</p>
+                    <Link
+                      href="/portal/equipment"
+                      className="mt-1 block text-xl font-semibold text-charcoal leading-snug hover:text-deep-teal hover:underline"
+                    >
+                      {device.brand} {device.name}
+                    </Link>
+                    {machineReplacementDue && (
+                      <p className="mt-2 text-base leading-6 text-charcoal/80">
+                        Replacement due {formatDate(machineReplacementDue)}
+                      </p>
+                    )}
                   </div>
                 </div>
               )}
               {mask && (
-                <div className="flex items-center gap-3 min-w-0">
-                  <EquipmentVisual type="mask" className="h-16 w-24 shrink-0" />
-                  <div className="min-w-0">
+                <div className="rounded-xl border border-sand bg-sand-pale/40 p-4">
+                  <Link
+                    href="/portal/equipment"
+                    aria-label={`View equipment details for ${mask.brand} ${mask.name}`}
+                    className="block rounded-lg transition-colors hover:bg-white/50 focus:outline-none focus:ring-2 focus:ring-deep-teal"
+                  >
+                    <EquipmentVisual type="mask" className="h-32 w-full min-w-0 sm:h-36" />
+                  </Link>
+                  <div className="mt-4 min-w-0">
                     <p className="text-xs uppercase tracking-wide text-charcoal/60 font-mono">Mask</p>
-                    <p className="text-base font-semibold text-charcoal leading-snug">{mask.brand} {mask.name}</p>
+                    <Link
+                      href="/portal/equipment"
+                      className="mt-1 block text-xl font-semibold text-charcoal leading-snug hover:text-deep-teal hover:underline"
+                    >
+                      {mask.brand} {mask.name}
+                    </Link>
                   </div>
                 </div>
               )}
@@ -137,6 +172,12 @@ export default function DashboardPage() {
               <p className="text-sm uppercase tracking-wide text-charcoal/80 font-mono mb-1.5">Issued</p>
               <p className="text-charcoal">
                 {device ? formatDate(device.setup_date) : "Not recorded"}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm uppercase tracking-wide text-charcoal/80 font-mono mb-1.5">Replacement due</p>
+              <p className="text-charcoal font-medium">
+                {machineReplacementDue ? formatDate(machineReplacementDue) : "Not recorded"}
               </p>
             </div>
             <div>

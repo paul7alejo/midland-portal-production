@@ -89,18 +89,21 @@ export default function MaintenancePage() {
 
         {/* Machine info header */}
         {device && (
-          <div className="bg-white border border-sand rounded-2xl p-5">
-            <div className="flex items-center gap-4">
-              <EquipmentVisual type="machine" className="h-16 w-24 shrink-0" />
+          <div className="bg-white border border-sand rounded-2xl p-5 md:p-6">
+            <div className="grid gap-5 sm:grid-cols-[minmax(180px,0.7fr)_minmax(0,1.3fr)] sm:items-center">
+              <EquipmentVisual type="machine" className="h-44 w-full min-w-0 sm:h-52" />
               <div className="min-w-0">
                 <p className="text-sm uppercase tracking-wide text-charcoal/80 font-mono mb-1">
                   Your machine
                 </p>
-                <p className="text-lg leading-7 text-charcoal font-medium">
+                <p className="text-2xl leading-8 text-charcoal font-semibold">
                   {device.brand} {device.name}
                 </p>
-                <p className="text-base leading-6 text-charcoal/80 break-words">
-                  Set up {formatDate(device.setup_date)} · Serial {device.serial_number}
+                <p className="mt-2 text-base leading-6 text-charcoal/80 break-words">
+                  Set up {formatDate(device.setup_date)}
+                </p>
+                <p className="mt-1 text-base leading-6 text-charcoal/80 break-all">
+                  Serial <span className="font-mono text-charcoal">{device.serial_number}</span>
                 </p>
               </div>
             </div>
