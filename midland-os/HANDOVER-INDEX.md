@@ -54,6 +54,7 @@ Memory and governance:
 
 Phase 1 outputs:
 
+- [Day 50 Final Phase 1 Closeout and Readiness Checkpoint](07-outputs/phase-1/day-50-final-closeout-readiness.md)
 - [Day 49 Stakeholder Demo and Handover Walkthrough](07-outputs/phase-1/day-49-stakeholder-demo-handover.md)
 - [Phase 1D Demo Script](07-outputs/phase-1/phase-1d-demo-script.md)
 - [Phase 1D Closeout Summary](07-outputs/phase-1/phase-1d-closeout-summary.md)
