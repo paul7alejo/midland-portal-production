@@ -17,22 +17,22 @@ function TopBar() {
   };
 
   return (
-    <div className="border-b border-sand bg-white px-4 py-3 md:px-8 flex items-center justify-end gap-5">
+    <div className="border-b border-sand bg-white px-4 py-3 md:px-8 flex items-center justify-end gap-3 sm:gap-5">
       {/* User info */}
-      <div className="flex items-center gap-3">
-        <div className="h-8 w-8 rounded-full bg-deep-teal flex items-center justify-center text-white text-xs font-bold">
+      <div className="flex min-w-0 items-center gap-3">
+        <div className="h-8 w-8 rounded-full bg-deep-teal flex items-center justify-center text-white text-xs font-bold shrink-0">
           {(patient.name ?? "Patient").split(" ").map((n) => n[0]).join("")}
         </div>
-        <div className="text-right">
-          <p className="text-base font-medium text-charcoal leading-tight">{patient.name}</p>
-          <p className="text-sm text-charcoal/60 font-mono">{patient.msid}</p>
+        <div className="min-w-0 text-right">
+          <p className="truncate text-base font-medium text-charcoal leading-tight">{patient.name}</p>
+          <p className="truncate text-sm text-charcoal/60 font-mono">{patient.msid}</p>
         </div>
       </div>
 
       {/* Logout */}
       <button
         onClick={handleLogout}
-        className="text-sm text-charcoal/60 hover:text-deep-teal transition-colors"
+        className="shrink-0 text-sm text-charcoal/60 hover:text-deep-teal transition-colors"
       >
         Log out
       </button>
@@ -88,7 +88,7 @@ function PortalInner({ children }: { children: React.ReactNode }) {
         )}
       </div>
 
-      <main className="md:ml-64 min-h-screen">
+      <main className="md:ml-64 min-h-screen overflow-x-hidden">
         <TopBar />
         <div className="max-w-5xl mx-auto px-4 py-6 md:px-8 md:py-8">
           {children}

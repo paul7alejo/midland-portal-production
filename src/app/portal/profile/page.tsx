@@ -393,7 +393,7 @@ export default function ProfilePage() {
             ].map(({ label, detail }) => (
               <div
                 key={label}
-                className="flex items-center justify-between gap-4 py-4 border-b border-sand last:border-0"
+                className="flex flex-col items-start justify-between gap-3 py-4 border-b border-sand last:border-0 sm:flex-row sm:items-center"
               >
                 <div>
                   <p className="text-lg leading-7 font-medium text-charcoal/80">{label}</p>

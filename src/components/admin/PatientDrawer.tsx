@@ -412,7 +412,7 @@ function EntitlementTab({ patient }: { patient: DrawerPatient }) {
     <div className="space-y-5">
       {/* Funding summary */}
       <div className="bg-gray-50 rounded-xl p-4 space-y-4">
-        <dl className="grid grid-cols-3 gap-4">
+        <dl className="grid gap-4 sm:grid-cols-3">
           <div>
             <dt className="text-sm font-medium text-gray-500 uppercase tracking-wide">Annual allowance</dt>
             <dd className="text-base font-semibold text-gray-800 mt-0.5">${funding.annualAllowance}</dd>
@@ -471,7 +471,7 @@ function EntitlementTab({ patient }: { patient: DrawerPatient }) {
         {patient.entitlement.map((item) => (
           <div key={item.item} className="bg-gray-50 rounded-xl p-4 space-y-3">
             <p className="text-base font-semibold text-gray-800">{item.item}</p>
-            <dl className="grid grid-cols-3 gap-3">
+            <dl className="grid gap-3 sm:grid-cols-3">
               <FieldRow label="Last reorder"  value={item.lastReorder} />
               <FieldRow label="Next eligible" value={item.nextEligible} />
               <FieldRow label="Usage / cap"   value={item.usageVsCap} />
@@ -616,7 +616,7 @@ function NotesTab({
               ) : (
                 <>
                   <p className="text-base text-gray-800">{note.text}</p>
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
                     <p className="text-sm text-gray-500">
                       {note.author} · {note.timestamp}
                     </p>
