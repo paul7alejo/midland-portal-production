@@ -1,16 +1,52 @@
 "use client";
 
 import Link from "next/link";
-import { ShoppingBag, Phone, Clock, AlertTriangle } from "lucide-react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
+import { ShoppingBag, Clock, AlertTriangle } from "lucide-react";
 
-const callData = [
-  { month: "Jan", calls: 312 },
-  { month: "Feb", calls: 287 },
-  { month: "Mar", calls: 251 },
-  { month: "Apr", calls: 198 },
-  { month: "May", calls: 156 },
-  { month: "Jun", calls: 112 },
+const DEMO_TODAY = new Date("2026-05-12");
+
+function isOlderThan48h(submittedDate: string): boolean {
+  return DEMO_TODAY.getTime() - new Date(submittedDate).getTime() > 48 * 60 * 60 * 1000;
+}
+
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-NZ", { day: "numeric", month: "short" });
+}
+
+interface AwaitingItem {
+  id: string;
+  patientName: string;
+  requestType: string;
+  submittedDate: string;
+}
+
+interface OverdueItem {
+  id: string;
+  patientName: string;
+  alertType: string;
+  daysOverdue: number;
+}
+
+const awaitingApproval: AwaitingItem[] = [
+  { id: "1", patientName: "Margaret Thornton", requestType: "Mask cushion",      submittedDate: "2026-05-12" },
+  { id: "2", patientName: "David Chen",         requestType: "Headgear",          submittedDate: "2026-05-09" },
+  { id: "3", patientName: "Susan Park",          requestType: "Complete mask kit", submittedDate: "2026-05-11" },
+  { id: "4", patientName: "Robert Williams",     requestType: "Filters",           submittedDate: "2026-05-08" },
+  { id: "5", patientName: "Patricia Moore",      requestType: "Mask cushion",      submittedDate: "2026-05-11" },
+  { id: "6", patientName: "James Anderson",      requestType: "Headgear",          submittedDate: "2026-05-07" },
+  { id: "7", patientName: "Linda Thompson",      requestType: "Mask cushion",      submittedDate: "2026-05-09" },
+  { id: "8", patientName: "Kevin Harris",        requestType: "Complete mask kit", submittedDate: "2026-05-10" },
+];
+
+const overdueAlerts: OverdueItem[] = [
+  { id: "1", patientName: "James Robertson",  alertType: "Safety check",  daysOverdue: 45 },
+  { id: "2", patientName: "Helen Murray",      alertType: "Water chamber", daysOverdue: 18 },
+  { id: "3", patientName: "Richard Clarke",    alertType: "Safety check",  daysOverdue: 62 },
+  { id: "4", patientName: "Dorothy White",     alertType: "Mask check",    daysOverdue: 7  },
+  { id: "5", patientName: "Thomas Brown",      alertType: "Safety check",  daysOverdue: 91 },
+  { id: "6", patientName: "Catherine Lewis",   alertType: "Water chamber", daysOverdue: 24 },
+  { id: "7", patientName: "Frank Walker",      alertType: "Safety check",  daysOverdue: 38 },
+  { id: "8", patientName: "Anne Mitchell",     alertType: "Mask check",    daysOverdue: 14 },
 ];
 
 export default function AdminDashboardPage() {
@@ -29,9 +65,11 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* SECTION 1 — KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {/* Card 1: Portal Reorders */}
-        <div className="bg-white border border-sand rounded-xl p-6 space-y-3 shadow-sm">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Link
+          href="/admin/orders"
+          className="block bg-white border border-sand rounded-xl p-6 space-y-3 shadow-sm hover:shadow-md transition-shadow"
+        >
           <div className="flex items-center justify-between">
             <h3 className="text-base font-medium text-gray-700">Portal Reorders</h3>
             <ShoppingBag className="h-6 w-6 text-deep-teal" />
@@ -39,22 +77,12 @@ export default function AdminDashboardPage() {
           <p className="text-5xl font-bold text-navy tabular-nums">47</p>
           <p className="text-base text-gray-700">Requests this month</p>
           <p className="text-base text-deep-teal font-medium">↑ 12% vs last month</p>
-        </div>
+        </Link>
 
-        {/* Card 2: Phone Reorders */}
-        <div className="bg-white border border-sand rounded-xl p-6 space-y-3 shadow-sm">
-          <div className="flex items-center justify-between">
-            <h3 className="text-base font-medium text-gray-700">Phone Reorders</h3>
-            <Phone className="h-6 w-6 text-deep-teal" />
-          </div>
-          <p className="text-5xl font-bold text-navy tabular-nums">23</p>
-          <p className="text-base text-gray-700">Requests this month</p>
-          <p className="text-base text-deep-teal font-medium">↓ 31% vs last month</p>
-          <p className="text-sm text-gray-700 italic">Portal is replacing phone calls</p>
-        </div>
-
-        {/* Card 3: Awaiting Approval */}
-        <div className="bg-white border border-sand rounded-xl p-6 space-y-3 shadow-sm">
+        <Link
+          href="/admin/orders?filter=pending"
+          className="block bg-white border border-sand rounded-xl p-6 space-y-3 shadow-sm hover:shadow-md transition-shadow"
+        >
           <div className="flex items-center justify-between">
             <h3 className="text-base font-medium text-gray-700">Awaiting Approval</h3>
             <Clock className="h-6 w-6 text-amber" />
@@ -62,10 +90,12 @@ export default function AdminDashboardPage() {
           <p className="text-5xl font-bold text-navy tabular-nums">8</p>
           <p className="text-base text-gray-700">Entitlement requests</p>
           <p className="text-base text-amber font-medium">Action required</p>
-        </div>
+        </Link>
 
-        {/* Card 4: Overdue Alerts */}
-        <div className="bg-white border border-sand rounded-xl p-6 space-y-3 shadow-sm">
+        <Link
+          href="/admin/patients?filter=overdue"
+          className="block bg-white border border-sand rounded-xl p-6 space-y-3 shadow-sm hover:shadow-md transition-shadow"
+        >
           <div className="flex items-center justify-between">
             <h3 className="text-base font-medium text-gray-700">Overdue Alerts</h3>
             <AlertTriangle className="h-6 w-6 text-amber" />
@@ -73,62 +103,73 @@ export default function AdminDashboardPage() {
           <p className="text-5xl font-bold text-navy tabular-nums">142</p>
           <p className="text-base text-gray-700">Safety checks + water chambers</p>
           <p className="text-base text-amber font-medium">Needs outreach</p>
-        </div>
+        </Link>
       </div>
 
-      {/* SECTION 2 — Call Reduction Chart */}
-      <div className="bg-white border border-sand rounded-xl p-6 space-y-4 shadow-sm">
-        <div>
-          <h2 className="font-display text-2xl font-bold text-navy mb-1">
-            Phone call trend
-          </h2>
-          <p className="text-base leading-6 text-gray-700">
-            Monthly inbound calls shown as an operational planning view.
-          </p>
+      {/* SECTION 2 — List Panels */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Panel 1 — Awaiting Approval */}
+        <div className="bg-white border border-sand rounded-xl p-6 shadow-sm">
+          <h2 className="font-display text-xl font-bold text-navy mb-4">Awaiting Approval</h2>
+          {awaitingApproval.length === 0 ? (
+            <p className="text-base text-gray-700">No pending approvals</p>
+          ) : (
+            <ul className="divide-y divide-sand">
+              {awaitingApproval.map((item) => (
+                <li key={item.id} className="flex items-center justify-between gap-4 py-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-navy truncate">{item.patientName}</p>
+                    <p className="text-sm text-charcoal/70">
+                      {item.requestType} · {formatDate(item.submittedDate)}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {isOlderThan48h(item.submittedDate) && (
+                      <span className="text-xs font-medium text-amber bg-amber/10 border border-amber/20 px-2 py-0.5 rounded-full whitespace-nowrap">
+                        &gt;48h
+                      </span>
+                    )}
+                    <a
+                      href="/admin/orders?filter=pending"
+                      className="text-sm font-medium text-deep-teal hover:underline whitespace-nowrap"
+                    >
+                      Open review
+                    </a>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
-        <div className="h-80">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={callData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#E5E1D8" />
-              <XAxis 
-                dataKey="month" 
-                stroke="#0B2A3C"
-                style={{ fontSize: '14px' }}
-              />
-              <YAxis 
-                stroke="#0B2A3C"
-                style={{ fontSize: '14px' }}
-              />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: '#FDFCF5', 
-                  border: '1px solid #E5E1D8',
-                  borderRadius: '8px',
-                  fontSize: '14px'
-                }}
-              />
-              <ReferenceLine 
-                x="Mar" 
-                stroke="#F59E0B" 
-                strokeDasharray="3 3"
-                label={{ 
-                  value: "Portal launched", 
-                  position: "top",
-                  fill: "#F59E0B",
-                  fontSize: 14,
-                  fontWeight: 500
-                }}
-              />
-              <Line 
-                type="monotone" 
-                dataKey="calls" 
-                stroke="#74C0A2" 
-                strokeWidth={3}
-                dot={{ fill: "#74C0A2", r: 5 }}
-                activeDot={{ r: 7 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+
+        {/* Panel 2 — Overdue Alerts */}
+        <div className="bg-white border border-sand rounded-xl p-6 shadow-sm">
+          <h2 className="font-display text-xl font-bold text-navy mb-4">Overdue Alerts</h2>
+          {overdueAlerts.length === 0 ? (
+            <p className="text-base text-gray-700">All clear</p>
+          ) : (
+            <ul className="divide-y divide-sand">
+              {overdueAlerts.map((item) => (
+                <li key={item.id} className="flex items-center justify-between gap-4 py-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-navy truncate">{item.patientName}</p>
+                    <p className="text-sm text-charcoal/70">{item.alertType}</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-sm font-medium text-amber whitespace-nowrap">
+                      {item.daysOverdue}d overdue
+                    </span>
+                    <a
+                      href="/admin/patients?filter=overdue"
+                      className="text-sm font-medium text-deep-teal hover:underline whitespace-nowrap"
+                    >
+                      View patient
+                    </a>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </div>
 
@@ -139,7 +180,6 @@ export default function AdminDashboardPage() {
         </h2>
 
         <div className="space-y-3">
-          {/* Alert 1 */}
           <div className="border border-amber/30 bg-amber/5 rounded-xl p-4 flex flex-col items-start justify-between gap-4 min-h-[72px] sm:flex-row sm:items-center">
             <div className="flex-1">
               <p className="text-base font-medium text-navy">
@@ -157,7 +197,6 @@ export default function AdminDashboardPage() {
             </Link>
           </div>
 
-          {/* Alert 2 */}
           <div className="border border-amber/30 bg-amber/5 rounded-xl p-4 flex flex-col items-start justify-between gap-4 min-h-[72px] sm:flex-row sm:items-center">
             <div className="flex-1">
               <p className="text-base font-medium text-navy">
@@ -175,7 +214,6 @@ export default function AdminDashboardPage() {
             </Link>
           </div>
 
-          {/* Alert 3 */}
           <div className="border border-amber/30 bg-amber/5 rounded-xl p-4 flex flex-col items-start justify-between gap-4 min-h-[72px] sm:flex-row sm:items-center">
             <div className="flex-1">
               <p className="text-base font-medium text-navy">
