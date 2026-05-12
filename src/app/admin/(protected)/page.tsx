@@ -1,9 +1,21 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { ShoppingBag, Clock, AlertTriangle } from "lucide-react";
 
 const DEMO_TODAY = new Date("2026-05-12T12:00:00");
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type FilterValue = "all" | "urgent" | "normal" | "low";
+type SortDir = "asc" | "desc";
+
+const FILTER_LABEL: Record<Exclude<FilterValue, "all">, string> = {
+  urgent: "Urgent",
+  normal: "Normal",
+  low: "Low",
+};
 
 // ─── Urgency ──────────────────────────────────────────────────────────────────
 
@@ -14,6 +26,12 @@ function getUrgency(iso: string): Urgency {
   if (diffH < 24)     return { dot: "#74C0A2", label: "Low" };
   if (diffH < 7 * 24) return { dot: "#F59E0B", label: "Normal" };
   return                     { dot: "#C0392B", label: "Urgent" };
+}
+
+function urgencyWeight(label: string): number {
+  if (label === "Urgent") return 2;
+  if (label === "Normal") return 1;
+  return 0;
 }
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
@@ -90,12 +108,42 @@ const overdueAlerts: OverdueItem[] = [
   { id: "8", patientName: "Anne Mitchell",      alertType: "Mask check",          overdueSince: "2026-05-09T08:30:00" },
 ];
 
-// ─── Legend ───────────────────────────────────────────────────────────────────
+// ─── Sort helpers ─────────────────────────────────────────────────────────────
+
+function sortWorklist(items: WorklistItem[], key: string, dir: SortDir): WorklistItem[] {
+  return [...items].sort((a, b) => {
+    let cmp = 0;
+    if (key === "urgency") {
+      cmp = urgencyWeight(getUrgency(a.submittedAt).label) - urgencyWeight(getUrgency(b.submittedAt).label);
+    } else if (key === "patient") {
+      cmp = a.patientName.localeCompare(b.patientName);
+    } else if (key === "arrived") {
+      cmp = new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime();
+    }
+    return dir === "asc" ? cmp : -cmp;
+  });
+}
+
+function sortOverdue(items: OverdueItem[], key: string, dir: SortDir): OverdueItem[] {
+  return [...items].sort((a, b) => {
+    let cmp = 0;
+    if (key === "urgency") {
+      cmp = urgencyWeight(getUrgency(a.overdueSince).label) - urgencyWeight(getUrgency(b.overdueSince).label);
+    } else if (key === "patient") {
+      cmp = a.patientName.localeCompare(b.patientName);
+    } else if (key === "since") {
+      cmp = new Date(a.overdueSince).getTime() - new Date(b.overdueSince).getTime();
+    }
+    return dir === "asc" ? cmp : -cmp;
+  });
+}
+
+// ─── Legend (Urgent first) ────────────────────────────────────────────────────
 
 const LEGEND = [
-  { dot: "#74C0A2", label: "Low" },
-  { dot: "#F59E0B", label: "Normal" },
   { dot: "#C0392B", label: "Urgent" },
+  { dot: "#F59E0B", label: "Normal" },
+  { dot: "#74C0A2", label: "Low" },
 ] as const;
 
 // ─── Shared cell class fragments ──────────────────────────────────────────────
@@ -106,6 +154,47 @@ const TD = "px-3 py-2.5";
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function AdminDashboardPage() {
+  // Filter state — one per panel
+  const [reordersFilter, setReordersFilter] = useState<FilterValue>("all");
+  const [approvalFilter, setApprovalFilter] = useState<FilterValue>("all");
+  const [alertsFilter,   setAlertsFilter]   = useState<FilterValue>("all");
+
+  // Sort state — key + direction per panel, default urgency desc (Urgent first)
+  const [reordersSortKey, setReordersSortKey] = useState("urgency");
+  const [reordersSortDir, setReordersSortDir] = useState<SortDir>("desc");
+  const [approvalSortKey, setApprovalSortKey] = useState("urgency");
+  const [approvalSortDir, setApprovalSortDir] = useState<SortDir>("desc");
+  const [alertsSortKey,   setAlertsSortKey]   = useState("urgency");
+  const [alertsSortDir,   setAlertsSortDir]   = useState<SortDir>("desc");
+
+  // Sort toggle helper
+  function toggleSort(
+    key: string,
+    curKey: string, setKey: (k: string) => void,
+    curDir: SortDir, setDir: (d: SortDir) => void,
+  ) {
+    if (curKey === key) {
+      setDir(curDir === "asc" ? "desc" : "asc");
+    } else {
+      setKey(key);
+      setDir("desc");
+    }
+  }
+
+  // Derived: filter → sort
+  const filteredReorders = sortWorklist(
+    reordersFilter === "all" ? portalReorders  : portalReorders.filter(i => getUrgency(i.submittedAt).label === FILTER_LABEL[reordersFilter]),
+    reordersSortKey, reordersSortDir,
+  );
+  const filteredApproval = sortWorklist(
+    approvalFilter === "all" ? awaitingApproval : awaitingApproval.filter(i => getUrgency(i.submittedAt).label === FILTER_LABEL[approvalFilter]),
+    approvalSortKey, approvalSortDir,
+  );
+  const filteredAlerts = sortOverdue(
+    alertsFilter === "all" ? overdueAlerts : overdueAlerts.filter(i => getUrgency(i.overdueSince).label === FILTER_LABEL[alertsFilter]),
+    alertsSortKey, alertsSortDir,
+  );
+
   return (
     <div className="space-y-8">
       <div className="space-y-2">
@@ -165,44 +254,83 @@ export default function AdminDashboardPage() {
       {/* SECTION 2 — Worklist panels */}
       <div className="space-y-4">
 
-        {/* Legend */}
-        <div className="flex items-center gap-5 text-xs text-gray-600">
-          {LEGEND.map(({ dot, label }) => (
-            <span key={label} className="flex items-center gap-1.5 whitespace-nowrap">
-              <span className="inline-block h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: dot }} />
-              {label}
-            </span>
-          ))}
-        </div>
-
         {/* Panel 1 — Portal Reorders */}
         <div className="bg-white border border-sand rounded-xl shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-sand">
-            <div className="flex items-center gap-2.5">
-              <ShoppingBag className="h-4 w-4 text-deep-teal shrink-0" />
-              <h2 className="font-display text-base font-bold text-navy">Portal Reorders</h2>
-              <span className="rounded-full bg-sand px-2 py-0.5 text-xs font-semibold text-navy tabular-nums">
-                {portalReorders.length}
-              </span>
+          <div className="border-b border-sand">
+            <div className="flex items-center justify-between px-4 py-3">
+              <div className="flex items-center gap-2.5">
+                <ShoppingBag className="h-4 w-4 text-deep-teal shrink-0" />
+                <h2 className="font-display text-base font-bold text-navy">Portal Reorders</h2>
+                <span className="rounded-full bg-sand px-2 py-0.5 text-xs font-semibold text-navy tabular-nums">
+                  {reordersFilter === "all" ? portalReorders.length : `${filteredReorders.length} of ${portalReorders.length}`}
+                </span>
+              </div>
+              <div className="flex items-center gap-4">
+                <span className="hidden sm:block text-xs text-gray-500">Supply requests from patients</span>
+                <a href="/admin/orders" className="text-xs font-medium text-deep-teal hover:underline whitespace-nowrap">View all</a>
+              </div>
             </div>
-            <div className="flex items-center gap-4">
-              <span className="hidden sm:block text-xs text-gray-500">Supply requests from patients</span>
-              <a href="/admin/orders" className="text-xs font-medium text-deep-teal hover:underline whitespace-nowrap">View all</a>
+            <div className="flex items-center gap-1 px-4 pb-2.5">
+              {LEGEND.map(({ dot, label }) => {
+                const fv = label.toLowerCase() as FilterValue;
+                const active = reordersFilter === fv;
+                return (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => setReordersFilter(active ? "all" : fv)}
+                    className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs text-gray-600 transition-colors"
+                    style={active
+                      ? { backgroundColor: `oklch(from ${dot} l c h / 0.12)`, border: `1px solid ${dot}` }
+                      : { border: "1px solid transparent" }}
+                  >
+                    <span className="inline-block h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: dot }} />
+                    {label}
+                  </button>
+                );
+              })}
             </div>
           </div>
           <div className="overflow-y-auto overflow-x-auto max-h-[320px]">
             <table className="w-full border-collapse">
               <thead className="sticky top-0 bg-white z-10">
                 <tr className="border-b border-sand">
-                  <th className={TH}>Urgency</th>
-                  <th className={TH}>Patient</th>
+                  <th
+                    className={`${TH} cursor-pointer select-none`}
+                    onClick={() => toggleSort("urgency", reordersSortKey, setReordersSortKey, reordersSortDir, setReordersSortDir)}
+                  >
+                    <span className={reordersSortKey === "urgency" ? "text-deep-teal" : ""}>Urgency</span>
+                    {" "}
+                    <span className={reordersSortKey === "urgency" ? "text-deep-teal" : "text-gray-300"}>
+                      {reordersSortKey === "urgency" ? (reordersSortDir === "asc" ? "↑" : "↓") : "↕"}
+                    </span>
+                  </th>
+                  <th
+                    className={`${TH} cursor-pointer select-none`}
+                    onClick={() => toggleSort("patient", reordersSortKey, setReordersSortKey, reordersSortDir, setReordersSortDir)}
+                  >
+                    <span className={reordersSortKey === "patient" ? "text-deep-teal" : ""}>Patient</span>
+                    {" "}
+                    <span className={reordersSortKey === "patient" ? "text-deep-teal" : "text-gray-300"}>
+                      {reordersSortKey === "patient" ? (reordersSortDir === "asc" ? "↑" : "↓") : "↕"}
+                    </span>
+                  </th>
                   <th className={TH}>Item</th>
-                  <th className={TH}>Arrived · Waiting</th>
+                  <th
+                    className={`${TH} cursor-pointer select-none`}
+                    onClick={() => toggleSort("arrived", reordersSortKey, setReordersSortKey, reordersSortDir, setReordersSortDir)}
+                  >
+                    <span className={reordersSortKey === "arrived" ? "text-deep-teal" : ""}>Arrived · Waiting</span>
+                    {" "}
+                    <span className={reordersSortKey === "arrived" ? "text-deep-teal" : "text-gray-300"}>
+                      {reordersSortKey === "arrived" ? (reordersSortDir === "asc" ? "↑" : "↓") : "↕"}
+                    </span>
+                  </th>
                   <th className={`${TH} sr-only`}>Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-sand">
-                {portalReorders.map((item) => {
+                {filteredReorders.map((item) => {
                   const urg = getUrgency(item.submittedAt);
                   return (
                     <tr key={item.id} className="hover:bg-gray-50">
@@ -234,32 +362,81 @@ export default function AdminDashboardPage() {
 
         {/* Panel 2 — Awaiting Approval */}
         <div className="bg-white border border-sand rounded-xl shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-sand">
-            <div className="flex items-center gap-2.5">
-              <Clock className="h-4 w-4 text-amber shrink-0" />
-              <h2 className="font-display text-base font-bold text-navy">Awaiting Approval</h2>
-              <span className="rounded-full bg-sand px-2 py-0.5 text-xs font-semibold text-navy tabular-nums">
-                {awaitingApproval.length}
-              </span>
+          <div className="border-b border-sand">
+            <div className="flex items-center justify-between px-4 py-3">
+              <div className="flex items-center gap-2.5">
+                <Clock className="h-4 w-4 text-amber shrink-0" />
+                <h2 className="font-display text-base font-bold text-navy">Awaiting Approval</h2>
+                <span className="rounded-full bg-sand px-2 py-0.5 text-xs font-semibold text-navy tabular-nums">
+                  {approvalFilter === "all" ? awaitingApproval.length : `${filteredApproval.length} of ${awaitingApproval.length}`}
+                </span>
+              </div>
+              <div className="flex items-center gap-4">
+                <span className="hidden sm:block text-xs text-gray-500">Entitlement requests pending staff review</span>
+                <a href="/admin/orders?filter=pending" className="text-xs font-medium text-deep-teal hover:underline whitespace-nowrap">View all</a>
+              </div>
             </div>
-            <div className="flex items-center gap-4">
-              <span className="hidden sm:block text-xs text-gray-500">Entitlement requests pending staff review</span>
-              <a href="/admin/orders?filter=pending" className="text-xs font-medium text-deep-teal hover:underline whitespace-nowrap">View all</a>
+            <div className="flex items-center gap-1 px-4 pb-2.5">
+              {LEGEND.map(({ dot, label }) => {
+                const fv = label.toLowerCase() as FilterValue;
+                const active = approvalFilter === fv;
+                return (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => setApprovalFilter(active ? "all" : fv)}
+                    className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs text-gray-600 transition-colors"
+                    style={active
+                      ? { backgroundColor: `oklch(from ${dot} l c h / 0.12)`, border: `1px solid ${dot}` }
+                      : { border: "1px solid transparent" }}
+                  >
+                    <span className="inline-block h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: dot }} />
+                    {label}
+                  </button>
+                );
+              })}
             </div>
           </div>
           <div className="overflow-y-auto overflow-x-auto max-h-[320px]">
             <table className="w-full border-collapse">
               <thead className="sticky top-0 bg-white z-10">
                 <tr className="border-b border-sand">
-                  <th className={TH}>Urgency</th>
-                  <th className={TH}>Patient</th>
+                  <th
+                    className={`${TH} cursor-pointer select-none`}
+                    onClick={() => toggleSort("urgency", approvalSortKey, setApprovalSortKey, approvalSortDir, setApprovalSortDir)}
+                  >
+                    <span className={approvalSortKey === "urgency" ? "text-deep-teal" : ""}>Urgency</span>
+                    {" "}
+                    <span className={approvalSortKey === "urgency" ? "text-deep-teal" : "text-gray-300"}>
+                      {approvalSortKey === "urgency" ? (approvalSortDir === "asc" ? "↑" : "↓") : "↕"}
+                    </span>
+                  </th>
+                  <th
+                    className={`${TH} cursor-pointer select-none`}
+                    onClick={() => toggleSort("patient", approvalSortKey, setApprovalSortKey, approvalSortDir, setApprovalSortDir)}
+                  >
+                    <span className={approvalSortKey === "patient" ? "text-deep-teal" : ""}>Patient</span>
+                    {" "}
+                    <span className={approvalSortKey === "patient" ? "text-deep-teal" : "text-gray-300"}>
+                      {approvalSortKey === "patient" ? (approvalSortDir === "asc" ? "↑" : "↓") : "↕"}
+                    </span>
+                  </th>
                   <th className={TH}>Request</th>
-                  <th className={TH}>Arrived · Waiting</th>
+                  <th
+                    className={`${TH} cursor-pointer select-none`}
+                    onClick={() => toggleSort("arrived", approvalSortKey, setApprovalSortKey, approvalSortDir, setApprovalSortDir)}
+                  >
+                    <span className={approvalSortKey === "arrived" ? "text-deep-teal" : ""}>Arrived · Waiting</span>
+                    {" "}
+                    <span className={approvalSortKey === "arrived" ? "text-deep-teal" : "text-gray-300"}>
+                      {approvalSortKey === "arrived" ? (approvalSortDir === "asc" ? "↑" : "↓") : "↕"}
+                    </span>
+                  </th>
                   <th className={`${TH} sr-only`}>Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-sand">
-                {awaitingApproval.map((item) => {
+                {filteredApproval.map((item) => {
                   const urg = getUrgency(item.submittedAt);
                   return (
                     <tr key={item.id} className="hover:bg-gray-50">
@@ -291,32 +468,81 @@ export default function AdminDashboardPage() {
 
         {/* Panel 3 — Overdue Alerts */}
         <div className="bg-white border border-sand rounded-xl shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-sand">
-            <div className="flex items-center gap-2.5">
-              <AlertTriangle className="h-4 w-4 text-amber shrink-0" />
-              <h2 className="font-display text-base font-bold text-navy">Overdue Alerts</h2>
-              <span className="rounded-full bg-sand px-2 py-0.5 text-xs font-semibold text-navy tabular-nums">
-                {overdueAlerts.length}
-              </span>
+          <div className="border-b border-sand">
+            <div className="flex items-center justify-between px-4 py-3">
+              <div className="flex items-center gap-2.5">
+                <AlertTriangle className="h-4 w-4 text-amber shrink-0" />
+                <h2 className="font-display text-base font-bold text-navy">Overdue Alerts</h2>
+                <span className="rounded-full bg-sand px-2 py-0.5 text-xs font-semibold text-navy tabular-nums">
+                  {alertsFilter === "all" ? overdueAlerts.length : `${filteredAlerts.length} of ${overdueAlerts.length}`}
+                </span>
+              </div>
+              <div className="flex items-center gap-4">
+                <span className="hidden sm:block text-xs text-gray-500">Safety checks and maintenance past due</span>
+                <a href="/admin/patients?filter=overdue" className="text-xs font-medium text-deep-teal hover:underline whitespace-nowrap">View all</a>
+              </div>
             </div>
-            <div className="flex items-center gap-4">
-              <span className="hidden sm:block text-xs text-gray-500">Safety checks and maintenance past due</span>
-              <a href="/admin/patients?filter=overdue" className="text-xs font-medium text-deep-teal hover:underline whitespace-nowrap">View all</a>
+            <div className="flex items-center gap-1 px-4 pb-2.5">
+              {LEGEND.map(({ dot, label }) => {
+                const fv = label.toLowerCase() as FilterValue;
+                const active = alertsFilter === fv;
+                return (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => setAlertsFilter(active ? "all" : fv)}
+                    className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs text-gray-600 transition-colors"
+                    style={active
+                      ? { backgroundColor: `oklch(from ${dot} l c h / 0.12)`, border: `1px solid ${dot}` }
+                      : { border: "1px solid transparent" }}
+                  >
+                    <span className="inline-block h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: dot }} />
+                    {label}
+                  </button>
+                );
+              })}
             </div>
           </div>
           <div className="overflow-y-auto overflow-x-auto max-h-[320px]">
             <table className="w-full border-collapse">
               <thead className="sticky top-0 bg-white z-10">
                 <tr className="border-b border-sand">
-                  <th className={TH}>Urgency</th>
-                  <th className={TH}>Patient</th>
+                  <th
+                    className={`${TH} cursor-pointer select-none`}
+                    onClick={() => toggleSort("urgency", alertsSortKey, setAlertsSortKey, alertsSortDir, setAlertsSortDir)}
+                  >
+                    <span className={alertsSortKey === "urgency" ? "text-deep-teal" : ""}>Urgency</span>
+                    {" "}
+                    <span className={alertsSortKey === "urgency" ? "text-deep-teal" : "text-gray-300"}>
+                      {alertsSortKey === "urgency" ? (alertsSortDir === "asc" ? "↑" : "↓") : "↕"}
+                    </span>
+                  </th>
+                  <th
+                    className={`${TH} cursor-pointer select-none`}
+                    onClick={() => toggleSort("patient", alertsSortKey, setAlertsSortKey, alertsSortDir, setAlertsSortDir)}
+                  >
+                    <span className={alertsSortKey === "patient" ? "text-deep-teal" : ""}>Patient</span>
+                    {" "}
+                    <span className={alertsSortKey === "patient" ? "text-deep-teal" : "text-gray-300"}>
+                      {alertsSortKey === "patient" ? (alertsSortDir === "asc" ? "↑" : "↓") : "↕"}
+                    </span>
+                  </th>
                   <th className={TH}>Type</th>
-                  <th className={TH}>Overdue since · Days</th>
+                  <th
+                    className={`${TH} cursor-pointer select-none`}
+                    onClick={() => toggleSort("since", alertsSortKey, setAlertsSortKey, alertsSortDir, setAlertsSortDir)}
+                  >
+                    <span className={alertsSortKey === "since" ? "text-deep-teal" : ""}>Overdue since · Days</span>
+                    {" "}
+                    <span className={alertsSortKey === "since" ? "text-deep-teal" : "text-gray-300"}>
+                      {alertsSortKey === "since" ? (alertsSortDir === "asc" ? "↑" : "↓") : "↕"}
+                    </span>
+                  </th>
                   <th className={`${TH} sr-only`}>Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-sand">
-                {overdueAlerts.map((item) => {
+                {filteredAlerts.map((item) => {
                   const urg = getUrgency(item.overdueSince);
                   return (
                     <tr key={item.id} className="hover:bg-gray-50">
