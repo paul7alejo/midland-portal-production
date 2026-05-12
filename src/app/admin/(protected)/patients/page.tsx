@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import Link from "next/link";
 import { PatientDrawer } from "@/components/admin/PatientDrawer";
 import { cn } from "@/lib/utils";
 
@@ -266,7 +267,7 @@ const ACTION_CONFIG: Record<PatientStatus, { label: string; disabled: boolean }>
   overdue:          { label: "Open review",    disabled: false },
   needs_outreach:   { label: "Open review",    disabled: false },
   safety_check_due: { label: "Open review",    disabled: false },
-  pending_review:   { label: "Review record",  disabled: false },
+  pending_review:   { label: "Open review",    disabled: false },
 };
 
 const MONTH_NUM: Record<string, number> = {
@@ -361,13 +362,22 @@ function mapImportedPatient(patient: ImportedPatientSummary): Patient {
   };
 }
 
-function SummaryCard({ label, value, accent }: { label: string; value: number; accent?: string }) {
-  return (
-    <div className="bg-white border border-gray-200 rounded-xl p-5 flex flex-col gap-1 min-w-0 shadow-sm">
+function SummaryCard({ label, value, accent, href }: { label: string; value: number; accent?: string; href?: string }) {
+  const baseCls = "bg-white border border-gray-200 rounded-xl p-5 flex flex-col gap-1 min-w-0 shadow-sm";
+  const inner = (
+    <>
       <span className={`text-3xl font-bold tabular-nums ${accent ?? "text-navy"}`}>{value}</span>
       <span className="text-sm font-semibold uppercase tracking-wide text-gray-600">{label}</span>
-    </div>
+    </>
   );
+  if (href) {
+    return (
+      <Link href={href} className={`${baseCls} cursor-pointer hover:border-[#0B5C6C]/30 hover:shadow-md transition-all`}>
+        {inner}
+      </Link>
+    );
+  }
+  return <div className={baseCls}>{inner}</div>;
 }
 
 function FundingBadge({ amount }: { amount: number }) {
@@ -391,8 +401,13 @@ function getOperationalCue(patient: Patient): string {
 }
 
 function getActionLabel(patient: Patient): string {
-  if (patient.source === "admin_csv" || patient.status === "pending_review") return "Review record";
-  if (patient.status === "needs_outreach" || patient.status === "overdue" || patient.status === "safety_check_due") {
+  if (
+    patient.status === "pending_review" ||
+    patient.status === "needs_outreach" ||
+    patient.status === "overdue" ||
+    patient.status === "safety_check_due" ||
+    patient.source === "admin_csv"
+  ) {
     return "Open review";
   }
   return "View patient";
@@ -820,10 +835,10 @@ export default function AdminPatientsPage() {
       {/* Summary cards */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
         <SummaryCard label="Total patients"      value={totalPatients} />
-        <SummaryCard label="Pending review"      value={pendingReview}   accent="text-sky-700" />
-        <SummaryCard label="Needs outreach"      value={needsOutreach}   accent="text-amber-700" />
-        <SummaryCard label="Safety checks due"   value={safetyChecksDue} accent="text-amber-700" />
-        <SummaryCard label="Eligible now"        value={eligibleNow}     accent="text-emerald-700" />
+        <SummaryCard label="Pending review"      value={pendingReview}   accent="text-sky-700"     href="/admin/patients?filter=pending-review" />
+        <SummaryCard label="Needs outreach"      value={needsOutreach}   accent="text-amber-700"   href="/admin/outreach?filter=needs-outreach" />
+        <SummaryCard label="Safety checks due"   value={safetyChecksDue} accent="text-amber-700"   href="/admin/patients?filter=safety-due" />
+        <SummaryCard label="Eligible now"        value={eligibleNow}     accent="text-emerald-700" href="/admin/patients?filter=eligible" />
       </div>
 
       {/* Search + Filter & Sort button */}
@@ -981,7 +996,7 @@ export default function AdminPatientsPage() {
                         <span className="mt-1 block text-xs font-medium text-gray-600">{operationalCue}</span>
                       </td>
                       <td className="px-4 py-4">
-                        <span className="block max-w-[12rem] break-all font-mono text-sm leading-5 text-gray-700">
+                        <span className="whitespace-nowrap tabular-nums min-w-[80px] font-mono text-sm leading-5 text-gray-700">
                           {patient.msid.replace(/^MS-/, "")}
                         </span>
                       </td>
