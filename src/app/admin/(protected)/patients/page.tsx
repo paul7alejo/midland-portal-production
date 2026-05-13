@@ -665,10 +665,21 @@ export default function AdminPatientsPage() {
   const [remainingRange,   setRemainingRange]   = useState<RemainingRange | null>(null);
   const [nextEligRange,    setNextEligRange]    = useState<NextEligibleRange | null>(null);
   const [activeSortOption, setActiveSortOption] = useState<SortOption | null>(null);
+  const [tableSortKey,     setTableSortKey]     = useState<string | null>(null);
+  const [tableSortDir,     setTableSortDir]     = useState<"asc" | "desc">("asc");
   const [filterPanelOpen,  setFilterPanelOpen]  = useState(false);
   const [drawerOpen,       setDrawerOpen]       = useState(false);
   const [drawerMsid,       setDrawerMsid]       = useState<string | null>(null);
   const [drawerName,       setDrawerName]       = useState<string | undefined>(undefined);
+
+  function toggleTableSort(key: string) {
+    if (tableSortKey === key) {
+      setTableSortDir(tableSortDir === "asc" ? "desc" : "asc");
+    } else {
+      setTableSortKey(key);
+      setTableSortDir("asc");
+    }
+  }
 
   function openDrawer(msid: string, name: string) {
     setDrawerMsid(msid);
@@ -762,8 +773,18 @@ export default function AdminPatientsPage() {
         }
       });
     }
+    if (tableSortKey) {
+      result.sort((a, b) => {
+        let cmp = 0;
+        if (tableSortKey === "name")          cmp = a.name.localeCompare(b.name);
+        else if (tableSortKey === "lastOrder")    cmp = parseDateForSort(a.lastOrder)    - parseDateForSort(b.lastOrder);
+        else if (tableSortKey === "nextEligible") cmp = parseDateForSort(a.nextEligible) - parseDateForSort(b.nextEligible);
+        else if (tableSortKey === "status")       cmp = a.status.localeCompare(b.status);
+        return tableSortDir === "asc" ? cmp : -cmp;
+      });
+    }
     return result;
-  }, [search, statusFilters, fundingFilters, remainingRange, nextEligRange, activeSortOption, importedPatients]);
+  }, [search, statusFilters, fundingFilters, remainingRange, nextEligRange, activeSortOption, tableSortKey, tableSortDir, importedPatients]);
 
   const allPatients = useMemo(() => [...importedPatients, ...PATIENTS], [importedPatients]);
   const totalPatients = allPatients.length;
@@ -944,13 +965,44 @@ export default function AdminPatientsPage() {
           <table className="w-full min-w-[860px] border-collapse">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Patient Name</th>
+                <th
+                  className={`text-left px-4 py-3 text-sm font-semibold uppercase tracking-wide whitespace-nowrap cursor-pointer select-none ${tableSortKey === "name" ? "text-deep-teal" : "text-gray-600"}`}
+                  onClick={() => toggleTableSort("name")}
+                >
+                  Patient Name{" "}
+                  <span className={tableSortKey === "name" ? "text-deep-teal" : "text-gray-300"}>
+                    {tableSortKey === "name" ? (tableSortDir === "asc" ? "↑" : "↓") : "↕"}
+                  </span>
+                </th>
                 <th className="text-left px-4 py-3 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">MSID</th>
                 <th className="text-left px-4 py-3 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Phone</th>
-                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Funding</th>
-                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Last Order</th>
-                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Next Eligible</th>
-                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Status</th>
+                <th
+                  className={`text-left px-4 py-3 text-sm font-semibold uppercase tracking-wide whitespace-nowrap cursor-pointer select-none ${tableSortKey === "lastOrder" ? "text-deep-teal" : "text-gray-600"}`}
+                  onClick={() => toggleTableSort("lastOrder")}
+                >
+                  Last Order{" "}
+                  <span className={tableSortKey === "lastOrder" ? "text-deep-teal" : "text-gray-300"}>
+                    {tableSortKey === "lastOrder" ? (tableSortDir === "asc" ? "↑" : "↓") : "↕"}
+                  </span>
+                </th>
+                <th
+                  className={`text-left px-4 py-3 text-sm font-semibold uppercase tracking-wide whitespace-nowrap cursor-pointer select-none ${tableSortKey === "nextEligible" ? "text-deep-teal" : "text-gray-600"}`}
+                  onClick={() => toggleTableSort("nextEligible")}
+                >
+                  Next Eligible{" "}
+                  <span className={tableSortKey === "nextEligible" ? "text-deep-teal" : "text-gray-300"}>
+                    {tableSortKey === "nextEligible" ? (tableSortDir === "asc" ? "↑" : "↓") : "↕"}
+                  </span>
+                </th>
+                <th
+                  className={`text-left px-4 py-3 text-sm font-semibold uppercase tracking-wide whitespace-nowrap cursor-pointer select-none ${tableSortKey === "status" ? "text-deep-teal" : "text-gray-600"}`}
+                  onClick={() => toggleTableSort("status")}
+                >
+                  Status{" "}
+                  <span className={tableSortKey === "status" ? "text-deep-teal" : "text-gray-300"}>
+                    {tableSortKey === "status" ? (tableSortDir === "asc" ? "↑" : "↓") : "↕"}
+                  </span>
+                </th>
                 <th className="text-left px-4 py-3 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Remaining Funding</th>
                 <th className="text-left px-4 py-3 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">
                   Action
@@ -960,7 +1012,7 @@ export default function AdminPatientsPage() {
             <tbody className="divide-y divide-gray-100">
               {displayedPatients.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-5 py-12 text-center text-base text-gray-500">
+                  <td colSpan={8} className="px-5 py-12 text-center text-base text-gray-500">
                     <span className="block font-medium text-gray-700">No patients found</span>
                     <span className="mt-1 block text-sm text-gray-500">
                       Adjust the search or filters to see imported and demo patient records.
@@ -973,12 +1025,6 @@ export default function AdminPatientsPage() {
                   const actionCfg = ACTION_CONFIG[patient.status];
                   const actionLabel = getActionLabel(patient);
                   const operationalCue = getOperationalCue(patient);
-                  const fundingCls =
-                    patient.funding === "ACC"
-                      ? "bg-blue-50 text-blue-700 border border-blue-200"
-                      : patient.funding === "Health NZ"
-                      ? "bg-teal-50 text-teal-700 border border-teal-200"
-                      : "bg-purple-50 text-purple-700 border border-purple-200";
                   return (
                     <tr key={patient.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-4">
@@ -1011,11 +1057,6 @@ export default function AdminPatientsPage() {
                             {patient.phone}
                           </a>
                         )}
-                      </td>
-                      <td className="px-4 py-4">
-                        <span className={`inline-block text-sm font-medium px-2.5 py-1 rounded-full ${fundingCls}`}>
-                          {patient.funding}
-                        </span>
                       </td>
                       <td className="px-4 py-4">
                         <span className="text-sm text-gray-700 whitespace-nowrap">{patient.lastOrder}</span>
