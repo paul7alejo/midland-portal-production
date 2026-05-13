@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 
 type FundingType       = "ACC" | "Private" | "Health NZ";
 type PatientStatus     = "eligible" | "not_eligible" | "overdue" | "needs_outreach" | "safety_check_due" | "pending_review";
-type RemainingRange    = "zero" | "low" | "mid" | "high";
+type RemainingRange    = "critical" | "mid" | "healthy";
 type NextEligibleRange = "now" | "30days" | "90days" | "later";
 type SortOption        =
   | "lastOrder_newest" | "lastOrder_oldest"
@@ -382,9 +382,9 @@ function SummaryCard({ label, value, accent, href }: { label: string; value: num
 
 function FundingBadge({ amount }: { amount: number }) {
   const cls =
-    amount > 75  ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
-    amount > 0   ? "bg-amber-50 text-amber-700 border border-amber-200" :
-                   "bg-gray-100 text-gray-500 border border-gray-200";
+    amount >= 200 ? "bg-green-50 text-[#0B5C6C] border border-green-200" :
+    amount >= 100 ? "bg-amber-50 text-[#D97706] border border-amber-200" :
+                   "bg-red-50 text-[#E05252] border border-red-200";
   return (
     <span className={`inline-block text-sm font-medium px-2.5 py-1 rounded-full whitespace-nowrap ${cls}`}>
       ${amount} left
@@ -431,10 +431,9 @@ const FUNDING_OPTIONS: { value: FundingType; label: string }[] = [
 ];
 
 const REMAINING_OPTIONS: { value: RemainingRange; label: string }[] = [
-  { value: "zero", label: "$0 left" },
-  { value: "low",  label: "$1–$49 left" },
-  { value: "mid",  label: "$50–$99 left" },
-  { value: "high", label: "$100+ left" },
+  { value: "critical", label: "$0–$99 left" },
+  { value: "mid",      label: "$100–$199 left" },
+  { value: "healthy",  label: "$200–$250 left" },
 ];
 
 const NEXT_ELIG_OPTIONS: { value: NextEligibleRange; label: string }[] = [
@@ -491,12 +490,6 @@ function FilterPanel({
     next.has(v) ? next.delete(v) : next.add(v);
     setStatusFilters(next);
   }
-  function toggleFunding(v: FundingType) {
-    const next = new Set(fundingFilters);
-    next.has(v) ? next.delete(v) : next.add(v);
-    setFundingFilters(next);
-  }
-
   const sectionCls = "space-y-1 pb-5 border-b border-gray-100 last:border-0 last:pb-0";
   const legendCls  = "block text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3";
   const rowCls     = "flex items-center gap-3 min-h-[44px] cursor-pointer select-none";
@@ -558,22 +551,6 @@ function FilterPanel({
                   type="checkbox"
                   checked={statusFilters.has(opt.value)}
                   onChange={() => toggleStatus(opt.value)}
-                  className={inputCls}
-                />
-                <span className={labelCls}>{opt.label}</span>
-              </label>
-            ))}
-          </div>
-
-          {/* Funding */}
-          <div className={sectionCls}>
-            <span className={legendCls}>Funding</span>
-            {FUNDING_OPTIONS.map((opt) => (
-              <label key={opt.value} className={rowCls}>
-                <input
-                  type="checkbox"
-                  checked={fundingFilters.has(opt.value)}
-                  onChange={() => toggleFunding(opt.value)}
                   className={inputCls}
                 />
                 <span className={labelCls}>{opt.label}</span>
@@ -667,6 +644,8 @@ export default function AdminPatientsPage() {
   const [activeSortOption, setActiveSortOption] = useState<SortOption | null>(null);
   const [tableSortKey,     setTableSortKey]     = useState<string | null>(null);
   const [tableSortDir,     setTableSortDir]     = useState<"asc" | "desc">("asc");
+  const [currentPage,      setCurrentPage]      = useState(1);
+  const [pageSize,         setPageSize]         = useState(20);
   const [filterPanelOpen,  setFilterPanelOpen]  = useState(false);
   const [drawerOpen,       setDrawerOpen]       = useState(false);
   const [drawerMsid,       setDrawerMsid]       = useState<string | null>(null);
@@ -724,6 +703,10 @@ export default function AdminPatientsPage() {
     setActiveSortOption(null);
   }
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, statusFilters, fundingFilters, remainingRange, nextEligRange, activeSortOption, tableSortKey, tableSortDir, pageSize]);
+
   const displayedPatients = useMemo(() => {
     let result = [...importedPatients, ...PATIENTS];
 
@@ -742,10 +725,9 @@ export default function AdminPatientsPage() {
     if (remainingRange) {
       result = result.filter((p) => {
         const r = p.remainingAmount;
-        if (remainingRange === "zero") return r === 0;
-        if (remainingRange === "low")  return r >= 1  && r <= 49;
-        if (remainingRange === "mid")  return r >= 50 && r <= 99;
-        return r >= 100;
+        if (remainingRange === "critical") return r <= 99;
+        if (remainingRange === "mid")      return r >= 100 && r <= 199;
+        return r >= 200; // healthy
       });
     }
     if (nextEligRange) {
@@ -813,10 +795,9 @@ export default function AdminPatientsPage() {
     })),
     ...(remainingRange ? [{
       key: "rem",
-      label: remainingRange === "zero" ? "$0 left"
-           : remainingRange === "low"  ? "$1–$49"
-           : remainingRange === "mid"  ? "$50–$99"
-           : "$100+",
+      label: remainingRange === "critical" ? "$0–$99"
+           : remainingRange === "mid"      ? "$100–$199"
+           : "$200–$250",
       onRemove: () => setRemainingRange(null),
     }] : []),
     ...(nextEligRange ? [{
@@ -839,6 +820,12 @@ export default function AdminPatientsPage() {
       onRemove: () => setActiveSortOption(null),
     }] : []),
   ];
+
+  const filteredCount = displayedPatients.length;
+  const totalPages    = Math.max(1, Math.ceil(filteredCount / pageSize));
+  const pagedPatients = displayedPatients.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const firstItem     = (currentPage - 1) * pageSize + 1;
+  const lastItem      = Math.min(currentPage * pageSize, filteredCount);
 
   return (
     <div className="space-y-8">
@@ -907,9 +894,6 @@ export default function AdminPatientsPage() {
           Export imported
         </a>
 
-        <span className="text-base text-gray-500 whitespace-nowrap">
-          {displayedPatients.length} of {totalPatients}
-        </span>
         {importLoading && (
           <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-sm text-gray-600">
             Loading imported records...
@@ -961,6 +945,25 @@ export default function AdminPatientsPage() {
             Imported records, outreach cues, and safety-check cues are marked for staff review.
           </p>
         </div>
+        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 bg-white text-sm text-gray-500">
+          <span>
+            {filteredCount === 0
+              ? "Showing 0 of 0 patients"
+              : `Showing ${firstItem}–${lastItem} of ${filteredCount} patients`}
+          </span>
+          <label className="flex items-center gap-2">
+            Show:
+            <select
+              value={pageSize}
+              onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
+              className="border border-gray-300 rounded px-2 py-1 text-sm text-gray-700 bg-white focus:outline-none focus:ring-1 focus:ring-[#0B5C6C]"
+            >
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+          </label>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[860px] border-collapse">
             <thead>
@@ -1010,7 +1013,7 @@ export default function AdminPatientsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {displayedPatients.length === 0 ? (
+              {filteredCount === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-5 py-12 text-center text-base text-gray-500">
                     <span className="block font-medium text-gray-700">No patients found</span>
@@ -1020,7 +1023,7 @@ export default function AdminPatientsPage() {
                   </td>
                 </tr>
               ) : (
-                displayedPatients.map((patient) => {
+                pagedPatients.map((patient) => {
                   const statusCfg = STATUS_CONFIG[patient.status];
                   const actionCfg = ACTION_CONFIG[patient.status];
                   const actionLabel = getActionLabel(patient);
@@ -1094,6 +1097,25 @@ export default function AdminPatientsPage() {
               )}
             </tbody>
           </table>
+        </div>
+        <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 text-sm">
+          <button
+            type="button"
+            disabled={currentPage === 1}
+            onClick={() => setCurrentPage((p) => p - 1)}
+            className={currentPage === 1 ? "text-gray-300 cursor-not-allowed" : "text-[#0B5C6C] hover:underline"}
+          >
+            Prev
+          </button>
+          <span className="text-gray-500">Page {currentPage} of {totalPages}</span>
+          <button
+            type="button"
+            disabled={currentPage === totalPages}
+            onClick={() => setCurrentPage((p) => p + 1)}
+            className={currentPage === totalPages ? "text-gray-300 cursor-not-allowed" : "text-[#0B5C6C] hover:underline"}
+          >
+            Next
+          </button>
         </div>
       </div>
 
