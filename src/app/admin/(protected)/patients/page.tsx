@@ -945,25 +945,6 @@ export default function AdminPatientsPage() {
             Imported records, outreach cues, and safety-check cues are marked for staff review.
           </p>
         </div>
-        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 bg-white text-sm text-gray-500">
-          <span>
-            {filteredCount === 0
-              ? "Showing 0 of 0 patients"
-              : `Showing ${firstItem}–${lastItem} of ${filteredCount} patients`}
-          </span>
-          <label className="flex items-center gap-2">
-            Show:
-            <select
-              value={pageSize}
-              onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
-              className="border border-gray-300 rounded px-2 py-1 text-sm text-gray-700 bg-white focus:outline-none focus:ring-1 focus:ring-[#0B5C6C]"
-            >
-              <option value={20}>20</option>
-              <option value={50}>50</option>
-              <option value={100}>100</option>
-            </select>
-          </label>
-        </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[860px] border-collapse">
             <thead>
@@ -1032,7 +1013,14 @@ export default function AdminPatientsPage() {
                     <tr key={patient.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-4">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-base font-semibold text-navy">{patient.name}</span>
+                          <button
+                            type="button"
+                            disabled={actionCfg.disabled}
+                            onClick={actionCfg.disabled ? undefined : () => openDrawer(patient.msid, patient.name)}
+                            className="bg-transparent border-0 p-0 text-left cursor-pointer text-base font-semibold text-navy hover:text-[#0B5C6C] hover:underline disabled:cursor-default disabled:hover:text-navy disabled:hover:no-underline"
+                          >
+                            {patient.name}
+                          </button>
                           {patient.source === "admin_csv" && (
                             <span className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-700">
                               Imported
@@ -1098,24 +1086,43 @@ export default function AdminPatientsPage() {
             </tbody>
           </table>
         </div>
-        <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 text-sm">
-          <button
-            type="button"
-            disabled={currentPage === 1}
-            onClick={() => setCurrentPage((p) => p - 1)}
-            className={currentPage === 1 ? "text-gray-300 cursor-not-allowed" : "text-[#0B5C6C] hover:underline"}
-          >
-            Prev
-          </button>
-          <span className="text-gray-500">Page {currentPage} of {totalPages}</span>
-          <button
-            type="button"
-            disabled={currentPage === totalPages}
-            onClick={() => setCurrentPage((p) => p + 1)}
-            className={currentPage === totalPages ? "text-gray-300 cursor-not-allowed" : "text-[#0B5C6C] hover:underline"}
-          >
-            Next
-          </button>
+        <div className="flex items-center justify-between gap-4 px-5 py-3 border-t border-gray-100 text-sm text-gray-500">
+          <label className="flex items-center gap-2 shrink-0">
+            Show:
+            <select
+              value={pageSize}
+              onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
+              className="border border-gray-300 rounded px-2 py-1 text-sm text-gray-700 bg-white focus:outline-none focus:ring-1 focus:ring-[#0B5C6C]"
+            >
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+          </label>
+          <span className="hidden sm:block">
+            {filteredCount === 0
+              ? "Showing 0 of 0 patients"
+              : `Showing ${firstItem}–${lastItem} of ${filteredCount} patients`}
+          </span>
+          <div className="flex items-center gap-3 shrink-0">
+            <button
+              type="button"
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage((p) => p - 1)}
+              className={currentPage === 1 ? "text-gray-300 cursor-not-allowed" : "text-[#0B5C6C] hover:underline"}
+            >
+              Prev
+            </button>
+            <span>Page {currentPage} of {totalPages}</span>
+            <button
+              type="button"
+              disabled={currentPage === totalPages}
+              onClick={() => setCurrentPage((p) => p + 1)}
+              className={currentPage === totalPages ? "text-gray-300 cursor-not-allowed" : "text-[#0B5C6C] hover:underline"}
+            >
+              Next
+            </button>
+          </div>
         </div>
       </div>
 
