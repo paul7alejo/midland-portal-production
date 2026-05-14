@@ -2,7 +2,6 @@ import 'server-only'
 import { createCipheriv, createDecipheriv, createHmac, randomBytes } from 'crypto'
 
 // TODO before real patients: restore Secrets Manager and remove demo fallback.
-const DEMO_NHI_ENCRYPTION_KEY = "01d6bde97385537aa46eb47aaf4d39a6d0f883da20428a42771c942416bc5d6f"
 
 interface NHISecret {
   encryptionKey: string
