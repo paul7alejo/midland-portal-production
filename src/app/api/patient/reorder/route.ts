@@ -62,19 +62,42 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    if (
+      typeof patient.patient_id !== 'string' || patient.patient_id.trim().length === 0 ||
+      typeof patient.portal_id !== 'string' || patient.portal_id.trim().length === 0
+    ) {
+      console.error('patient/reorder: patient identifiers missing', {
+        hasPatientId: typeof patient.patient_id === 'string' && patient.patient_id.trim().length > 0,
+        hasPortalId: typeof patient.portal_id === 'string' && patient.portal_id.trim().length > 0,
+        orgId,
+      })
+      return NextResponse.json({ error: 'Unable to submit request. Please try again.' }, { status: 500 })
+    }
+
+    const delivery_address: ReorderDeliveryAddress = {
+      line1:    deliveryAddress.line1.trim(),
+      city:     deliveryAddress.city.trim(),
+      postcode: deliveryAddress.postcode.trim(),
+      country:  deliveryAddress.country.trim(),
+    }
+    const line2 = deliveryAddress.line2?.trim()
+    if (line2) delivery_address.line2 = line2
+    const region = deliveryAddress.region?.trim()
+    if (region) delivery_address.region = region
+
+    safeLog('patient/reorder: create request', {
+      itemCount: validatedItems.length,
+      hasPatientId: true,
+      hasPortalId: true,
+      orgId,
+    })
+
     const orderId = await createReorderRequest({
       patient_id:   patient.patient_id,
       patient_msid: patient.portal_id,
       org_id:       orgId,
       items:        validatedItems,
-      delivery_address: {
-        line1:    deliveryAddress.line1.trim(),
-        line2:    deliveryAddress.line2?.trim() || undefined,
-        city:     deliveryAddress.city.trim(),
-        region:   deliveryAddress.region?.trim() || undefined,
-        postcode: deliveryAddress.postcode.trim(),
-        country:  deliveryAddress.country.trim(),
-      },
+      delivery_address,
       created_by: sub,
     })
 
