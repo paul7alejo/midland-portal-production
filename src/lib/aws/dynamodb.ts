@@ -408,6 +408,88 @@ export async function updatePatientProfile(
   }))
 }
 
+// ── Reorder requests (Phase 1F) ───────────────────────────────────────────────
+
+export interface ReorderDeliveryAddress {
+  line1: string
+  line2?: string
+  city: string
+  region?: string
+  postcode: string
+  country: string
+}
+
+export interface ReorderRequest {
+  patient_id: string
+  patient_msid: string
+  org_id: string
+  items: string[]
+  delivery_address: ReorderDeliveryAddress
+  created_by: string  // Cognito sub of submitting patient
+}
+
+export interface ReorderRecord {
+  pk: string
+  sk: string
+  id: string
+  patient_id: string
+  patient_msid: string
+  org_id: string
+  items: string[]
+  delivery_address: ReorderDeliveryAddress
+  status: 'pending_review'
+  source: 'patient_portal_reorder'
+  created_by: string
+  created_at: string
+}
+
+export async function createReorderRequest(req: ReorderRequest): Promise<string> {
+  const id = randomUUID()
+  const created_at = new Date().toISOString()
+  const item: ReorderRecord = {
+    pk: `ORDER#${id}`,
+    sk: 'REORDER',
+    id,
+    patient_id: req.patient_id,
+    patient_msid: req.patient_msid,
+    org_id: req.org_id,
+    items: req.items,
+    delivery_address: req.delivery_address,
+    status: 'pending_review',
+    source: 'patient_portal_reorder',
+    created_by: req.created_by,
+    created_at,
+  }
+  await docClient.send(new PutCommand({
+    TableName: TABLES.ORDERS,
+    Item: item,
+    ConditionExpression: 'attribute_not_exists(pk)',
+  }))
+  return id
+}
+
+export async function listReorderRequests(orgId: string): Promise<ReorderRecord[]> {
+  const results: ReorderRecord[] = []
+  let ExclusiveStartKey: Record<string, NativeAttributeValue> | undefined
+  do {
+    const res = await docClient.send(new ScanCommand({
+      TableName: TABLES.ORDERS,
+      FilterExpression: 'org_id = :orgId AND #src = :source',
+      ExpressionAttributeNames: { '#src': 'source' },
+      ExpressionAttributeValues: {
+        ':orgId': orgId,
+        ':source': 'patient_portal_reorder',
+      },
+      ExclusiveStartKey,
+    }))
+    for (const item of res.Items ?? []) {
+      results.push(item as ReorderRecord)
+    }
+    ExclusiveStartKey = res.LastEvaluatedKey
+  } while (ExclusiveStartKey)
+  return results
+}
+
 export async function createCommsRecord(record: CommsRecord): Promise<void> {
   const timestamp = new Date().toISOString()
   await docClient.send(new PutCommand({
