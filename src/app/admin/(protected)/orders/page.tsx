@@ -20,19 +20,6 @@ interface Order {
   status: OrderStatus;
 }
 
-const ALL_ORDERS: Order[] = [
-  { id: "ORD-001", patient: "Paul Moreno",       msid: "MS-238872", date: "1 May 2026",  items: "Mask cushion + Headgear", type: "ENTITLEMENT", status: "Pending"    },
-  { id: "ORD-002", patient: "Richard O'Brien",   msid: "MS-956431", date: "2 May 2026",  items: "Complete mask kit",       type: "ENTITLEMENT", status: "Pending"    },
-  { id: "ORD-003", patient: "Sarah Kim",         msid: "MS-731204", date: "3 May 2026",  items: "Filters",                 type: "ENTITLEMENT", status: "Pending"    },
-  { id: "ORD-004", patient: "John Harding",      msid: "MS-112358", date: "28 Apr 2026", items: "Mask cushion",            type: "PRIVATE",     status: "Approved"   },
-  { id: "ORD-005", patient: "Dorothy Mills",     msid: "MS-334455", date: "25 Apr 2026", items: "Headgear + Filters",      type: "ENTITLEMENT", status: "Approved"   },
-  { id: "ORD-006", patient: "Brian Foster",      msid: "MS-778899", date: "20 Apr 2026", items: "Complete mask kit",       type: "MIXED",       status: "Dispatched" },
-  { id: "ORD-007", patient: "Evelyn Price",      msid: "MS-990011", date: "15 Apr 2026", items: "Filters",                 type: "ENTITLEMENT", status: "Dispatched" },
-  { id: "ORD-008", patient: "Colin Murray",      msid: "MS-223344", date: "10 Apr 2026", items: "Mask cushion + Headgear", type: "ENTITLEMENT", status: "Completed"  },
-  { id: "ORD-009", patient: "Arthur Campbell",   msid: "MS-889900", date: "5 Apr 2026",  items: "Complete mask kit",       type: "PRIVATE",     status: "Completed"  },
-  { id: "ORD-010", patient: "Shirley Bennett",   msid: "MS-445566", date: "18 Apr 2026", items: "Headgear",                type: "ENTITLEMENT", status: "Declined"   },
-];
-
 const MONTH_NUM: Record<string, number> = {
   Jan: 1, Feb: 2, Mar: 3, Apr: 4, May: 5, Jun: 6,
   Jul: 7, Aug: 8, Sep: 9, Oct: 10, Nov: 11, Dec: 12,
@@ -50,14 +37,12 @@ function parseToDate(s: string): Date | null {
   return new Date(parseInt(y), mo - 1, parseInt(d));
 }
 
-const pendingCount = ALL_ORDERS.filter((o) => o.status === "Pending").length;
-
-const TABS: { key: TabKey; label: string; badge?: number }[] = [
-  { key: "Pending",    label: "Pending",    badge: pendingCount },
-  { key: "Approved",   label: "Approved"   },
-  { key: "Dispatched", label: "Dispatched" },
-  { key: "Completed",  label: "Completed"  },
-  { key: "Declined",   label: "Declined"   },
+const TABS: { key: TabKey }[] = [
+  { key: "Pending"    },
+  { key: "Approved"   },
+  { key: "Dispatched" },
+  { key: "Completed"  },
+  { key: "Declined"   },
 ];
 
 const STATUS_OPTIONS: OrderStatus[] = ["Pending", "Approved", "Dispatched", "Completed", "Declined"];
@@ -276,6 +261,8 @@ function EmptyState({ filtered }: { filtered: boolean }) {
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function AdminOrdersPage() {
+  const [orders,        setOrders]        = useState<Order[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(true);
   const [activeTab,     setActiveTab]     = useState<TabKey>("Pending");
   const [selected,      setSelected]      = useState<Set<string>>(new Set());
   const [drawerOpen,    setDrawerOpen]    = useState(false);
@@ -286,6 +273,19 @@ export default function AdminOrdersPage() {
   const [typeFilters,   setTypeFilters]   = useState<Set<OrderType>>(new Set());
   const [dateRange,     setDateRange]     = useState<DateRange | null>(null);
   const [sortOpt,       setSortOpt]       = useState<OrderSortOpt | null>(null);
+
+  useEffect(() => {
+    fetch("/api/admin/orders")
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+      .then((data) => setOrders(data.orders ?? []))
+      .catch(() => { /* orders stays empty; EmptyState renders */ })
+      .finally(() => setOrdersLoading(false));
+  }, []);
+
+  const pendingCount = useMemo(
+    () => orders.filter((o) => o.status === "Pending").length,
+    [orders]
+  );
 
   function clearAllFilters() {
     setStatusFilters(new Set());
@@ -302,7 +302,7 @@ export default function AdminOrdersPage() {
   }
 
   const visibleOrders = useMemo(() => {
-    let result = [...ALL_ORDERS];
+    let result = [...orders];
 
     // Status: panel filters override tab when active
     if (statusFilters.size > 0) {
@@ -459,6 +459,7 @@ export default function AdminOrdersPage() {
         <nav className="flex gap-0 min-w-max">
           {TABS.map((tab) => {
             const isActive = activeTab === tab.key && statusFilters.size === 0;
+            const badge = tab.key === "Pending" ? pendingCount : undefined;
             return (
               <button
                 key={tab.key}
@@ -472,14 +473,14 @@ export default function AdminOrdersPage() {
                   }
                 `}
               >
-                {tab.label}
-                {tab.badge !== undefined && (
+                {tab.key}
+                {badge !== undefined && badge > 0 && (
                   <span
                     className={`inline-flex items-center justify-center rounded-full text-xs font-semibold px-2 py-0.5 min-w-[22px] ${
                       isActive ? "bg-[#0B5C6C] text-white" : "bg-gray-100 text-gray-600"
                     }`}
                   >
-                    {tab.badge}
+                    {badge}
                   </span>
                 )}
               </button>
@@ -525,7 +526,11 @@ export default function AdminOrdersPage() {
             Review patient requests and open the patient drawer for context.
           </p>
         </div>
-        {visibleOrders.length === 0 ? (
+        {ordersLoading ? (
+          <div className="flex items-center justify-center py-16 text-base text-gray-500">
+            Loading orders…
+          </div>
+        ) : visibleOrders.length === 0 ? (
           <EmptyState filtered={isFiltered} />
         ) : (
           <div className="overflow-x-auto">

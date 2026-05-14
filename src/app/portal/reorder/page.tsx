@@ -6,6 +6,7 @@ import { usePatientData } from "@/hooks/usePatientData";
 import { cn } from "@/lib/utils";
 import { DEMO_MASKS } from "@/lib/demoData";
 import EquipmentVisual from "@/components/portal/EquipmentVisual";
+import { getIdToken, configureCognito } from "@/lib/aws/cognito";
 import {
   EMPTY_DELIVERY_ADDRESS,
   formatDeliveryAddress,
@@ -179,6 +180,8 @@ export default function ReorderPage() {
     useState<DeliveryAddress | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [confirmationId, setConfirmationId] = useState<string | null>(null);
   const addressStorageKey = getDeliveryAddressStorageKey(patient?.userId);
 
   useEffect(() => {
@@ -219,23 +222,61 @@ export default function ReorderPage() {
 
   const handleSubmit = async () => {
     const addressSnapshot = normalizeDeliveryAddress(activeDeliveryAddress);
-    if (!hasCompleteDeliveryAddress(addressSnapshot)) return;
+    if (!hasCompleteDeliveryAddress(addressSnapshot) || selectedItems.length === 0) return;
 
     setIsSubmitting(true);
-    // Simulate network delay
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    if (!useSavedAddress && saveAsDefault) {
-      saveDeliveryAddress(addressStorageKey, addressSnapshot);
-      setSavedAddress(addressSnapshot);
-      setUseSavedAddress(true);
+    setSubmitError(null);
+
+    try {
+      configureCognito();
+      const token = await getIdToken();
+      if (!token) throw new Error("Session expired. Please log in again.");
+
+      const res = await fetch("/api/patient/reorder", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          items: selectedItems,
+          deliveryAddress: addressSnapshot,
+        }),
+      });
+
+      let data: { orderId?: string; error?: string } = {};
+      try { data = await res.json(); } catch { /* non-JSON body */ }
+
+      if (!res.ok) {
+        throw new Error(data.error ?? "Unable to submit request. Please try again.");
+      }
+      if (!data.orderId) {
+        throw new Error("Request submitted but no reference was returned. Please contact Midland Sleep.");
+      }
+
+      if (!useSavedAddress && saveAsDefault) {
+        saveDeliveryAddress(addressStorageKey, addressSnapshot);
+        setSavedAddress(addressSnapshot);
+        setUseSavedAddress(true);
+      }
+
+      setConfirmationId(data.orderId);
+      setSubmittedDeliveryAddress(addressSnapshot);
+      setIsSubmitted(true);
+    } catch (err) {
+      setSubmitError(
+        err instanceof Error ? err.message : "Unable to submit request. Please try again."
+      );
+    } finally {
+      setIsSubmitting(false);
     }
-    setSubmittedDeliveryAddress(addressSnapshot);
-    setIsSubmitted(true);
-    setIsSubmitting(false);
   };
 
-  // Confirmation view — shown after successful submission
+  // Confirmation view — shown only after the reorder record is successfully persisted
   if (isSubmitted) {
+    const refDisplay = confirmationId
+      ? `REQ-${confirmationId.slice(-8).toUpperCase()}`
+      : null;
     return (
       <>
         <div className="max-w-2xl mx-auto text-center py-12 space-y-5">
@@ -248,13 +289,24 @@ export default function ReorderPage() {
           <p className="text-lg leading-7 text-charcoal/80">
             Midland Sleep staff will review your request and contact you if any further information is needed.
           </p>
+          {refDisplay && (
+            <div className="bg-white border border-sand rounded-2xl p-5 text-left">
+              <p className="font-mono text-sm uppercase tracking-wide text-charcoal/70 mb-1">
+                Reference
+              </p>
+              <p className="text-2xl font-semibold text-navy font-mono">{refDisplay}</p>
+              <p className="mt-1 text-base leading-6 text-charcoal/70">
+                Quote this reference if you contact Midland Sleep about this request.
+              </p>
+            </div>
+          )}
           <div className="bg-seafoam-pale/40 border border-seafoam/20 rounded-2xl p-5 text-left">
             <h2 className="text-xl font-semibold text-charcoal mb-3">What happens next</h2>
             <p className="text-lg leading-7 text-charcoal/85">
               Please allow 5–7 business days for your request to be reviewed and supply delivery to be arranged.
             </p>
           </div>
-          <div className="bg-white border border-sand rounded-2xl p-5 text-left mt-6">
+          <div className="bg-white border border-sand rounded-2xl p-5 text-left">
             <h2 className="text-xl font-semibold text-charcoal mb-3">Items requested</h2>
             <ul className="space-y-2">
               {selectedItems.map((itemType) => (
@@ -279,6 +331,8 @@ export default function ReorderPage() {
               setIsSubmitted(false);
               setSelectedItems([]);
               setSaveAsDefault(false);
+              setConfirmationId(null);
+              setSubmitError(null);
             }}
             className="text-lg text-deep-teal hover:underline mt-4 font-medium min-h-[44px]"
           >
@@ -619,6 +673,11 @@ export default function ReorderPage() {
               >
                 {isSubmitting ? "Sending..." : "Send request"}
               </button>
+              {submitError && (
+                <p role="alert" className="text-base leading-6 text-[#C0392B] bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+                  {submitError}
+                </p>
+              )}
             </div>
           </section>
         </div>
