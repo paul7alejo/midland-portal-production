@@ -200,7 +200,7 @@ function getApprovalRecommendation(approvalState: ApprovalState): string {
   if (approvalState === "approval_review_required") {
     return "Review shared contact details before approving this batch for future import execution.";
   }
-  return "This batch is ready for Midland owner review. Import execution is still not enabled.";
+  return "This batch is ready for Midland owner review. Execute import will be available once preflight passes.";
 }
 
 function buildApprovalChecklist(result: PreviewResult): ApprovalChecklistRow[] {
@@ -444,7 +444,7 @@ const WORKFLOW_STEPS = [
   "Preflight manifest",
   "Approval checklist",
   "Evidence pack",
-  "Real import — separate scope",
+  "Execute import",
 ];
 
 const STAGE_CARDS = [
@@ -474,7 +474,7 @@ const STAGE_CARDS = [
   },
   {
     title: "Real import",
-    text: "Production import execution is not enabled in this workflow and must be scoped separately.",
+    text: "Commits valid rows to DynamoDB. Available only after preflight passes — preview is required first.",
   },
 ];
 
@@ -483,9 +483,9 @@ function DemoSummaryPanel() {
     <div className="bg-white border border-gray-200 border-l-4 border-l-[#0B5C6C] rounded-xl p-4 flex items-start justify-between gap-4 flex-wrap">
       <div className="space-y-1 max-w-4xl">
         <p className="text-sm font-medium text-gray-800">
-          This workflow is preview-only. It helps Midland review CSV quality, duplicate risks, preflight status, approval readiness, and admin evidence before any patient records are changed.
+          This workflow has two phases: preview validates CSV quality and runs preflight checks; execute commits valid rows to DynamoDB once preflight passes.
         </p>
-        <p className="text-sm text-gray-600">Real production import remains a separately approved implementation step.</p>
+        <p className="text-sm text-gray-600">Preview first. The Execute Import button appears only when preflight passes with no blocking issues.</p>
       </div>
       <DownloadButton label="Download demo checklist CSV" onClick={downloadDemoChecklist} />
     </div>
@@ -641,8 +641,8 @@ function PreflightPanel({
         <span className={`text-xs font-semibold px-3 py-1 rounded-full ${cfg.badge}`}>{cfg.label}</span>
       </div>
       <div className="space-y-0.5">
-        <p className="text-xs text-gray-500">Preflight only — no patient records are created or updated.</p>
-        <p className="text-xs text-gray-500">Real import to DynamoDB must be approved and scoped separately.</p>
+        <p className="text-xs text-gray-500">Preflight checks run during preview — no records are written yet.</p>
+        <p className="text-xs text-gray-500">Execute Import becomes available once preflight passes with no blocking issues.</p>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {stats.map(({ label, value, color }) => (
@@ -734,8 +734,8 @@ function ImportApprovalPanel({
         <div>
           <h2 className="text-base font-semibold text-gray-800">Import approval</h2>
           <div className="space-y-0.5 mt-1">
-            <p className="text-xs text-gray-500">Approval records are for admin review only. No patient records are created or updated.</p>
-            <p className="text-xs text-gray-500">Production import execution requires a separately approved implementation step.</p>
+            <p className="text-xs text-gray-500">Approval records are for admin review. No records are written during preview.</p>
+            <p className="text-xs text-gray-500">Execute Import commits records — it is available only after preflight passes.</p>
           </div>
         </div>
         <span className={`text-xs font-semibold px-3 py-1 rounded-full ${cfg.badge}`}>{cfg.label}</span>
@@ -846,8 +846,8 @@ function ImportRiskReportPanel({
         <div>
           <h2 className="text-base font-semibold text-gray-800">Import risk report</h2>
           <div className="space-y-0.5 mt-1">
-            <p className="text-xs text-gray-500">This report summarises CSV import risk before any production data write is approved.</p>
-            <p className="text-xs text-gray-500">It is an admin evidence pack only. It does not execute an import.</p>
+            <p className="text-xs text-gray-500">This report summarises CSV import risk. Review it before running Execute Import.</p>
+            <p className="text-xs text-gray-500">No records are written during preview. Execute Import commits rows after preflight passes.</p>
           </div>
         </div>
         <span className={`text-xs font-semibold px-3 py-1 rounded-full ${cfg.badge}`}>{cfg.label}</span>
@@ -1079,7 +1079,23 @@ export default function AdminImportPage() {
   const [activeTab,    setActiveTab]    = useState<ActiveTab>("valid");
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
+  const [isExecuting,  setIsExecuting]  = useState(false);
+  const [executeResult, setExecuteResult] = useState<{ created: number; skipped: number; failed: number; importBatchId: string } | null>(null);
+  const [executeError, setExecuteError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const manifest: ImportManifestRow[] = result
+    ? buildManifest({ valid: result.valid, invalid: result.invalid, reviewRows: result.reviewRows })
+    : [];
+  const preflightState: PreflightState = result
+    ? computePreflightState({
+        invalidCount:        result.invalid.length,
+        dupNhiGroupCount:    result.dupNhiGroupCount,
+        dupSerialGroupCount: result.dupSerialGroupCount,
+        dupContactWarnCount: result.dupContactWarnCount,
+        reviewRowCount:      result.reviewRows.length,
+      })
+    : 'passed';
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -1127,6 +1143,35 @@ export default function AdminImportPage() {
     }
   }
 
+  async function handleExecute() {
+    if (!csvText.trim() || preflightState !== 'passed') return;
+    setIsExecuting(true);
+    setExecuteError(null);
+    setExecuteResult(null);
+    try {
+      const res = await fetch('/api/admin/import/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ csv: csvText, mode: 'execute' }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setExecuteError(data.error ?? 'Import failed. Try again.');
+        return;
+      }
+      setExecuteResult({
+        created: data.summary.created,
+        skipped: data.summary.skipped,
+        failed: data.summary.failed,
+        importBatchId: data.importBatchId,
+      });
+    } catch {
+      setExecuteError('Import failed. Try again.');
+    } finally {
+      setIsExecuting(false);
+    }
+  }
+
   function handleClear() {
     setCsvText("");
     setFileName(null);
@@ -1135,21 +1180,9 @@ export default function AdminImportPage() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
-  const canPreview = csvText.trim().length > 0 && !isPreviewing;
-  const canClear   = csvText.length > 0 || result !== null;
-
-  const manifest: ImportManifestRow[] = result
-    ? buildManifest({ valid: result.valid, invalid: result.invalid, reviewRows: result.reviewRows })
-    : [];
-  const preflightState: PreflightState = result
-    ? computePreflightState({
-        invalidCount:        result.invalid.length,
-        dupNhiGroupCount:    result.dupNhiGroupCount,
-        dupSerialGroupCount: result.dupSerialGroupCount,
-        dupContactWarnCount: result.dupContactWarnCount,
-        reviewRowCount:      result.reviewRows.length,
-      })
-    : 'passed';
+  const canPreview  = csvText.trim().length > 0 && !isPreviewing;
+  const canClear    = csvText.length > 0 || result !== null;
+  const canExecute  = preflightState === 'passed' && !isExecuting && !executeResult;
 
   return (
     <div className="space-y-6">
@@ -1164,13 +1197,13 @@ export default function AdminImportPage() {
         </p>
       </div>
 
-      {/* Warning banner — always visible */}
+      {/* Workflow banner — always visible */}
       <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-4">
         <p className="text-base text-amber-900 font-semibold">
-          Preview only
+          Preview first, then execute
         </p>
         <p className="mt-1 text-sm leading-6 text-amber-800">
-          This screen validates and prepares review evidence. It does not write patient records.
+          Preview validates the CSV and runs preflight checks. Execute Import becomes available only after preflight passes with no blocking issues.
         </p>
       </div>
 
@@ -1270,6 +1303,17 @@ export default function AdminImportPage() {
           >
             Clear
           </button>
+          {result !== null && preflightState === 'passed' && (
+            <button
+              type="button"
+              onClick={handleExecute}
+              disabled={!canExecute}
+              className="bg-[#74C0A2] text-white text-sm font-semibold px-5 py-2.5 rounded-lg min-h-[40px]
+                         hover:bg-[#74C0A2]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isExecuting ? 'Importing…' : 'Execute Import'}
+            </button>
+          )}
           <div className="h-6 w-px bg-gray-200 hidden sm:block" />
           <DownloadButton label="Download blank template" onClick={downloadTemplate} />
         </div>
@@ -1308,6 +1352,23 @@ export default function AdminImportPage() {
               accent={result.invalid.length > 0 ? "text-red-600" : "text-gray-500"}
             />
           </div>
+
+          {executeError && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+              <p className="text-sm text-red-700 font-medium">{executeError}</p>
+            </div>
+          )}
+          {executeResult && (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-5 space-y-2">
+              <h3 className="text-sm font-semibold text-emerald-800">Import complete</h3>
+              <p className="text-sm text-emerald-700">Batch ID: <span className="font-mono">{executeResult.importBatchId}</span></p>
+              <div className="flex gap-6 text-sm">
+                <span className="text-emerald-700">Created: <strong>{executeResult.created}</strong></span>
+                <span className="text-amber-700">Skipped: <strong>{executeResult.skipped}</strong></span>
+                <span className="text-red-700">Failed: <strong>{executeResult.failed}</strong></span>
+              </div>
+            </div>
+          )}
 
           {/* Rows needing review */}
           {result.reviewRows.length > 0 && (
