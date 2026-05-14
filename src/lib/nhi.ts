@@ -1,21 +1,21 @@
 import 'server-only'
 import { createCipheriv, createDecipheriv, createHmac, randomBytes } from 'crypto'
 
-// TODO before real patients: restore Secrets Manager and remove demo fallback.
-
 interface NHISecret {
   encryptionKey: string
   hashSalt: string
 }
 
 function getSecret(): NHISecret {
-  return {
-    encryptionKey: process.env.NHI_ENCRYPTION_KEY ?? DEMO_NHI_ENCRYPTION_KEY,
-    hashSalt: process.env.NHI_HASH_SALT ?? process.env.NHI_ENCRYPTION_KEY ?? DEMO_NHI_ENCRYPTION_KEY,
-  }
+  const encryptionKey = process.env.NHI_ENCRYPTION_KEY
+  const hashSalt = process.env.NHI_HASH_SALT ?? process.env.NHI_ENCRYPTION_KEY
+
+  if (!encryptionKey) throw new Error('NHI_ENCRYPTION_KEY is not set')
+  if (!hashSalt) throw new Error('NHI_HASH_SALT is not set')
+
+  return { encryptionKey, hashSalt }
 }
 
-// Returns base64url: 12-byte IV || ciphertext || 16-byte GCM auth tag
 export async function encryptNHI(nhi: string): Promise<string> {
   const { encryptionKey } = getSecret()
   const key = Buffer.from(encryptionKey, 'hex')
@@ -38,13 +38,11 @@ export async function decryptNHI(token: string): Promise<string> {
   return Buffer.concat([decipher.update(ct), decipher.final()]).toString('utf8')
 }
 
-// HMAC-SHA-256: deterministic search token, same NHI always yields the same digest
 export async function hashNHIForSearch(nhi: string): Promise<string> {
   const { hashSalt } = getSecret()
   return createHmac('sha256', hashSalt).update(nhi).digest('hex')
 }
 
-// Sync — no key needed
 export function maskNHI(nhi: string): string {
   return nhi.replace(/[A-Z]{3}\d{4}/g, 'ZZZ****')
 }
