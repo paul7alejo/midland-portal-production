@@ -3,11 +3,23 @@ import { getVerifiedUser, safeLog, HttpError } from '@/lib/security'
 import {
   getPatientByMSID,
   createReorderRequest,
+  getPendingReorderRequest,
   appendAuditLog,
+  type ReorderRecord,
   type ReorderDeliveryAddress,
 } from '@/lib/aws/dynamodb'
 
 const VALID_ITEM_TYPES = new Set(['cushion', 'headgear', 'mask_kit', 'filter'])
+
+function toPatientReorderResponse(record: ReorderRecord) {
+  return {
+    id: record.id,
+    requestReference: record.request_reference ?? 'Request pending',
+    status: record.status,
+    createdAt: record.created_at,
+    items: record.items,
+  }
+}
 
 function isValidAddress(a: unknown): a is ReorderDeliveryAddress {
   if (!a || typeof a !== 'object') return false
@@ -20,6 +32,29 @@ function isValidAddress(a: unknown): a is ReorderDeliveryAddress {
   )
 }
 
+export async function GET(request: NextRequest) {
+  try {
+    const user = await getVerifiedUser(request)
+    const { msid, orgId } = user
+
+    const patient = await getPatientByMSID(msid, orgId)
+    if (!patient) {
+      return NextResponse.json({ error: 'Patient record not found' }, { status: 404 })
+    }
+
+    const existing = await getPendingReorderRequest(patient.patient_id, orgId)
+    return NextResponse.json({
+      request: existing ? toPatientReorderResponse(existing) : null,
+    })
+  } catch (err) {
+    if (err instanceof HttpError) {
+      return NextResponse.json({ error: err.message }, { status: err.status })
+    }
+    console.error('patient/reorder GET ERROR:', err instanceof Error ? err.message : String(err))
+    return NextResponse.json({ error: 'Unable to load reorder request' }, { status: 500 })
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     // Identity comes entirely from server-side JWT verification + DB lookup.
@@ -27,7 +62,7 @@ export async function POST(request: NextRequest) {
     const user = await getVerifiedUser(request)
     const { sub, msid, orgId } = user
 
-    safeLog('patient/reorder: lookup patient', { msid, orgId })
+    safeLog('patient/reorder: lookup patient', { orgId })
 
     const patient = await getPatientByMSID(msid, orgId)
     if (!patient) {
@@ -74,6 +109,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unable to submit request. Please try again.' }, { status: 500 })
     }
 
+    const existing = await getPendingReorderRequest(patient.patient_id, orgId)
+    if (existing) {
+      safeLog('patient/reorder: existing pending request returned', { orgId })
+      return NextResponse.json({
+        existing: true,
+        request: toPatientReorderResponse(existing),
+      })
+    }
+
     const delivery_address: ReorderDeliveryAddress = {
       line1:    deliveryAddress.line1.trim(),
       city:     deliveryAddress.city.trim(),
@@ -92,9 +136,10 @@ export async function POST(request: NextRequest) {
       orgId,
     })
 
-    const orderId = await createReorderRequest({
+    const reorder = await createReorderRequest({
       patient_id:   patient.patient_id,
       patient_msid: patient.portal_id,
+      patient_name: patient.name,
       org_id:       orgId,
       items:        validatedItems,
       delivery_address,
@@ -106,16 +151,20 @@ export async function POST(request: NextRequest) {
       userId:     sub,
       event_type: 'REORDER_REQUEST',
       patient_id: patient.patient_id,
-      order_id:   orderId,
+      order_id:   reorder.id,
       org_id:     orgId,
     }).catch((err) => {
       // Non-fatal: the order is already persisted; log audit failure server-side only
       console.error('patient/reorder: audit log failed', err instanceof Error ? err.message : String(err))
     })
 
-    safeLog('patient/reorder: created', { orderId, msid, orgId })
+    safeLog('patient/reorder: created', { orderId: reorder.id, orgId })
 
-    return NextResponse.json({ orderId })
+    return NextResponse.json({
+      existing: false,
+      orderId: reorder.id,
+      request: toPatientReorderResponse(reorder),
+    })
   } catch (err) {
     if (err instanceof HttpError) {
       return NextResponse.json({ error: err.message }, { status: err.status })

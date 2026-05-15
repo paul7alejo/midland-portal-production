@@ -2,7 +2,7 @@ import 'server-only'
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb'
 import { DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand, ScanCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb'
 import type { NativeAttributeValue } from '@aws-sdk/lib-dynamodb'
-import { randomUUID } from 'crypto'
+import { randomInt, randomUUID } from 'crypto'
 import type { OrderChannel, OrderLine } from '@/types'
 
 const TABLES = {
@@ -422,6 +422,7 @@ export interface ReorderDeliveryAddress {
 export interface ReorderRequest {
   patient_id: string
   patient_msid: string
+  patient_name: string
   org_id: string
   items: string[]
   delivery_address: ReorderDeliveryAddress
@@ -432,8 +433,10 @@ export interface ReorderRecord {
   pk: string
   sk: string
   id: string
+  request_reference?: string
   patient_id: string
   patient_msid: string
+  patient_name?: string
   org_id: string
   items: string[]
   delivery_address: ReorderDeliveryAddress
@@ -443,15 +446,32 @@ export interface ReorderRecord {
   created_at: string
 }
 
-export async function createReorderRequest(req: ReorderRequest): Promise<string> {
+function createRequestReference(createdAt: string): string {
+  const date = new Date(createdAt)
+  const parts = new Intl.DateTimeFormat('en-NZ', {
+    timeZone: 'Pacific/Auckland',
+    year: '2-digit',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date)
+  const yy = parts.find((part) => part.type === 'year')?.value ?? String(date.getUTCFullYear()).slice(-2)
+  const mm = parts.find((part) => part.type === 'month')?.value ?? String(date.getUTCMonth() + 1).padStart(2, '0')
+  const dd = parts.find((part) => part.type === 'day')?.value ?? String(date.getUTCDate()).padStart(2, '0')
+  const suffix = String(randomInt(0, 1_000_000)).padStart(6, '0')
+  return `REQ-${yy}${mm}${dd}-${suffix}`
+}
+
+export async function createReorderRequest(req: ReorderRequest): Promise<ReorderRecord> {
   const id = randomUUID()
   const created_at = new Date().toISOString()
   const item: ReorderRecord = {
     pk: `ORDER#${id}`,
     sk: 'REORDER',
     id,
+    request_reference: createRequestReference(created_at),
     patient_id: req.patient_id,
     patient_msid: req.patient_msid,
+    patient_name: req.patient_name,
     org_id: req.org_id,
     items: req.items,
     delivery_address: req.delivery_address,
@@ -465,7 +485,7 @@ export async function createReorderRequest(req: ReorderRequest): Promise<string>
     Item: item,
     ConditionExpression: 'attribute_not_exists(pk)',
   }))
-  return id
+  return item
 }
 
 export async function listReorderRequests(orgId: string): Promise<ReorderRecord[]> {
@@ -488,6 +508,44 @@ export async function listReorderRequests(orgId: string): Promise<ReorderRecord[
     ExclusiveStartKey = res.LastEvaluatedKey
   } while (ExclusiveStartKey)
   return results
+}
+
+export async function getPendingReorderRequest(
+  patientId: string,
+  orgId: string
+): Promise<ReorderRecord | null> {
+  const results: ReorderRecord[] = []
+  let ExclusiveStartKey: Record<string, NativeAttributeValue> | undefined
+
+  do {
+    const res = await docClient.send(new ScanCommand({
+      TableName: TABLES.ORDERS,
+      FilterExpression: [
+        'patient_id = :patientId',
+        'org_id = :orgId',
+        '#src = :source',
+        '#status = :status',
+      ].join(' AND '),
+      ExpressionAttributeNames: {
+        '#src': 'source',
+        '#status': 'status',
+      },
+      ExpressionAttributeValues: {
+        ':patientId': patientId,
+        ':orgId': orgId,
+        ':source': 'patient_portal_reorder',
+        ':status': 'pending_review',
+      },
+      ExclusiveStartKey,
+    }))
+    for (const item of res.Items ?? []) {
+      results.push(item as ReorderRecord)
+    }
+    ExclusiveStartKey = res.LastEvaluatedKey
+  } while (ExclusiveStartKey)
+
+  results.sort((a, b) => b.created_at.localeCompare(a.created_at))
+  return results[0] ?? null
 }
 
 export async function createCommsRecord(record: CommsRecord): Promise<void> {

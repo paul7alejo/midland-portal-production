@@ -71,6 +71,19 @@ const ITEM_ICONS: Record<string, React.ReactNode> = {
 const REQUEST_TIMING_NOTE =
   "Please allow 5–7 business days from your request for Midland Sleep staff to review and arrange supply delivery.";
 
+interface CurrentReorderRequest {
+  id: string;
+  requestReference: string;
+  status: "pending_review";
+  createdAt: string;
+  items: string[];
+}
+
+function formatStatus(status: CurrentReorderRequest["status"]): string {
+  if (status === "pending_review") return "Pending review";
+  return status;
+}
+
 function formatDate(iso: string): string {
   const date = new Date(iso);
   if (isNaN(date.getTime())) return iso;
@@ -180,6 +193,9 @@ export default function ReorderPage() {
     useState<DeliveryAddress | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [currentRequest, setCurrentRequest] =
+    useState<CurrentReorderRequest | null>(null);
+  const [currentRequestLoading, setCurrentRequestLoading] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [confirmationId, setConfirmationId] = useState<string | null>(null);
   const addressStorageKey = getDeliveryAddressStorageKey(patient?.userId);
@@ -190,6 +206,39 @@ export default function ReorderPage() {
     setSavedAddress(storedAddress);
     setUseSavedAddress(Boolean(storedAddress));
   }, [addressStorageKey, patient?.userId]);
+
+  useEffect(() => {
+    if (!patient?.userId) return;
+    let cancelled = false;
+
+    async function loadCurrentRequest() {
+      setCurrentRequestLoading(true);
+      try {
+        configureCognito();
+        const token = await getIdToken();
+        if (!token) throw new Error("Session expired. Please log in again.");
+
+        const res = await fetch("/api/patient/reorder", {
+          headers: { "Authorization": `Bearer ${token}` },
+        });
+        const data = await res.json().catch(() => ({})) as {
+          request?: CurrentReorderRequest | null;
+        };
+        if (!cancelled && res.ok) {
+          setCurrentRequest(data.request ?? null);
+        }
+      } catch {
+        if (!cancelled) setCurrentRequest(null);
+      } finally {
+        if (!cancelled) setCurrentRequestLoading(false);
+      }
+    }
+
+    void loadCurrentRequest();
+    return () => {
+      cancelled = true;
+    };
+  }, [patient?.userId]);
 
   if (loading) return <div className="p-8 text-charcoal/80 text-lg leading-7">Loading...</div>;
   if (!patient) return null;
@@ -203,7 +252,9 @@ export default function ReorderPage() {
   const activeDeliveryAddress =
     useSavedAddress && savedAddress ? savedAddress : overrideAddress;
   const canSendRequest =
-    selectedItems.length > 0 && hasCompleteDeliveryAddress(activeDeliveryAddress);
+    !currentRequest &&
+    selectedItems.length > 0 &&
+    hasCompleteDeliveryAddress(activeDeliveryAddress);
 
   const toggleItem = (itemType: string) => {
     setSelectedItems((prev) =>
@@ -221,6 +272,7 @@ export default function ReorderPage() {
   };
 
   const handleSubmit = async () => {
+    if (currentRequest) return;
     const addressSnapshot = normalizeDeliveryAddress(activeDeliveryAddress);
     if (!hasCompleteDeliveryAddress(addressSnapshot) || selectedItems.length === 0) return;
 
@@ -244,14 +296,27 @@ export default function ReorderPage() {
         }),
       });
 
-      let data: { orderId?: string; error?: string } = {};
+      let data: {
+        orderId?: string;
+        existing?: boolean;
+        request?: CurrentReorderRequest;
+        error?: string;
+      } = {};
       try { data = await res.json(); } catch { /* non-JSON body */ }
 
       if (!res.ok) {
         throw new Error(data.error ?? "Unable to submit request. Please try again.");
       }
-      if (!data.orderId) {
+      if (!data.request) {
         throw new Error("Request submitted but no reference was returned. Please contact Midland Sleep.");
+      }
+
+      setCurrentRequest(data.request);
+
+      if (data.existing) {
+        setSelectedItems([]);
+        setSubmitError(null);
+        return;
       }
 
       if (!useSavedAddress && saveAsDefault) {
@@ -260,7 +325,7 @@ export default function ReorderPage() {
         setUseSavedAddress(true);
       }
 
-      setConfirmationId(data.orderId);
+      setConfirmationId(data.request.requestReference);
       setSubmittedDeliveryAddress(addressSnapshot);
       setIsSubmitted(true);
     } catch (err) {
@@ -274,9 +339,7 @@ export default function ReorderPage() {
 
   // Confirmation view — shown only after the reorder record is successfully persisted
   if (isSubmitted) {
-    const refDisplay = confirmationId
-      ? `REQ-${confirmationId.slice(-8).toUpperCase()}`
-      : null;
+    const refDisplay = confirmationId;
     return (
       <>
         <div className="max-w-2xl mx-auto text-center py-12 space-y-5">
@@ -336,7 +399,7 @@ export default function ReorderPage() {
             }}
             className="text-lg text-deep-teal hover:underline mt-4 font-medium min-h-[44px]"
           >
-            Make another request
+            Back to requests
           </button>
         </div>
       </>
@@ -376,7 +439,67 @@ export default function ReorderPage() {
         </p>
       </div>
 
-      {eligibleItems.length === 0 ? (
+      {currentRequestLoading && (
+        <div className="mb-7 rounded-xl border border-sand bg-white p-5 text-base leading-6 text-charcoal/75">
+          Checking current request status...
+        </div>
+      )}
+
+      {currentRequest && (
+        <section className="mb-7 rounded-2xl border border-deep-teal/20 bg-seafoam-pale/35 p-5 md:p-6">
+          <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="mb-1 font-mono text-sm font-semibold uppercase tracking-wide text-deep-teal">
+                Current request
+              </p>
+              <h2 className="font-display text-2xl font-semibold leading-snug text-navy">
+                Midland Sleep is reviewing your request
+              </h2>
+            </div>
+            <span className="inline-flex w-fit rounded-full border border-amber-200 bg-amber-100 px-3 py-1 text-sm font-semibold text-amber-800">
+              {formatStatus(currentRequest.status)}
+            </span>
+          </div>
+          <dl className="grid gap-4 md:grid-cols-2">
+            <div>
+              <dt className="font-mono text-sm uppercase tracking-wide text-charcoal/70">
+                Reference ID
+              </dt>
+              <dd className="mt-1 font-mono text-xl font-semibold text-navy">
+                {currentRequest.requestReference}
+              </dd>
+            </div>
+            <div>
+              <dt className="font-mono text-sm uppercase tracking-wide text-charcoal/70">
+                Submitted date
+              </dt>
+              <dd className="mt-1 text-lg font-semibold text-charcoal">
+                {formatDate(currentRequest.createdAt)}
+              </dd>
+            </div>
+            <div className="md:col-span-2">
+              <dt className="font-mono text-sm uppercase tracking-wide text-charcoal/70">
+                Items requested
+              </dt>
+              <dd className="mt-1 text-lg leading-7 text-charcoal">
+                {currentRequest.items.map((itemType) => ITEM_LABELS[itemType] ?? itemType).join(", ")}
+              </dd>
+            </div>
+          </dl>
+          <div className="mt-5 space-y-2 text-base leading-6 text-charcoal/85">
+            <p>Midland Sleep is reviewing your request. Please allow 5–7 business days.</p>
+            <p>If you need to change this request, contact Midland Sleep.</p>
+          </div>
+        </section>
+      )}
+
+      {currentRequest ? (
+        <div className="rounded-2xl border border-sand bg-white p-6 md:p-7 text-center">
+          <p className="text-lg font-medium leading-7 text-charcoal">
+            A supply request is already pending review.
+          </p>
+        </div>
+      ) : eligibleItems.length === 0 ? (
         <div className="bg-sand-pale border border-sand rounded-2xl p-6 md:p-7 text-center">
           <p className="text-lg leading-7 text-charcoal font-medium mb-2">
             No supplies are available to request right now

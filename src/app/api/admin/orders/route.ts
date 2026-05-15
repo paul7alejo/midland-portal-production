@@ -20,7 +20,8 @@ function formatDateForDisplay(iso: string): string {
 function toAdminOrder(r: ReorderRecord) {
   return {
     id:         r.id,
-    patient:    r.patient_msid,   // display name not stored; MSID is safe identifier
+    requestId:  r.request_reference ?? 'Legacy request',
+    patient:    r.patient_name ?? 'Patient name unavailable',
     msid:       r.patient_msid,
     date:       formatDateForDisplay(r.created_at),
     items:      r.items.map((t) => ITEM_LABELS[t] ?? t).join(', '),

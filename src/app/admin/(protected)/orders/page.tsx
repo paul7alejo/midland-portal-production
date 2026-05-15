@@ -12,6 +12,7 @@ type OrderSortOpt  = "newest" | "oldest" | "name_az" | "status";
 
 interface Order {
   id: string;
+  requestId: string;
   patient: string;
   msid: string;
   date: string;
@@ -339,7 +340,7 @@ export default function AdminOrdersPage() {
     }
 
     return result;
-  }, [activeTab, statusFilters, typeFilters, dateRange, sortOpt]);
+  }, [orders, activeTab, statusFilters, typeFilters, dateRange, sortOpt]);
 
   const activeFilterCount =
     statusFilters.size + typeFilters.size + (dateRange ? 1 : 0) + (sortOpt ? 1 : 0);
@@ -534,7 +535,7 @@ export default function AdminOrdersPage() {
           <EmptyState filtered={isFiltered} />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[860px] border-collapse">
+            <table className="w-full min-w-[980px] border-collapse">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
                   <th className="px-4 py-3 w-10">
@@ -546,7 +547,7 @@ export default function AdminOrdersPage() {
                       aria-label="Select all"
                     />
                   </th>
-                  {["Patient", "MSID", "Date", "Items", "Type", "Status", "Actions"].map((col) => (
+                  {["Request ID", "Patient", "MSID", "Date", "Items", "Type", "Status", "Actions"].map((col) => (
                     <th
                       key={col}
                       className="text-left px-4 py-3 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap"
@@ -572,6 +573,9 @@ export default function AdminOrdersPage() {
                           className="h-4 w-4 rounded accent-[#0B5C6C] cursor-pointer"
                           aria-label={`Select ${order.patient}`}
                         />
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className="font-mono text-sm font-semibold text-gray-800 whitespace-nowrap">{order.requestId}</span>
                       </td>
                       <td className="px-4 py-4">
                         <span className="text-base font-semibold text-navy whitespace-nowrap">{order.patient}</span>
