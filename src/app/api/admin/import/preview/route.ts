@@ -33,6 +33,11 @@ export async function POST(request: NextRequest) {
     hasWarnings ? 'review_required' :
                   'ready';
 
+  const portalAccessSummary = {
+    requestingAccess: preview.valid.filter(r => r.enablePortalAccess).length,
+    missingEmail: preview.valid.filter(r => r.enablePortalAccess && !r.email.trim()).length,
+  };
+
   return NextResponse.json({
     totalRows: preview.totalRows,
     validCount: preview.valid.length,
@@ -45,5 +50,6 @@ export async function POST(request: NextRequest) {
     dupNhiGroupCount,
     dupSerialGroupCount,
     dupContactWarnCount,
+    portalAccessSummary,
   });
 }

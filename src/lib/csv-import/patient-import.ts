@@ -19,6 +19,7 @@ export interface RawCSVRow {
   mask_model?: string
   mask_size?: string
   funded_by?: string
+  enable_portal_access?: string
 }
 
 export interface ParsedPatient {
@@ -28,6 +29,7 @@ export interface ParsedPatient {
   phone: string
   email: string
   address: string
+  enablePortalAccess: boolean
   machine: {
     brand: string
     model: string
@@ -110,6 +112,10 @@ export function parsePatientCSV(csvText: string): ParsedPatient[] {
       errors.push('Missing required field: machine_serial');
     }
 
+    const enablePortalAccess = ['true', 'yes', '1'].includes(
+      (row['enable_portal_access'] ?? '').toLowerCase().trim()
+    )
+
     patients.push({
       fullName,
       nhi,
@@ -117,6 +123,7 @@ export function parsePatientCSV(csvText: string): ParsedPatient[] {
       phone: row['phone'] ?? '',
       email: row['email'] ?? '',
       address: row['address'] ?? '',
+      enablePortalAccess,
       machine: {
         brand: row['machine_brand'] ?? '',
         model: row['machine_model'] ?? '',

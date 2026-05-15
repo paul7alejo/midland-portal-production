@@ -20,6 +20,7 @@ import {
 } from '@/lib/aws/dynamodb';
 import { encryptNHI, hashNHIForSearch } from '@/lib/nhi';
 import { randomUUID } from 'crypto';
+import { createPatientPortalUser } from '@/lib/aws/cognito-admin';
 
 type Readiness = 'ready' | 'review_required' | 'not_ready';
 
@@ -39,6 +40,20 @@ type ReportedImportRow = {
   rowNumber: number;
   name: string;
   machineSerial: string;
+  reason: string;
+};
+
+type PortalUserCreated = {
+  rowNumber: number;
+  name: string;
+  portalId: string;
+  username: string;
+  temporaryPassword: string;
+};
+
+type PortalUserOutcome = {
+  rowNumber: number;
+  name: string;
   reason: string;
 };
 
@@ -256,6 +271,9 @@ export async function POST(request: NextRequest) {
     const createdRows: CreatedImportRow[] = [];
     const skippedRows: ReportedImportRow[] = [];
     const failedRows: ReportedImportRow[] = [];
+    const portalUsersCreated: PortalUserCreated[] = [];
+    const portalUsersAlreadyExisted: PortalUserOutcome[] = [];
+    const portalUserFailures: PortalUserOutcome[] = [];
 
     for (const row of preview.valid) {
       try {
@@ -353,6 +371,45 @@ export async function POST(request: NextRequest) {
         }
 
         createdRows.push(createdRow);
+
+        // Cognito portal access — only if requested
+        if (row.enablePortalAccess) {
+          if (!row.email.trim()) {
+            portalUserFailures.push({
+              rowNumber,
+              name: row.fullName,
+              reason: 'Missing email — portal access skipped',
+            });
+          } else {
+            const username = portalId.replace('MS-', '');
+            const cognitoResult = await createPatientPortalUser({
+              username,
+              msid: portalId,
+              orgId: ORG_ID,
+              email: row.email.trim(),
+              name: row.fullName,
+            });
+            if (cognitoResult.status === 'created') {
+              portalUsersCreated.push({
+                rowNumber,
+                name: row.fullName,
+                portalId,
+                username,
+                temporaryPassword: cognitoResult.temporaryPassword,
+              });
+            } else if (cognitoResult.status === 'already_exists') {
+              portalUsersAlreadyExisted.push({ rowNumber, name: row.fullName, reason: 'Already login-enabled' });
+            } else if (cognitoResult.status === 'msid_conflict') {
+              portalUserFailures.push({
+                rowNumber,
+                name: row.fullName,
+                reason: 'Cognito username already assigned to a different patient — portal access blocked',
+              });
+            } else {
+              portalUserFailures.push({ rowNumber, name: row.fullName, reason: cognitoResult.message });
+            }
+          }
+        }
       } catch {
         failedRows.push(toReportedRow(row, 'Failed to import row'));
       }
@@ -370,10 +427,16 @@ export async function POST(request: NextRequest) {
         skipped: skippedRows.length,
         failed: failedRows.length,
         preflightState,
+        portalUsersCreated: portalUsersCreated.length,
+        portalUsersAlreadyExisted: portalUsersAlreadyExisted.length,
+        portalUserFailures: portalUserFailures.length,
       },
       createdRows,
       skippedRows,
       failedRows,
+      portalUsersCreated,
+      portalUsersAlreadyExisted,
+      portalUserFailures,
     });
   } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
