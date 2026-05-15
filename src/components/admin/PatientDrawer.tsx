@@ -771,9 +771,7 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName }: PatientDra
 
   const demoData = msid ? (DEMO_DATA[msid] ?? null) : null;
   const patient: DrawerPatient | null = msid
-    ? demoData
-      ? { ...demoData, name: patientName ?? demoData.name }
-      : importedPatient
+    ? importedPatient ?? (!importedLoading && demoData ? { ...demoData, name: patientName ?? demoData.name } : null)
     : null;
 
   useEffect(() => {
@@ -802,7 +800,7 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName }: PatientDra
   }, [msid]);
 
   useEffect(() => {
-    if (!isOpen || !msid || demoData) return;
+    if (!isOpen || !msid) return;
     let cancelled = false;
     const selectedMsid = msid;
 
@@ -811,13 +809,13 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName }: PatientDra
       setImportedError(null);
       try {
         const res = await fetch(`/api/admin/patients?msid=${encodeURIComponent(selectedMsid)}`, { cache: "no-store" });
-        if (!res.ok) throw new Error("Unable to load imported patient");
+        if (!res.ok) throw new Error("Unable to load patient");
         const detail = (await res.json()) as ImportedPatientDetail;
         if (!cancelled) setImportedPatient(makeImportedPatient(detail));
       } catch {
         if (!cancelled) {
           setImportedPatient(null);
-          setImportedError("Imported patient details could not be loaded.");
+          setImportedError(demoData ? null : "Patient details could not be loaded.");
         }
       } finally {
         if (!cancelled) setImportedLoading(false);

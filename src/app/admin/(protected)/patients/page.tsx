@@ -30,21 +30,23 @@ interface Patient {
   fundingPeriodEnd: string;
   suggestedItemsRemaining: string[];
   fundingNote?: string;
-  source?: "demo" | "admin_csv";
+  source?: "demo" | "admin_csv" | "dynamodb/manual" | "unknown";
   importBatchId?: string;
   reviewStatus?: string;
   importedAt?: string;
 }
 
-interface ImportedPatientSummary {
+interface PatientSummary {
   patient_id: string;
   portal_id: string;
+  org_id?: string;
   name: string;
   email?: string;
   phone?: string;
   address?: string;
   date_of_birth?: string;
   funded_by?: string;
+  import_source?: string;
   import_batch_id?: string;
   import_row_number?: number;
   import_status?: string;
@@ -252,6 +254,8 @@ const PATIENTS: Patient[] = [
   },
 ];
 
+const SHOW_DEMO_PATIENTS = false;
+
 const STATUS_CONFIG: Record<PatientStatus, { label: string; classes: string }> = {
   eligible:         { label: "Eligible",        classes: "bg-emerald-100 text-emerald-800 border border-emerald-200" },
   not_eligible:     { label: "Not eligible",     classes: "bg-gray-100 text-gray-600 border border-gray-200" },
@@ -339,7 +343,28 @@ function mapFunding(value?: string): FundingType {
   return "Private";
 }
 
-function mapImportedPatient(patient: ImportedPatientSummary): Patient {
+function mapPatientSource(patient: PatientSummary): Patient["source"] {
+  if (patient.import_source === "admin_csv") return "admin_csv";
+  if (patient.import_source) return "unknown";
+  return "dynamodb/manual";
+}
+
+function normalizeMsid(msid: string): string {
+  return msid.trim().toLowerCase();
+}
+
+function combinePatients(realPatients: Patient[]): Patient[] {
+  if (!SHOW_DEMO_PATIENTS) return realPatients;
+
+  const realMsids = new Set(realPatients.map((patient) => normalizeMsid(patient.msid)));
+  const demoOnlyPatients = PATIENTS
+    .map((patient) => ({ ...patient, source: "demo" as const }))
+    .filter((patient) => !realMsids.has(normalizeMsid(patient.msid)));
+  return [...realPatients, ...demoOnlyPatients];
+}
+
+function mapPatient(patient: PatientSummary): Patient {
+  const source = mapPatientSource(patient);
   return {
     id: patient.patient_id,
     name: patient.name,
@@ -355,7 +380,7 @@ function mapImportedPatient(patient: ImportedPatientSummary): Patient {
     fundingPeriodStart: "—",
     fundingPeriodEnd: "—",
     suggestedItemsRemaining: [],
-    source: "admin_csv",
+    source,
     importBatchId: patient.import_batch_id,
     reviewStatus: humanizeLabel(patient.review_status),
     importedAt: formatNzDateTime(patient.created_at),
@@ -394,6 +419,7 @@ function FundingBadge({ amount }: { amount: number }) {
 
 function getOperationalCue(patient: Patient): string {
   if (patient.source === "admin_csv") return "Imported record needs staff review";
+  if (patient.source === "dynamodb/manual") return "DynamoDB patient record";
   if (patient.status === "safety_check_due") return "Safety-check visibility cue";
   if (patient.status === "needs_outreach" || patient.status === "overdue") return "Outreach visibility cue";
   if (patient.status === "eligible") return "Eligible for staff review";
@@ -406,7 +432,8 @@ function getActionLabel(patient: Patient): string {
     patient.status === "needs_outreach" ||
     patient.status === "overdue" ||
     patient.status === "safety_check_due" ||
-    patient.source === "admin_csv"
+    patient.source === "admin_csv" ||
+    patient.source === "dynamodb/manual"
   ) {
     return "Open review";
   }
@@ -634,7 +661,7 @@ function FilterPanel({
 
 export default function AdminPatientsPage() {
   const [search,           setSearch]           = useState("");
-  const [importedPatients, setImportedPatients] = useState<Patient[]>([]);
+  const [dynamoPatients,   setDynamoPatients]   = useState<Patient[]>([]);
   const [importLoading,    setImportLoading]    = useState(true);
   const [importError,      setImportError]      = useState<string | null>(null);
   const [statusFilters,    setStatusFilters]    = useState<Set<PatientStatus>>(new Set());
@@ -669,27 +696,27 @@ export default function AdminPatientsPage() {
   useEffect(() => {
     let cancelled = false;
 
-    async function loadImportedPatients() {
+    async function loadPatients() {
       setImportLoading(true);
       setImportError(null);
       try {
         const res = await fetch("/api/admin/patients", { cache: "no-store" });
-        if (!res.ok) throw new Error("Unable to load imported patients");
-        const data = (await res.json()) as { patients?: ImportedPatientSummary[] };
+        if (!res.ok) throw new Error("Unable to load patients");
+        const data = (await res.json()) as { patients?: PatientSummary[] };
         if (!cancelled) {
-          setImportedPatients((data.patients ?? []).map(mapImportedPatient));
+          setDynamoPatients((data.patients ?? []).map(mapPatient));
         }
       } catch {
         if (!cancelled) {
-          setImportedPatients([]);
-          setImportError("Imported patients could not be loaded. Demo patients are still shown.");
+          setDynamoPatients([]);
+          setImportError("Patient records could not be loaded.");
         }
       } finally {
         if (!cancelled) setImportLoading(false);
       }
     }
 
-    loadImportedPatients();
+    loadPatients();
     return () => {
       cancelled = true;
     };
@@ -707,8 +734,10 @@ export default function AdminPatientsPage() {
     setCurrentPage(1);
   }, [search, statusFilters, fundingFilters, remainingRange, nextEligRange, activeSortOption, tableSortKey, tableSortDir, pageSize]);
 
+  const allPatients = useMemo(() => combinePatients(dynamoPatients), [dynamoPatients]);
+
   const displayedPatients = useMemo(() => {
-    let result = [...importedPatients, ...PATIENTS];
+    let result = [...allPatients];
 
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -766,12 +795,11 @@ export default function AdminPatientsPage() {
       });
     }
     return result;
-  }, [search, statusFilters, fundingFilters, remainingRange, nextEligRange, activeSortOption, tableSortKey, tableSortDir, importedPatients]);
+  }, [search, statusFilters, fundingFilters, remainingRange, nextEligRange, activeSortOption, tableSortKey, tableSortDir, allPatients]);
 
-  const allPatients = useMemo(() => [...importedPatients, ...PATIENTS], [importedPatients]);
   const totalPatients = allPatients.length;
   const eligibleNow = allPatients.filter((p) => p.status === "eligible").length;
-  const pendingReview = allPatients.filter((p) => p.status === "pending_review" || p.source === "admin_csv").length;
+  const pendingReview = allPatients.filter((p) => p.status === "pending_review" || p.source === "admin_csv" || p.source === "dynamodb/manual").length;
   const needsOutreach = allPatients.filter((p) => p.status === "needs_outreach" || p.status === "overdue").length;
   const safetyChecksDue = allPatients.filter((p) => p.status === "safety_check_due").length;
 
@@ -836,7 +864,7 @@ export default function AdminPatientsPage() {
         </p>
         <h1 className="text-3xl font-bold text-navy">Patients</h1>
         <p className="text-base leading-6 text-gray-600">
-          Operational worklist for patient review, imported records, outreach cues, and safety-check visibility.
+          Operational worklist for DynamoDB patient records, imported records, outreach cues, and safety-check visibility.
         </p>
       </div>
 
@@ -896,7 +924,7 @@ export default function AdminPatientsPage() {
 
         {importLoading && (
           <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-sm text-gray-600">
-            Loading imported records...
+            Loading patient records...
           </span>
         )}
       </div>
@@ -942,7 +970,7 @@ export default function AdminPatientsPage() {
         <div className="border-b border-gray-200 bg-white px-5 py-4">
           <h2 className="text-base font-semibold text-gray-800">Patient review worklist</h2>
           <p className="mt-1 text-sm text-gray-500">
-            Imported records, outreach cues, and safety-check cues are marked for staff review.
+            Real DynamoDB patient records, imported records, outreach cues, and safety-check cues are marked for staff review.
           </p>
         </div>
         <div className="overflow-x-auto">
@@ -999,7 +1027,7 @@ export default function AdminPatientsPage() {
                   <td colSpan={8} className="px-5 py-12 text-center text-base text-gray-500">
                     <span className="block font-medium text-gray-700">No patients found</span>
                     <span className="mt-1 block text-sm text-gray-500">
-                      Adjust the search or filters to see imported and demo patient records.
+                      Adjust the search or filters to see DynamoDB patient records.
                     </span>
                   </td>
                 </tr>
@@ -1024,6 +1052,11 @@ export default function AdminPatientsPage() {
                           {patient.source === "admin_csv" && (
                             <span className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-700">
                               Imported
+                            </span>
+                          )}
+                          {patient.source === "dynamodb/manual" && (
+                            <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                              DynamoDB
                             </span>
                           )}
                         </div>

@@ -151,6 +151,8 @@ export type ImportedPatientSummary = Pick<
   | 'created_by'
 >
 
+export type PatientSummary = ImportedPatientSummary & Pick<PatientRecord, 'import_source'>
+
 // ── Query functions ───────────────────────────────────────────────────────────
 
 export async function getPatientByMSID(msid: string, orgId: string): Promise<PatientRecord | null> {
@@ -215,6 +217,64 @@ export async function listImportedPatients(orgId: string): Promise<ImportedPatie
     }))
 
     patients.push(...((res.Items ?? []) as ImportedPatientSummary[]))
+    ExclusiveStartKey = res.LastEvaluatedKey
+  } while (ExclusiveStartKey)
+
+  patients.sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''))
+  return patients
+}
+
+export async function listPatients(orgId: string): Promise<PatientSummary[]> {
+  const patients: PatientSummary[] = []
+  let ExclusiveStartKey: Record<string, NativeAttributeValue> | undefined
+
+  do {
+    const res = await docClient.send(new ScanCommand({
+      TableName: TABLES.PATIENTS,
+      FilterExpression: 'org_id = :orgId',
+      ExpressionAttributeValues: {
+        ':orgId': orgId,
+      },
+      ProjectionExpression: [
+        '#patientId',
+        '#portalId',
+        '#orgId',
+        '#name',
+        '#email',
+        '#phone',
+        '#address',
+        '#dateOfBirth',
+        '#fundedBy',
+        '#importSource',
+        '#importBatchId',
+        '#importRowNumber',
+        '#importStatus',
+        '#reviewStatus',
+        '#createdAt',
+        '#createdBy',
+      ].join(', '),
+      ExpressionAttributeNames: {
+        '#patientId': 'patient_id',
+        '#portalId': 'portal_id',
+        '#orgId': 'org_id',
+        '#name': 'name',
+        '#email': 'email',
+        '#phone': 'phone',
+        '#address': 'address',
+        '#dateOfBirth': 'date_of_birth',
+        '#fundedBy': 'funded_by',
+        '#importSource': 'import_source',
+        '#importBatchId': 'import_batch_id',
+        '#importRowNumber': 'import_row_number',
+        '#importStatus': 'import_status',
+        '#reviewStatus': 'review_status',
+        '#createdAt': 'created_at',
+        '#createdBy': 'created_by',
+      },
+      ExclusiveStartKey,
+    }))
+
+    patients.push(...((res.Items ?? []) as PatientSummary[]))
     ExclusiveStartKey = res.LastEvaluatedKey
   } while (ExclusiveStartKey)
 

@@ -4,6 +4,7 @@ import {
   getPatientByMSID,
   getPatientDevices,
   getPatientMask,
+  listPatients,
   listImportedPatients,
   type DeviceRecord,
   type ImportedPatientSummary,
@@ -209,8 +210,8 @@ export async function GET(request: NextRequest) {
 
     if (msid) {
       const patient = await getPatientByMSID(msid, ORG_ID);
-      if (!patient || patient.import_source !== 'admin_csv') {
-        return NextResponse.json({ error: 'Imported patient not found' }, { status: 404 });
+      if (!patient) {
+        return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
       }
 
       const [devices, mask] = await Promise.all([
@@ -225,7 +226,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const patients = await listImportedPatients(ORG_ID);
+    const patients = await listPatients(ORG_ID);
     return NextResponse.json({ patients });
   } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
