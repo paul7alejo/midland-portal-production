@@ -16,7 +16,7 @@ interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (identifier: string, password: string) => Promise<{ error: string | null; redirectTo: string }>;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -53,9 +53,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
-  const logout = useCallback(() => {
-    fetch('/api/auth/session', { method: 'DELETE' }).catch(() => {});
-    signOut().then(() => setPatient(null));
+  const logout = useCallback(async () => {
+    await Promise.all([
+      fetch('/api/auth/session', { method: 'DELETE' }).catch(() => {}),
+      signOut().catch(() => {}),
+    ]);
+    setPatient(null);
   }, []);
 
   return (

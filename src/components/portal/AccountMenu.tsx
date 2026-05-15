@@ -29,9 +29,9 @@ export default function AccountMenu() {
     .map((n: string) => n[0])
     .join("");
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setOpen(false);
-    logout();
+    await logout();
     router.push("/login");
   };
 
