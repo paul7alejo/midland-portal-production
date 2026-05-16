@@ -91,6 +91,31 @@ async function generateUniquePortalId(): Promise<string> {
   throw new Error('Unable to allocate patient portal ID');
 }
 
+function classifyImportError(err: unknown): string {
+  if (!(err instanceof Error)) return 'Unexpected error during import';
+  const name = err.name ?? '';
+  const msg = err.message ?? '';
+  if (msg.includes('NHI_ENCRYPTION_KEY') || msg.includes('NHI_HASH_SALT')) {
+    return 'NHI encryption configuration missing — contact system administrator';
+  }
+  if (name === 'ConditionalCheckFailedException') {
+    return 'Duplicate patient or machine serial — record already exists';
+  }
+  if (name === 'ValidationException') {
+    return 'DynamoDB validation failed during patient import';
+  }
+  if (name === 'ResourceNotFoundException') {
+    return 'DynamoDB resource not found — check table and index configuration';
+  }
+  if (name === 'AccessDeniedException') {
+    return 'Insufficient IAM permissions for DynamoDB write';
+  }
+  if (msg.includes('Unable to allocate patient portal ID')) {
+    return 'Could not allocate unique patient portal ID — retry the import';
+  }
+  return 'Failed to import row — check server logs for details';
+}
+
 function toReportedRow(row: ParsedPatient, reason: string): ReportedImportRow {
   return {
     rowNumber: getRowNumber(row),
@@ -314,10 +339,10 @@ export async function POST(request: NextRequest) {
           org_id: ORG_ID,
           name: row.fullName,
           email: row.email,
-          date_of_birth: row.dateOfBirth,
-          phone: row.phone,
-          address: row.address,
-          funded_by: row.machine.fundedBy,
+          ...(row.dateOfBirth && { date_of_birth: row.dateOfBirth }),
+          ...(row.phone && { phone: row.phone }),
+          ...(row.address && { address: row.address }),
+          ...(row.machine.fundedBy && { funded_by: row.machine.fundedBy }),
           nhi_encrypted: await encryptNHI(normalizedNhi),
           nhi_hash: nhiHash,
           ...importMetadata,
@@ -333,7 +358,7 @@ export async function POST(request: NextRequest) {
           model: row.machine.model,
           serial_number: serialNumber,
           setup_date: row.machine.setupDate,
-          funded_by: row.machine.fundedBy,
+          ...(row.machine.fundedBy && { funded_by: row.machine.fundedBy }),
           ...importMetadata,
         };
 
@@ -359,7 +384,7 @@ export async function POST(request: NextRequest) {
             patient_id: patientId,
             name: getMaskName(row),
             brand: row.mask.brand,
-            model: row.mask.model,
+            ...(row.mask.model && { model: row.mask.model }),
             type: inferMaskType(row),
             size: row.mask.size,
             fitted_date: row.machine.setupDate,
@@ -410,8 +435,14 @@ export async function POST(request: NextRequest) {
             }
           }
         }
-      } catch {
-        failedRows.push(toReportedRow(row, 'Failed to import row'));
+      } catch (err) {
+        console.error('[import/execute] row failed', {
+          rowNumber: getRowNumber(row),
+          importBatchId,
+          errorName: err instanceof Error ? err.name : typeof err,
+          errorMessage: err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200),
+        });
+        failedRows.push(toReportedRow(row, classifyImportError(err)));
       }
     }
 

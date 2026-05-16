@@ -1071,6 +1071,227 @@ function DownloadButton({
   );
 }
 
+// ─── Execute result types ─────────────────────────────────────────────────────
+
+type PortalUserCreated = {
+  rowNumber: number; name: string; portalId: string; username: string; temporaryPassword: string;
+};
+type ImportedRow = { rowNumber: number; name: string; machineSerial: string; reason: string };
+type PortalOutcome = { rowNumber: number; name: string; reason: string };
+type ExecuteResultState = {
+  created: number; skipped: number; failed: number; importBatchId: string;
+  portalUsersCreated: PortalUserCreated[];
+  portalUsersAlreadyExisted: number; portalUserFailures: number;
+  failedRows: ImportedRow[]; skippedRows: ImportedRow[];
+  portalUserFailureDetails: PortalOutcome[];
+};
+
+// ─── Execute result panel ─────────────────────────────────────────────────────
+
+function ExecuteResultPanel({ result }: { result: ExecuteResultState }) {
+  const variant =
+    result.created > 0 && result.failed === 0 ? "success" :
+    result.created === 0 && result.failed > 0 ? "failure" :
+    result.created > 0 && result.failed > 0 ? "partial" :
+    "all_skipped";
+
+  const VARIANT_CFG = {
+    success:     { title: "Import completed successfully",       leftBorder: "border-l-emerald-500", bg: "bg-emerald-50", border: "border-emerald-200", titleColor: "text-emerald-800", badge: "bg-emerald-100 text-emerald-800" },
+    partial:     { title: "Import completed with issues",        leftBorder: "border-l-amber-500",   bg: "bg-amber-50",   border: "border-amber-200",   titleColor: "text-amber-800",   badge: "bg-amber-100 text-amber-800"   },
+    failure:     { title: "Import failed",                       leftBorder: "border-l-red-500",     bg: "bg-red-50",     border: "border-red-200",     titleColor: "text-red-800",     badge: "bg-red-100 text-red-800"       },
+    all_skipped: { title: "Import completed — all rows skipped", leftBorder: "border-l-amber-500",   bg: "bg-amber-50",   border: "border-amber-200",   titleColor: "text-amber-800",   badge: "bg-amber-100 text-amber-800"   },
+  } as const;
+
+  const cfg = VARIANT_CFG[variant as keyof typeof VARIANT_CFG];
+  const hasPortalActivity =
+    result.portalUsersCreated.length > 0 ||
+    result.portalUsersAlreadyExisted > 0 ||
+    result.portalUserFailures > 0;
+
+  return (
+    <div className="space-y-4">
+      {/* ── Main summary panel ── */}
+      <div className={`${cfg.bg} border ${cfg.border} border-l-4 ${cfg.leftBorder} rounded-xl p-5 space-y-4`}>
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <h3 className={`text-base font-semibold ${cfg.titleColor}`}>{cfg.title}</h3>
+            <p className="text-xs text-gray-500 mt-0.5 font-mono">Batch: {result.importBatchId}</p>
+          </div>
+          <span className={`text-xs font-semibold px-3 py-1 rounded-full shrink-0 ${cfg.badge}`}>
+            {variant === "success" ? "Success" : variant === "partial" ? "Partial" : variant === "failure" ? "Failed" : "All skipped"}
+          </span>
+        </div>
+
+        {variant === "failure" && (
+          <div className="space-y-0.5">
+            <p className="text-sm font-medium text-red-700">No patient records were created.</p>
+            <p className="text-sm text-red-700">No portal users were created.</p>
+          </div>
+        )}
+
+        <div className="grid grid-cols-3 gap-4">
+          <div>
+            <span className={`text-2xl font-bold tabular-nums ${result.created > 0 ? "text-emerald-700" : "text-gray-400"}`}>{result.created}</span>
+            <p className="text-xs text-gray-500 mt-0.5">Patients created</p>
+          </div>
+          <div>
+            <span className={`text-2xl font-bold tabular-nums ${result.skipped > 0 ? "text-amber-600" : "text-gray-400"}`}>{result.skipped}</span>
+            <p className="text-xs text-gray-500 mt-0.5">Rows skipped</p>
+          </div>
+          <div>
+            <span className={`text-2xl font-bold tabular-nums ${result.failed > 0 ? "text-red-600" : "text-gray-400"}`}>{result.failed}</span>
+            <p className="text-xs text-gray-500 mt-0.5">Rows failed</p>
+          </div>
+        </div>
+
+        {hasPortalActivity && (
+          <div className="grid grid-cols-3 gap-4 border-t border-gray-200 pt-3">
+            <div>
+              <span className={`text-2xl font-bold tabular-nums ${result.portalUsersCreated.length > 0 ? "text-emerald-700" : "text-gray-400"}`}>{result.portalUsersCreated.length}</span>
+              <p className="text-xs text-gray-500 mt-0.5">Portal users created</p>
+            </div>
+            <div>
+              <span className={`text-2xl font-bold tabular-nums ${result.portalUsersAlreadyExisted > 0 ? "text-gray-600" : "text-gray-400"}`}>{result.portalUsersAlreadyExisted}</span>
+              <p className="text-xs text-gray-500 mt-0.5">Already login-enabled</p>
+            </div>
+            <div>
+              <span className={`text-2xl font-bold tabular-nums ${result.portalUserFailures > 0 ? "text-red-600" : "text-gray-400"}`}>{result.portalUserFailures}</span>
+              <p className="text-xs text-gray-500 mt-0.5">Portal access failures</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Failed patient rows ── */}
+      {result.failedRows.length > 0 && (
+        <div className="bg-white border border-red-200 rounded-xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-red-100">
+            <h4 className="text-sm font-semibold text-red-800">Failed rows ({result.failedRows.length})</h4>
+            <p className="text-xs text-red-700 mt-0.5">No patient records were created for these rows.</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[600px] border-collapse text-sm">
+              <thead>
+                <tr className="bg-red-50 border-b border-red-100">
+                  {["Row", "Patient name", "Machine serial", "Failure reason"].map((col) => (
+                    <th key={col} className="text-left px-4 py-3 text-xs font-semibold text-red-800 uppercase tracking-wide whitespace-nowrap">{col}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-red-50">
+                {result.failedRows.map((row, i) => (
+                  <tr key={i} className="hover:bg-red-50 transition-colors">
+                    <td className="px-4 py-3 text-gray-600 tabular-nums">{row.rowNumber}</td>
+                    <td className="px-4 py-3 font-medium text-gray-800 whitespace-nowrap">{row.name || "—"}</td>
+                    <td className="px-4 py-3 font-mono text-gray-600">{row.machineSerial || "—"}</td>
+                    <td className="px-4 py-3 text-red-700">{row.reason}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── Skipped patient rows ── */}
+      {result.skippedRows.length > 0 && (
+        <div className="bg-white border border-amber-200 rounded-xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-amber-100">
+            <h4 className="text-sm font-semibold text-amber-800">Skipped rows ({result.skippedRows.length})</h4>
+            <p className="text-xs text-amber-700 mt-0.5">These rows were not imported — no records were created for them.</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[560px] border-collapse text-sm">
+              <thead>
+                <tr className="bg-amber-50 border-b border-amber-100">
+                  {["Row", "Patient name", "Machine serial", "Reason"].map((col) => (
+                    <th key={col} className="text-left px-4 py-3 text-xs font-semibold text-amber-800 uppercase tracking-wide whitespace-nowrap">{col}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-amber-50">
+                {result.skippedRows.map((row, i) => (
+                  <tr key={i} className="hover:bg-amber-50 transition-colors">
+                    <td className="px-4 py-3 text-gray-600 tabular-nums">{row.rowNumber}</td>
+                    <td className="px-4 py-3 font-medium text-gray-800 whitespace-nowrap">{row.name || "—"}</td>
+                    <td className="px-4 py-3 font-mono text-gray-600">{row.machineSerial || "—"}</td>
+                    <td className="px-4 py-3 text-amber-700">{row.reason}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── Portal access failures ── */}
+      {result.portalUserFailureDetails.length > 0 && (
+        <div className="bg-white border border-red-200 rounded-xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-red-100">
+            <h4 className="text-sm font-semibold text-red-800">Portal access failures ({result.portalUserFailureDetails.length})</h4>
+            <p className="text-xs text-red-700 mt-0.5">Patient records were created, but portal login was not set up for these rows.</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[480px] border-collapse text-sm">
+              <thead>
+                <tr className="bg-red-50 border-b border-red-100">
+                  {["Row", "Patient name", "Reason"].map((col) => (
+                    <th key={col} className="text-left px-4 py-3 text-xs font-semibold text-red-800 uppercase tracking-wide whitespace-nowrap">{col}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-red-50">
+                {result.portalUserFailureDetails.map((row, i) => (
+                  <tr key={i} className="hover:bg-red-50 transition-colors">
+                    <td className="px-4 py-3 text-gray-600 tabular-nums">{row.rowNumber}</td>
+                    <td className="px-4 py-3 font-medium text-gray-800 whitespace-nowrap">{row.name || "—"}</td>
+                    <td className="px-4 py-3 text-red-700">{row.reason}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── Temporary passwords — copy now ── */}
+      {result.portalUsersCreated.length > 0 && (
+        <div className="bg-amber-50 border border-amber-300 rounded-xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-amber-200 space-y-1">
+            <h3 className="text-sm font-semibold text-amber-900">Portal access — temporary passwords</h3>
+            <p className="text-xs text-amber-800 font-semibold">Copy now. Temporary passwords are not stored.</p>
+            <p className="text-xs text-amber-700">
+              Patients log in with their number-only username (no MS- prefix). Password must be changed on first login.
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] border-collapse text-sm">
+              <thead>
+                <tr className="bg-amber-100 border-b border-amber-200">
+                  {["Row", "Patient name", "Portal ID (MSID)", "Login username", "Temporary password"].map((col) => (
+                    <th key={col} className="text-left px-4 py-3 text-xs font-semibold text-amber-900 uppercase tracking-wide whitespace-nowrap">{col}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-amber-100">
+                {result.portalUsersCreated.map((u) => (
+                  <tr key={u.rowNumber} className="bg-white">
+                    <td className="px-4 py-3 text-gray-600 tabular-nums">{u.rowNumber}</td>
+                    <td className="px-4 py-3 font-medium text-gray-800 whitespace-nowrap">{u.name}</td>
+                    <td className="px-4 py-3 font-mono text-gray-700">{u.portalId}</td>
+                    <td className="px-4 py-3 font-mono text-gray-700">{u.username}</td>
+                    <td className="px-4 py-3 font-mono font-semibold text-amber-900 select-all">{u.temporaryPassword}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function AdminImportPage() {
@@ -1081,16 +1302,7 @@ export default function AdminImportPage() {
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [isExecuting,  setIsExecuting]  = useState(false);
-  type PortalUserCreated = { rowNumber: number; name: string; portalId: string; username: string; temporaryPassword: string };
-  const [executeResult, setExecuteResult] = useState<{
-    created: number;
-    skipped: number;
-    failed: number;
-    importBatchId: string;
-    portalUsersCreated: PortalUserCreated[];
-    portalUsersAlreadyExisted: number;
-    portalUserFailures: number;
-  } | null>(null);
+  const [executeResult, setExecuteResult] = useState<ExecuteResultState | null>(null);
   const [executeError, setExecuteError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -1177,6 +1389,9 @@ export default function AdminImportPage() {
         portalUsersCreated: data.portalUsersCreated ?? [],
         portalUsersAlreadyExisted: data.summary.portalUsersAlreadyExisted ?? 0,
         portalUserFailures: data.summary.portalUserFailures ?? 0,
+        failedRows: data.failedRows ?? [],
+        skippedRows: data.skippedRows ?? [],
+        portalUserFailureDetails: data.portalUserFailures ?? [],
       });
     } catch {
       setExecuteError('Import failed. Try again.');
@@ -1371,66 +1586,7 @@ export default function AdminImportPage() {
               <p className="text-sm text-red-700 font-medium">{executeError}</p>
             </div>
           )}
-          {executeResult && (
-            <div className="space-y-4">
-              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-5 space-y-2">
-                <h3 className="text-sm font-semibold text-emerald-800">Import complete</h3>
-                <p className="text-sm text-emerald-700">Batch ID: <span className="font-mono">{executeResult.importBatchId}</span></p>
-                <div className="flex flex-wrap gap-6 text-sm">
-                  <span className="text-emerald-700">Patients created: <strong>{executeResult.created}</strong></span>
-                  <span className="text-amber-700">Skipped: <strong>{executeResult.skipped}</strong></span>
-                  <span className="text-red-700">Failed: <strong>{executeResult.failed}</strong></span>
-                </div>
-                {(executeResult.portalUsersCreated.length > 0 || executeResult.portalUsersAlreadyExisted > 0 || executeResult.portalUserFailures > 0) && (
-                  <div className="flex flex-wrap gap-6 text-sm border-t border-emerald-200 pt-2 mt-2">
-                    <span className="text-emerald-700">Portal users created: <strong>{executeResult.portalUsersCreated.length}</strong></span>
-                    <span className="text-gray-600">Already login-enabled: <strong>{executeResult.portalUsersAlreadyExisted}</strong></span>
-                    {executeResult.portalUserFailures > 0 && (
-                      <span className="text-red-700">Portal access failures: <strong>{executeResult.portalUserFailures}</strong></span>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {executeResult.portalUsersCreated.length > 0 && (
-                <div className="bg-amber-50 border border-amber-300 rounded-xl overflow-hidden">
-                  <div className="px-5 py-4 border-b border-amber-200 space-y-1">
-                    <h3 className="text-sm font-semibold text-amber-900">Portal access — temporary passwords</h3>
-                    <p className="text-xs text-amber-800 font-medium">
-                      Temporary password — copy now; not stored. Patients must change password on first login.
-                    </p>
-                    <p className="text-xs text-amber-700">
-                      Patients log in with their number-only username (no MS- prefix). These passwords are not logged or saved anywhere.
-                    </p>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[640px] border-collapse text-sm">
-                      <thead>
-                        <tr className="bg-amber-100 border-b border-amber-200">
-                          {["Row", "Name", "Portal ID (MSID)", "Login username", "Temporary password"].map((col) => (
-                            <th key={col} className="text-left px-4 py-3 font-semibold text-amber-900 uppercase tracking-wide whitespace-nowrap text-xs">
-                              {col}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-amber-100">
-                        {executeResult.portalUsersCreated.map((u) => (
-                          <tr key={u.rowNumber} className="bg-white">
-                            <td className="px-4 py-3 text-gray-600 tabular-nums">{u.rowNumber}</td>
-                            <td className="px-4 py-3 font-medium text-gray-800 whitespace-nowrap">{u.name}</td>
-                            <td className="px-4 py-3 font-mono text-gray-700">{u.portalId}</td>
-                            <td className="px-4 py-3 font-mono text-gray-700">{u.username}</td>
-                            <td className="px-4 py-3 font-mono font-semibold text-amber-900 select-all">{u.temporaryPassword}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
+          {executeResult && <ExecuteResultPanel result={executeResult} />}
 
           {/* Rows needing review */}
           {result.reviewRows.length > 0 && (

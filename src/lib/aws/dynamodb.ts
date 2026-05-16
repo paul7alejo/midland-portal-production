@@ -24,7 +24,8 @@ const docClient = DynamoDBDocumentClient.from(
         secretAccessKey: process.env.MIDLAND_SECRET_ACCESS_KEY!,
       },
     }),
-  })
+  }),
+  { marshallOptions: { removeUndefinedValues: true } }
 )
 
 // ── Record types ──────────────────────────────────────────────────────────────
