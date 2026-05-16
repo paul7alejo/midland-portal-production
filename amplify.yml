@@ -6,6 +6,7 @@ frontend:
         - npm ci
     build:
       commands:
+        - env | grep -e NHI_SECRET_NAME -e DYNAMODB_REGION -e COGNITO_PATIENT_USER_POOL_ID >> .env.production
         - npm run build
   artifacts:
     baseDirectory: .next
