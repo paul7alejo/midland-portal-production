@@ -5,9 +5,13 @@ import { usePatientData } from "@/hooks/usePatientData";
 import { cn } from "@/lib/utils";
 import EquipmentVisual from "@/components/portal/EquipmentVisual";
 
-function formatDate(iso: string): string {
-  const date = new Date(iso);
-  if (isNaN(date.getTime())) return iso;
+function parseValidDate(value?: string | null): Date | null {
+  if (!value?.trim()) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatDate(date: Date): string {
   return date.toLocaleDateString("en-NZ", {
     day: "numeric",
     month: "long",
@@ -15,14 +19,25 @@ function formatDate(iso: string): string {
   });
 }
 
-function addMonths(iso: string, months: number): string {
-  const date = new Date(iso);
-  date.setMonth(date.getMonth() + months);
-  return date.toISOString().slice(0, 10);
+function formatDateValue(value?: string | null, fallback = "—"): string {
+  const date = parseValidDate(value);
+  return date ? formatDate(date) : fallback;
 }
 
-function monthsSince(iso: string): number {
-  const date = new Date(iso);
+function displayValue(value?: string | null, fallback = "Not recorded"): string {
+  return value?.trim() || fallback;
+}
+
+function addMonths(value: string | undefined, months: number): Date | null {
+  const date = parseValidDate(value);
+  if (!date) return null;
+  date.setMonth(date.getMonth() + months);
+  return date;
+}
+
+function monthsSince(value: string | undefined): number | null {
+  const date = parseValidDate(value);
+  if (!date) return null;
   const now = new Date();
   return (now.getFullYear() - date.getFullYear()) * 12 + (now.getMonth() - date.getMonth());
 }
@@ -34,7 +49,7 @@ interface MaintenanceCheck {
   label: string;
   status: CheckStatus;
   last_completed: string;
-  due_date: string;
+  due_date: Date;
 }
 
 export default function MaintenancePage() {
@@ -45,23 +60,36 @@ export default function MaintenancePage() {
   if (!patient) return null;
 
   const maintenance: MaintenanceCheck[] = [];
+  let hasUnscheduledEquipment = false;
   if (device) {
-    maintenance.push({
-      check_type: "safety_check",
-      label: "Machine safety check",
-      status: monthsSince(device.setup_date) >= 12 ? "OVERDUE" : "OK",
-      last_completed: device.setup_date,
-      due_date: addMonths(device.setup_date, 12),
-    });
+    const elapsedMonths = monthsSince(device.setup_date);
+    const dueDate = addMonths(device.setup_date, 12);
+    if (elapsedMonths === null || dueDate === null) {
+      hasUnscheduledEquipment = true;
+    } else {
+      maintenance.push({
+        check_type: "safety_check",
+        label: "Machine safety check",
+        status: elapsedMonths >= 12 ? "OVERDUE" : "OK",
+        last_completed: device.setup_date,
+        due_date: dueDate,
+      });
+    }
   }
   if (mask) {
-    maintenance.push({
-      check_type: "mask_check",
-      label: "Mask check",
-      status: monthsSince(mask.fitted_date) >= 6 ? "OVERDUE" : "OK",
-      last_completed: mask.fitted_date,
-      due_date: addMonths(mask.fitted_date, 6),
-    });
+    const elapsedMonths = monthsSince(mask.fitted_date);
+    const dueDate = addMonths(mask.fitted_date, 6);
+    if (elapsedMonths === null || dueDate === null) {
+      hasUnscheduledEquipment = true;
+    } else {
+      maintenance.push({
+        check_type: "mask_check",
+        label: "Mask check",
+        status: elapsedMonths >= 6 ? "OVERDUE" : "OK",
+        last_completed: mask.fitted_date,
+        due_date: dueDate,
+      });
+    }
   }
 
   const phoneLink = (
@@ -97,16 +125,46 @@ export default function MaintenancePage() {
                   Your machine
                 </p>
                 <p className="text-2xl leading-8 text-charcoal font-semibold">
-                  {device.brand} {device.name}
+                  {displayValue(device.brand)} {displayValue(device.model, device.name)}
                 </p>
                 <p className="mt-2 text-base leading-6 text-charcoal/80 break-words">
-                  Set up {formatDate(device.setup_date)}
+                  Set up {formatDateValue(device.setup_date, "Setup date not recorded yet")}
                 </p>
                 <p className="mt-1 text-base leading-6 text-charcoal/80 break-all">
-                  Serial <span className="font-mono text-charcoal">{device.serial_number}</span>
+                  Serial <span className="font-mono text-charcoal">{displayValue(device.serial_number)}</span>
                 </p>
               </div>
             </div>
+          </div>
+        )}
+
+        {mask && (
+          <div className="bg-white border border-sand rounded-2xl p-5 md:p-6">
+            <div className="grid gap-5 sm:grid-cols-[minmax(180px,0.7fr)_minmax(0,1.3fr)] sm:items-center">
+              <EquipmentVisual type="mask" className="h-44 w-full min-w-0 sm:h-52" />
+              <div className="min-w-0">
+                <p className="text-sm uppercase tracking-wide text-charcoal/80 font-mono mb-1">
+                  Your mask
+                </p>
+                <p className="text-2xl leading-8 text-charcoal font-semibold">
+                  {displayValue(mask.brand)} {displayValue(mask.name)}
+                </p>
+                <p className="mt-2 text-base leading-6 text-charcoal/80">
+                  Size <span className="font-medium text-charcoal">{displayValue(mask.size)}</span>
+                </p>
+                <p className="mt-1 text-base leading-6 text-charcoal/80">
+                  Fitted {formatDateValue(mask.fitted_date, "Fit date not recorded yet")}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {hasUnscheduledEquipment && (
+          <div className="bg-white border border-sand rounded-2xl p-6 md:p-7">
+            <p className="text-lg leading-7 text-charcoal/80">
+              Maintenance guidance will appear once your equipment setup date is confirmed.
+            </p>
           </div>
         )}
 
@@ -152,7 +210,7 @@ export default function MaintenancePage() {
                     Last completed
                   </dt>
                   <dd className="text-charcoal">
-                    {formatDate(check.last_completed)}
+                    {formatDateValue(check.last_completed)}
                   </dd>
                 </div>
                 <div>
@@ -187,7 +245,7 @@ export default function MaintenancePage() {
           );
         })}
 
-        {maintenance.length === 0 && (
+        {maintenance.length === 0 && !hasUnscheduledEquipment && (
           <div className="bg-white border border-sand rounded-2xl p-6 md:p-7">
             <p className="text-lg leading-7 text-charcoal/80">
               No maintenance records are on file. Contact Midland Sleep if you think a check is due.
