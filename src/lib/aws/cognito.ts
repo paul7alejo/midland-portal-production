@@ -5,6 +5,7 @@ import {
   getCurrentUser as amplifyGetCurrentUser,
   fetchUserAttributes,
   fetchAuthSession,
+  confirmSignIn,
 } from 'aws-amplify/auth'
 
 export function configureCognito(): void {
@@ -27,12 +28,15 @@ function normalizeUsername(input: string): string {
 
 export type SignInResult =
   | { success: true; userId: string }
-  | { success: false; error: string }
+  | { success: false; error: string; nextStep?: 'new_password_required' }
 
 export async function signIn(username: string, password: string): Promise<SignInResult> {
   try {
     const normalized = normalizeUsername(username)
     const result = await amplifySignIn({ username: normalized, password })
+    if (result.nextStep?.signInStep === 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED') {
+      return { success: false, error: 'new_password_required', nextStep: 'new_password_required' }
+    }
     if (!result.isSignedIn) {
       return { success: false, error: 'Sign-in requires an additional step' }
     }
@@ -40,6 +44,29 @@ export async function signIn(username: string, password: string): Promise<SignIn
     return { success: true, userId: user.userId }
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : 'Sign-in failed' }
+  }
+}
+
+export async function completeNewPassword(newPassword: string): Promise<SignInResult> {
+  try {
+    const result = await confirmSignIn({ challengeResponse: newPassword })
+    if (result.isSignedIn) {
+      const user = await amplifyGetCurrentUser()
+      return { success: true, userId: user.userId }
+    }
+    return { success: false, error: 'Password change did not complete sign-in. Please try again.' }
+  } catch (err) {
+    const name = err instanceof Error ? (err as { name?: string }).name : ''
+    if (name === 'InvalidPasswordException') {
+      return { success: false, error: 'Password does not meet the required policy. Use at least 8 characters with a mix of letters, numbers, and symbols.' }
+    }
+    if (name === 'NotAuthorizedException') {
+      return { success: false, error: 'Your temporary password has expired. Please contact Midland Sleep for a new one.' }
+    }
+    if (name === 'LimitExceededException') {
+      return { success: false, error: 'Too many attempts. Please wait a moment and try signing in again.' }
+    }
+    return { success: false, error: err instanceof Error ? err.message : 'Password change failed. Please try again.' }
   }
 }
 

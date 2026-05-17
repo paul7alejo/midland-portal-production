@@ -7,6 +7,7 @@ import {
   signOut,
   getCurrentUser,
   getIdToken,
+  completeNewPassword,
   type PatientUser,
 } from "@/lib/aws/cognito";
 import { isAdminIdentity } from "@/lib/admin-identity";
@@ -15,7 +16,15 @@ interface AuthContextType {
   patient: PatientUser | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (identifier: string, password: string) => Promise<{ error: string | null; redirectTo: string }>;
+  login: (identifier: string, password: string) => Promise<{
+    error: string | null;
+    redirectTo: string;
+    nextStep?: 'new_password_required';
+  }>;
+  completePasswordChallenge: (newPassword: string) => Promise<{
+    error: string | null;
+    redirectTo: string;
+  }>;
   logout: () => Promise<void>;
 }
 
@@ -33,24 +42,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const establishSession = useCallback(async () => {
+    const user = await getCurrentUser();
+    setPatient(user);
+    const token = await getIdToken();
+    if (token) {
+      await fetch('/api/auth/session', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    }
+    return user;
+  }, []);
+
   const login = useCallback(
-    async (identifier: string, password: string): Promise<{ error: string | null; redirectTo: string }> => {
+    async (identifier: string, password: string) => {
       const result = await signIn(identifier, password);
       if (result.success) {
-        const user = await getCurrentUser();
-        setPatient(user);
-        const token = await getIdToken();
-        if (token) {
-          await fetch('/api/auth/session', {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${token}` },
-          });
-        }
+        const user = await establishSession();
         return { error: null, redirectTo: isAdminIdentity(user ?? {}) ? '/admin' : '/portal/dashboard' };
       }
-      return { error: result.error, redirectTo: '/portal/dashboard' };
+      if (result.nextStep === 'new_password_required') {
+        return { error: null, redirectTo: '', nextStep: 'new_password_required' as const };
+      }
+      return { error: result.error, redirectTo: '' };
     },
-    []
+    [establishSession]
+  );
+
+  const completePasswordChallenge = useCallback(
+    async (newPassword: string) => {
+      const result = await completeNewPassword(newPassword);
+      if (result.success) {
+        const user = await establishSession();
+        return { error: null, redirectTo: isAdminIdentity(user ?? {}) ? '/admin' : '/portal/dashboard' };
+      }
+      return { error: result.error, redirectTo: '' };
+    },
+    [establishSession]
   );
 
   const logout = useCallback(async () => {
@@ -68,6 +97,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isLoading,
         isAuthenticated: !!patient,
         login,
+        completePasswordChallenge,
         logout,
       }}
     >

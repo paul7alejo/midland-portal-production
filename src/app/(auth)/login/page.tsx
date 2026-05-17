@@ -10,6 +10,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 type LoginMethod = "msid" | "email";
+type LoginStep = "login" | "new_password";
 
 export default function LandingPage() {
   const [sleepId, setSleepId] = useState("");
@@ -19,8 +20,13 @@ export default function LandingPage() {
   const [loginMethod, setLoginMethod] = useState<LoginMethod>("msid");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [step, setStep] = useState<LoginStep>("login");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  const { login, isAuthenticated, patient } = useAuth();
+  const { login, completePasswordChallenge, isAuthenticated, patient } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -42,8 +48,38 @@ export default function LandingPage() {
 
     try {
       const identifier = loginMethod === "msid" ? sleepId : email;
-      const { error: errorMsg, redirectTo } = await login(identifier, password);
+      const { error: errorMsg, redirectTo, nextStep } = await login(identifier, password);
 
+      if (nextStep === "new_password_required") {
+        setStep("new_password");
+      } else if (errorMsg === null) {
+        router.replace(redirectTo);
+      } else {
+        setError(errorMsg);
+      }
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handlePasswordChallenge = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+
+    if (newPassword.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const { error: errorMsg, redirectTo } = await completePasswordChallenge(newPassword);
       if (errorMsg === null) {
         router.replace(redirectTo);
       } else {
@@ -114,140 +150,191 @@ export default function LandingPage() {
       {/* Login Card */}
       <main className="landing-main">
         <div className="landing-card">
-          {/* Tabs */}
-          <div className="landing-tabs">
-            <button
-              className={`landing-tab ${loginMethod === "msid" ? "landing-tab--active" : ""}`}
-              onClick={() => {
-                setLoginMethod("msid");
-                setError("");
-              }}
-              type="button"
-            >
-              Sleep ID
-            </button>
-            <button
-              className={`landing-tab ${loginMethod === "email" ? "landing-tab--active" : ""}`}
-              onClick={() => {
-                setLoginMethod("email");
-                setError("");
-              }}
-              type="button"
-            >
-              Email
-            </button>
-          </div>
-
-          {/* Error message */}
-          {error && (
-            <div className="landing-error">
-              <p>{error}</p>
-            </div>
-          )}
-
-          <form onSubmit={handleLogin}>
-            {loginMethod === "msid" ? (
-              <div className="landing-field">
-                <label className="landing-label">Your Sleep ID</label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  className="landing-input landing-input--sleepid"
-                  placeholder="000000"
-                  value={sleepId}
-                  onChange={handleSleepIdChange}
-                  maxLength={6}
-                  autoComplete="off"
-                />
-                <p className="landing-hint">
-                  The 6-digit number from your welcome letter
-                </p>
-              </div>
-            ) : (
-              <div className="landing-field">
-                <label className="landing-label">Email or staff username</label>
-                <input
-                  type="text"
-                  className="landing-input"
-                  placeholder="e.g. johndoe@clinic.com or johndoe"
-                  value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value);
-                    if (error) setError("");
-                  }}
-                />
-              </div>
-            )}
-
-            <div className="landing-field">
-              <label className="landing-label">Password</label>
-              <div className="landing-password-wrap">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  className="landing-input"
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => {
-                    setPassword(e.target.value);
-                    if (error) setError("");
-                  }}
-                />
+          {step === "login" ? (
+            <>
+              {/* Tabs */}
+              <div className="landing-tabs">
                 <button
+                  className={`landing-tab ${loginMethod === "msid" ? "landing-tab--active" : ""}`}
+                  onClick={() => { setLoginMethod("msid"); setError(""); }}
                   type="button"
-                  className="landing-password-toggle"
-                  onClick={() => setShowPassword(!showPassword)}
                 >
-                  {showPassword ? "Hide" : "Show"}
+                  Sleep ID
+                </button>
+                <button
+                  className={`landing-tab ${loginMethod === "email" ? "landing-tab--active" : ""}`}
+                  onClick={() => { setLoginMethod("email"); setError(""); }}
+                  type="button"
+                >
+                  Email
                 </button>
               </div>
-            </div>
 
-            <button
-              type="submit"
-              className="landing-submit"
-              disabled={isLoading || !isFormValid}
-            >
-              {isLoading ? (
-                <span className="landing-spinner-wrap">
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    className="landing-spinner"
-                  >
-                    <circle
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="white"
-                      strokeWidth="3"
-                      fill="none"
-                      opacity="0.3"
-                    />
-                    <path
-                      d="M12 2a10 10 0 019.95 9"
-                      stroke="white"
-                      strokeWidth="3"
-                      fill="none"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                  Signing in...
-                </span>
-              ) : (
-                "Sign in"
+              {error && (
+                <div className="landing-error">
+                  <p>{error}</p>
+                </div>
               )}
-            </button>
-          </form>
 
-          <div className="landing-card-footer">
-            <Link href="#" className="landing-card-link">
-              Forgot password?
-            </Link>
-            <Link href="/register" className="landing-card-link">
-              Register
-            </Link>
-          </div>
+              <form onSubmit={handleLogin}>
+                {loginMethod === "msid" ? (
+                  <div className="landing-field">
+                    <label className="landing-label">Your Sleep ID</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      className="landing-input landing-input--sleepid"
+                      placeholder="000000"
+                      value={sleepId}
+                      onChange={handleSleepIdChange}
+                      maxLength={6}
+                      autoComplete="off"
+                    />
+                    <p className="landing-hint">
+                      The 6-digit number from your welcome letter
+                    </p>
+                  </div>
+                ) : (
+                  <div className="landing-field">
+                    <label className="landing-label">Email or staff username</label>
+                    <input
+                      type="text"
+                      className="landing-input"
+                      placeholder="e.g. johndoe@clinic.com or johndoe"
+                      value={email}
+                      onChange={(e) => { setEmail(e.target.value); if (error) setError(""); }}
+                    />
+                  </div>
+                )}
+
+                <div className="landing-field">
+                  <label className="landing-label">Password</label>
+                  <div className="landing-password-wrap">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      className="landing-input"
+                      placeholder="Enter your password"
+                      value={password}
+                      onChange={(e) => { setPassword(e.target.value); if (error) setError(""); }}
+                    />
+                    <button
+                      type="button"
+                      className="landing-password-toggle"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? "Hide" : "Show"}
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  className="landing-submit"
+                  disabled={isLoading || !isFormValid}
+                >
+                  {isLoading ? (
+                    <span className="landing-spinner-wrap">
+                      <svg width="16" height="16" viewBox="0 0 24 24" className="landing-spinner">
+                        <circle cx="12" cy="12" r="10" stroke="white" strokeWidth="3" fill="none" opacity="0.3" />
+                        <path d="M12 2a10 10 0 019.95 9" stroke="white" strokeWidth="3" fill="none" strokeLinecap="round" />
+                      </svg>
+                      Signing in...
+                    </span>
+                  ) : (
+                    "Sign in"
+                  )}
+                </button>
+              </form>
+
+              <div className="landing-card-footer">
+                <Link href="#" className="landing-card-link">
+                  Forgot password?
+                </Link>
+                <Link href="/register" className="landing-card-link">
+                  Register
+                </Link>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="landing-field" style={{ marginBottom: "0.25rem" }}>
+                <p className="landing-label" style={{ fontSize: "1.1rem", marginBottom: "0.25rem" }}>
+                  Create your new password
+                </p>
+                <p className="landing-hint">
+                  Your temporary password has been accepted. Choose a permanent password to continue.
+                </p>
+              </div>
+
+              {error && (
+                <div className="landing-error">
+                  <p>{error}</p>
+                </div>
+              )}
+
+              <form onSubmit={handlePasswordChallenge}>
+                <div className="landing-field">
+                  <label className="landing-label">New password</label>
+                  <div className="landing-password-wrap">
+                    <input
+                      type={showNewPassword ? "text" : "password"}
+                      className="landing-input"
+                      placeholder="At least 8 characters"
+                      value={newPassword}
+                      onChange={(e) => { setNewPassword(e.target.value); if (error) setError(""); }}
+                      autoComplete="new-password"
+                    />
+                    <button
+                      type="button"
+                      className="landing-password-toggle"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                    >
+                      {showNewPassword ? "Hide" : "Show"}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="landing-field">
+                  <label className="landing-label">Confirm new password</label>
+                  <div className="landing-password-wrap">
+                    <input
+                      type={showConfirmPassword ? "text" : "password"}
+                      className="landing-input"
+                      placeholder="Repeat your new password"
+                      value={confirmPassword}
+                      onChange={(e) => { setConfirmPassword(e.target.value); if (error) setError(""); }}
+                      autoComplete="new-password"
+                    />
+                    <button
+                      type="button"
+                      className="landing-password-toggle"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    >
+                      {showConfirmPassword ? "Hide" : "Show"}
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  className="landing-submit"
+                  disabled={isLoading || newPassword.length === 0 || confirmPassword.length === 0}
+                >
+                  {isLoading ? (
+                    <span className="landing-spinner-wrap">
+                      <svg width="16" height="16" viewBox="0 0 24 24" className="landing-spinner">
+                        <circle cx="12" cy="12" r="10" stroke="white" strokeWidth="3" fill="none" opacity="0.3" />
+                        <path d="M12 2a10 10 0 019.95 9" stroke="white" strokeWidth="3" fill="none" strokeLinecap="round" />
+                      </svg>
+                      Setting password...
+                    </span>
+                  ) : (
+                    "Continue"
+                  )}
+                </button>
+              </form>
+            </>
+          )}
         </div>
 
         {/* Trust indicators */}
