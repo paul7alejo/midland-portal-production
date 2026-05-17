@@ -1547,6 +1547,14 @@ export default function AdminImportPage() {
         </div>
       </div>
 
+      {/* Execute result — shown immediately after action buttons, before preview detail */}
+      {executeError && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+          <p className="text-sm text-red-700 font-medium">{executeError}</p>
+        </div>
+      )}
+      {executeResult && <ExecuteResultPanel result={executeResult} />}
+
       {/* Results */}
       {result !== null && (
         <div className="space-y-5">
@@ -1580,13 +1588,6 @@ export default function AdminImportPage() {
               accent={result.invalid.length > 0 ? "text-red-600" : "text-gray-500"}
             />
           </div>
-
-          {executeError && (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-              <p className="text-sm text-red-700 font-medium">{executeError}</p>
-            </div>
-          )}
-          {executeResult && <ExecuteResultPanel result={executeResult} />}
 
           {/* Rows needing review */}
           {result.reviewRows.length > 0 && (

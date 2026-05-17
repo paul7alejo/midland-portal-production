@@ -319,8 +319,24 @@ export async function POST(request: NextRequest) {
 
         const patientId = randomUUID();
         const deviceId = randomUUID();
-        const portalId = await generateUniquePortalId();
         const rowNumber = getRowNumber(row);
+
+        let portalId: string;
+        const csvPortalId = row.csvPortalId?.trim();
+        if (csvPortalId) {
+          if (!/^MS-\d{6}$/.test(csvPortalId)) {
+            skippedRows.push(toReportedRow(row, `Invalid portal_id format in CSV: "${csvPortalId}" — expected MS-XXXXXX`));
+            continue;
+          }
+          const existingWithPortalId = await getPatientByMSID(csvPortalId, ORG_ID);
+          if (existingWithPortalId) {
+            skippedRows.push(toReportedRow(row, `Portal ID ${csvPortalId} is already assigned to another patient`));
+            continue;
+          }
+          portalId = csvPortalId;
+        } else {
+          portalId = await generateUniquePortalId();
+        }
         const importMetadata = {
           import_batch_id: importBatchId,
           import_row_number: rowNumber,

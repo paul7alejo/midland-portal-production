@@ -18,29 +18,19 @@ export type PortalUserResult =
   | { status: 'error'; message: string }
 
 function generateTemporaryPassword(): string {
-  const upper   = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
-  const lower   = 'abcdefghjkmnpqrstuvwxyz'
-  const digits  = '23456789'
-  const special = '!@#$%'
-  const all     = upper + lower + digits + special
-  const bytes   = randomBytes(20)
+  // "Midland!" prefix satisfies: uppercase (M), lowercase (idland), special (!)
+  // 8-char suffix from readable charset; one digit guaranteed for Cognito policy
+  const upper  = 'ABCDEFGHJKMNPQRSTUVWXYZ'
+  const lower  = 'abcdefghjkmnpqrstuvwxyz'
+  const digits = '23456789'
+  const all    = upper + lower + digits
 
-  const parts: string[] = [
-    upper[bytes[0] % upper.length],
-    lower[bytes[1] % lower.length],
-    digits[bytes[2] % digits.length],
-    special[bytes[3] % special.length],
-  ]
-  for (let i = 4; i < 16; i++) {
-    parts.push(all[bytes[i] % all.length])
-  }
+  const bytes = randomBytes(10)
+  const suffix: string[] = Array.from({ length: 8 }, (_, i) => all[bytes[i] % all.length])
+  const digitPos = bytes[8] % 8
+  suffix[digitPos] = digits[bytes[9] % digits.length]
 
-  // Fisher-Yates shuffle with remaining random bytes
-  for (let i = parts.length - 1; i > 0; i--) {
-    const j = bytes[i + 4] % (i + 1)
-    ;[parts[i], parts[j]] = [parts[j], parts[i]]
-  }
-  return parts.join('')
+  return 'Midland!' + suffix.join('')
 }
 
 export async function createPatientPortalUser(params: {

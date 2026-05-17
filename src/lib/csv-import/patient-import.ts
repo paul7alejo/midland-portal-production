@@ -20,6 +20,7 @@ export interface RawCSVRow {
   mask_size?: string
   funded_by?: string
   enable_portal_access?: string
+  portal_id?: string
 }
 
 export interface ParsedPatient {
@@ -30,6 +31,7 @@ export interface ParsedPatient {
   email: string
   address: string
   enablePortalAccess: boolean
+  csvPortalId: string
   machine: {
     brand: string
     model: string
@@ -116,6 +118,8 @@ export function parsePatientCSV(csvText: string): ParsedPatient[] {
       (row['enable_portal_access'] ?? '').toLowerCase().trim()
     )
 
+    const csvPortalId = (row['portal_id'] ?? '').trim().toUpperCase()
+
     patients.push({
       fullName,
       nhi,
@@ -124,6 +128,7 @@ export function parsePatientCSV(csvText: string): ParsedPatient[] {
       email: row['email'] ?? '',
       address: row['address'] ?? '',
       enablePortalAccess,
+      csvPortalId,
       machine: {
         brand: row['machine_brand'] ?? '',
         model: row['machine_model'] ?? '',
@@ -161,6 +166,10 @@ export function validateParsedPatient(p: ParsedPatient): string[] {
 
   if (!p.machine.serial) {
     errors.push('Machine serial must not be empty');
+  }
+
+  if (p.csvPortalId && !/^MS-\d{6}$/.test(p.csvPortalId)) {
+    errors.push(`Invalid portal_id format: "${p.csvPortalId}" — expected MS-XXXXXX (e.g. MS-445566)`);
   }
 
   return errors;
