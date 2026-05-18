@@ -10,46 +10,36 @@ Amplify app ID: d3n1gantisqxbk
 Final deploy job: 154  
 Deploy status: SUCCEED  
 
+## Evidence Screenshots
+
+- 01-import-success-temp-password.png
+- 02-patient-dashboard-login-success.png
+- 03-patient-equipment-visible.png
+- 04-duplicate-preview-blocked.png
+- 05-admin-patient-list.png
+- 06-admin-drawer-overview.png
+- 07-admin-drawer-equipment.png
+- 08-nhi-hidden-mvp.png
+
 ## Proven Behaviours
 
-- CSV preview validates rows before import.
-- Fresh CSV patient import creates the patient record.
-- Device and mask details appear in the patient portal.
+- Fresh CSV patient import works.
+- Patient/device/mask records are created.
 - Cognito patient portal user is created.
 - Temporary password is displayed once.
 - Temporary password works without AWS CLI reset.
 - Patient is forced to change password on first login.
 - Patient lands in the correct portal record.
+- Patient equipment is visible.
 - Existing database duplicates are detected during preview.
-- Re-previewing the same CSV blocks before execution.
-- Existing NHI/device duplicates make preflight blocked.
+- Duplicate CSV blocks before execution.
 - Execute Import is hidden/disabled when preflight is blocked.
 - Execute duplicate skip remains as a final safety net.
-- Runtime IAM permission issue was resolved by adding Cognito user management permission to `midland-amplify-role`.
+- Runtime IAM permissions were fixed through `midland-amplify-role`.
+- NHI is not revealed in the MVP admin/patient interface.
 
-## Final Proof Row
+## Final Boundary
 
-Generated Final Guard Patient  
-NHI: masked/minimized in UI  
-Machine serial: TEST-538746  
-Portal user: created successfully  
-Duplicate preview: blocked after import  
+This proof does not include checkout, inventory fulfilment, email/SMS invite delivery, admin password reset, bulk access management, full audit dashboard, or multi-clinic SaaS tenancy.
 
-## Known Remaining UI Polish
-
-- Machine display currently duplicates brand text in places, e.g. `ResMed ResMed AirSense 10`.
-- Entitlement wording should be softened when funding is pending review or set to zero for demo data.
-- Admin MSID/login username display should be made consistent.
-- Notes wording should clarify whether notes are persistent or temporary.
-- Patient-facing Request Supplies should use softer wording than “Entitlement exhausted” for pending-review/demo states.
-
-## Explicitly Out of Scope For This Proof
-
-- Bulk patient invite management
-- Email/SMS invite delivery
-- Password reset admin workflow
-- Checkout/payment
-- Inventory fulfilment
-- Full audit dashboard
-- Multi-clinic tenancy
-- Clinical decision automation
+Those are future paid phases.
