@@ -14,7 +14,6 @@ export type CompletedBatch = {
     name: string;
     portalId: string;
     username: string;
-    temporaryPassword: string;
   }>;
   portalUsersAlreadyExisted: number;
   portalUserFailures: number;

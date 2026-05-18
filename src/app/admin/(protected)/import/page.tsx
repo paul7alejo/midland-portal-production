@@ -1409,7 +1409,12 @@ export default function AdminImportPage() {
         skipped: data.summary.skipped,
         failed: data.summary.failed,
         status: computeBatchStatus(data.summary.created, data.summary.skipped, data.summary.failed),
-        portalUsersCreated: data.portalUsersCreated ?? [],
+        portalUsersCreated: (data.portalUsersCreated ?? []).map((u: PortalUserCreated) => ({
+          rowNumber: u.rowNumber,
+          name: u.name,
+          portalId: u.portalId,
+          username: u.username,
+        })),
         portalUsersAlreadyExisted: data.summary.portalUsersAlreadyExisted ?? 0,
         portalUserFailures: data.summary.portalUserFailures ?? 0,
         failedRows: data.failedRows ?? [],

@@ -133,23 +133,23 @@ export function ImportDetailsSheet({
             )}
           </div>
 
-          {/* Temporary passwords */}
+          {/* Safe portal access summary */}
           {batch.portalUsersCreated.length > 0 && (
             <div className="bg-amber-50 border border-amber-300 rounded-xl overflow-hidden">
               <div className="px-5 py-4 border-b border-amber-200 space-y-1">
                 <h3 className="text-sm font-semibold text-amber-900">Safe credential summary</h3>
                 <p className="text-xs text-amber-800 font-semibold">
-                  Temporary passwords are only shown because they are available in the current import result.
+                  Temporary passwords are not stored in import history and are not shown here.
                 </p>
                 <p className="text-xs text-amber-700">
-                  Patients log in with their number-only username (no MS- prefix). Password must be changed on first login.
+                  Patients log in with their number-only username (no MS- prefix).
                 </p>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[560px] border-collapse text-sm">
                   <thead>
                     <tr className="bg-amber-100 border-b border-amber-200">
-                      {["Row", "Patient name", "Portal ID", "Login username", "Temporary password"].map((col) => (
+                      {["Row", "Patient name", "Portal ID", "Login username"].map((col) => (
                         <th
                           key={col}
                           className="text-left px-4 py-3 text-xs font-semibold text-amber-900 uppercase tracking-wide whitespace-nowrap"
@@ -166,9 +166,6 @@ export function ImportDetailsSheet({
                         <td className="px-4 py-3 font-medium text-gray-800 whitespace-nowrap">{u.name}</td>
                         <td className="px-4 py-3 font-mono text-gray-700">{u.portalId}</td>
                         <td className="px-4 py-3 font-mono text-gray-700">{u.username}</td>
-                        <td className="px-4 py-3 font-mono font-semibold text-amber-900 select-all">
-                          {u.temporaryPassword}
-                        </td>
                       </tr>
                     ))}
                   </tbody>
