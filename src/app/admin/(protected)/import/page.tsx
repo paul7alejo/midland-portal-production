@@ -1478,7 +1478,7 @@ export default function AdminImportPage() {
             Review import history first, then start a controlled CSV import when needed.
           </p>
         </div>
-        {view === "history" && (
+        {view === "history" && completedBatches.length > 0 && (
           <button
             type="button"
             onClick={openWizard}

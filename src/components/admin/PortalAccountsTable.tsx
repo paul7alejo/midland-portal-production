@@ -1,5 +1,7 @@
 "use client";
 
+import { useMemo, useState } from "react";
+
 export type PortalAccount = {
   id: string;
   name: string;
@@ -30,6 +32,15 @@ function formatDate(iso: string): string {
   return d.toLocaleString("en-NZ", { day: "numeric", month: "short", year: "numeric" });
 }
 
+function parseCreatedDate(iso: string): number | null {
+  const time = new Date(iso).getTime();
+  return Number.isNaN(time) ? null : time;
+}
+
+function displayPortalId(msid: string): string {
+  return msid.startsWith("MS-") ? msid.slice(3) : msid;
+}
+
 export function PortalAccountsTable({
   accounts,
   onResetPassword,
@@ -39,6 +50,29 @@ export function PortalAccountsTable({
   onResetPassword: (account: PortalAccount) => void;
   onUnlockAccount: (account: PortalAccount) => void;
 }) {
+  const [createdSort, setCreatedSort] = useState<"newest" | "oldest">("newest");
+
+  const sortedAccounts = useMemo(() => {
+    return accounts
+      .map((account, index) => ({ account, index, createdTime: parseCreatedDate(account.createdAt) }))
+      .sort((a, b) => {
+        const aValid = a.createdTime !== null;
+        const bValid = b.createdTime !== null;
+        if (aValid && bValid) {
+          const aTime = a.createdTime as number;
+          const bTime = b.createdTime as number;
+          const diff = createdSort === "newest"
+            ? bTime - aTime
+            : aTime - bTime;
+          return diff || a.index - b.index;
+        }
+        if (aValid) return -1;
+        if (bValid) return 1;
+        return a.index - b.index;
+      })
+      .map(({ account }) => account);
+  }, [accounts, createdSort]);
+
   if (accounts.length === 0) {
     return (
       <div className="bg-white border border-sand rounded-xl px-6 py-12 text-center shadow-[0_18px_50px_rgba(11,42,60,0.08)]">
@@ -53,21 +87,32 @@ export function PortalAccountsTable({
         <table className="w-full min-w-[960px] border-collapse text-sm">
           <thead>
             <tr className="bg-sand-pale/70 border-b border-sand">
-              {["Patient", "MSID", "NHI", "Created", "Password Status", "2FA", "Account Status", "Actions"].map((col) => (
-                <th
-                  key={col}
-                  className="text-left px-4 py-3 text-xs font-semibold text-charcoal/70 uppercase tracking-wide whitespace-nowrap"
+              <th className="text-left px-4 py-3 text-xs font-semibold text-charcoal/70 uppercase tracking-wide whitespace-nowrap">Patient</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-charcoal/70 uppercase tracking-wide whitespace-nowrap">MSID</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-charcoal/70 uppercase tracking-wide whitespace-nowrap">NHI</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-charcoal/70 uppercase tracking-wide whitespace-nowrap">
+                <button
+                  type="button"
+                  onClick={() => setCreatedSort((current) => current === "newest" ? "oldest" : "newest")}
+                  className="inline-flex items-center gap-1.5 hover:text-[#0B5C6C] transition-colors"
+                  aria-label={`Sort created date ${createdSort === "newest" ? "oldest first" : "newest first"}`}
                 >
+                  Created
+                  <span className="text-[10px] text-charcoal/45">{createdSort === "newest" ? "↓" : "↑"}</span>
+                </button>
+              </th>
+              {["Password Status", "2FA", "Account Status", "Actions"].map((col) => (
+                <th key={col} className="text-left px-4 py-3 text-xs font-semibold text-charcoal/70 uppercase tracking-wide whitespace-nowrap">
                   {col}
                 </th>
               ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-sand/70">
-            {accounts.map((acct) => (
+            {sortedAccounts.map((acct) => (
               <tr key={acct.id} className="hover:bg-sand-pale/45 transition-colors">
                 <td className="px-4 py-3 font-medium text-charcoal whitespace-nowrap">{acct.name}</td>
-                <td className="px-4 py-3 font-mono text-xs text-charcoal/80">{acct.msid}</td>
+                <td className="px-4 py-3 font-mono text-xs text-charcoal/80">{displayPortalId(acct.msid)}</td>
                 <td className="px-4 py-3 font-mono text-xs text-charcoal/60 select-none">{acct.nhiMasked}</td>
                 <td className="px-4 py-3 text-xs text-charcoal/70 whitespace-nowrap">{formatDate(acct.createdAt)}</td>
                 <td className="px-4 py-3">

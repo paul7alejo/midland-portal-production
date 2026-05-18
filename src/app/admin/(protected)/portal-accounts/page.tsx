@@ -7,14 +7,37 @@ import { ResetPasswordModal } from "@/components/admin/ResetPasswordModal";
 import { UnlockAccountModal } from "@/components/admin/UnlockAccountModal";
 import { decrementLockedCount } from "@/components/admin/portalAccountsStore";
 
-type FilterKey = "all" | "temp" | "locked" | "no2fa";
+type FilterKey = "all" | "changed" | "temp" | "locked";
 
-const FILTERS: { key: FilterKey; label: string }[] = [
-  { key: "all",    label: "All" },
-  { key: "temp",   label: "Temp Password" },
-  { key: "locked", label: "Locked" },
-  { key: "no2fa",  label: "No 2FA" },
-];
+function KpiFilterCard({
+  label,
+  value,
+  active,
+  valueClassName,
+  onClick,
+}: {
+  label: string;
+  value: number;
+  active: boolean;
+  valueClassName: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`text-left bg-white border rounded-xl px-5 py-4 shadow-[0_18px_50px_rgba(11,42,60,0.08)] transition-colors
+        ${active
+          ? "border-[#0B5C6C] ring-2 ring-[#0B5C6C]/20 bg-[#0B5C6C]/5"
+          : "border-sand hover:border-[#0B5C6C]/45"
+        }`}
+    >
+      <p className={`text-3xl font-bold tabular-nums ${valueClassName}`}>{value}</p>
+      <p className="text-xs text-charcoal/60 mt-1">{label}</p>
+    </button>
+  );
+}
 
 export default function PortalAccountsPage() {
   const [accounts, setAccounts]         = useState<PortalAccount[]>(MOCK_ACCOUNTS);
@@ -30,9 +53,9 @@ export default function PortalAccountsPage() {
 
   const filtered = useMemo(() => {
     let list = accounts;
+    if (activeFilter === "changed") list = list.filter((a) => a.passwordStatus === "changed");
     if (activeFilter === "temp")   list = list.filter((a) => a.passwordStatus === "temp");
     if (activeFilter === "locked") list = list.filter((a) => a.accountStatus === "locked");
-    if (activeFilter === "no2fa")  list = list.filter((a) => !a.twoFa);
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter((a) =>
@@ -71,25 +94,37 @@ export default function PortalAccountsPage() {
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="bg-white border border-sand rounded-xl px-5 py-4 shadow-[0_18px_50px_rgba(11,42,60,0.08)]">
-          <p className="text-3xl font-bold tabular-nums text-navy">{totalAccounts}</p>
-          <p className="text-xs text-charcoal/60 mt-1">Total Accounts</p>
-        </div>
-        <div className="bg-white border border-sand rounded-xl px-5 py-4 shadow-[0_18px_50px_rgba(11,42,60,0.08)]">
-          <p className="text-3xl font-bold tabular-nums text-[#0B5C6C]">{passwordChanged}</p>
-          <p className="text-xs text-charcoal/60 mt-1">Password Changed</p>
-        </div>
-        <div className="bg-white border border-sand rounded-xl px-5 py-4 shadow-[0_18px_50px_rgba(11,42,60,0.08)]">
-          <p className="text-3xl font-bold tabular-nums text-amber-700">{tempPassword}</p>
-          <p className="text-xs text-charcoal/60 mt-1">Temp Password</p>
-        </div>
-        <div className="bg-white border border-sand rounded-xl px-5 py-4 shadow-[0_18px_50px_rgba(11,42,60,0.08)]">
-          <p className="text-3xl font-bold tabular-nums text-red-600">{lockedAccounts}</p>
-          <p className="text-xs text-charcoal/60 mt-1">Locked Accounts</p>
-        </div>
+        <KpiFilterCard
+          label="Total Accounts"
+          value={totalAccounts}
+          active={activeFilter === "all"}
+          valueClassName="text-navy"
+          onClick={() => setActiveFilter("all")}
+        />
+        <KpiFilterCard
+          label="Password Changed"
+          value={passwordChanged}
+          active={activeFilter === "changed"}
+          valueClassName="text-[#0B5C6C]"
+          onClick={() => setActiveFilter("changed")}
+        />
+        <KpiFilterCard
+          label="Temp Password"
+          value={tempPassword}
+          active={activeFilter === "temp"}
+          valueClassName="text-amber-700"
+          onClick={() => setActiveFilter("temp")}
+        />
+        <KpiFilterCard
+          label="Locked Accounts"
+          value={lockedAccounts}
+          active={activeFilter === "locked"}
+          valueClassName="text-red-600"
+          onClick={() => setActiveFilter("locked")}
+        />
       </div>
 
-      {/* Search + filter chips */}
+      {/* Search */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
         <div className="relative flex-1 min-w-0 w-full sm:w-auto">
           <svg
@@ -108,22 +143,6 @@ export default function PortalAccountsPage() {
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-9 pr-4 py-2.5 text-sm text-charcoal placeholder:text-charcoal/40 bg-white border border-sand rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0B5C6C]/20 focus:border-[#0B5C6C]/50 transition-colors"
           />
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          {FILTERS.map(({ key, label }) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setActiveFilter(key)}
-              className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors whitespace-nowrap
-                ${activeFilter === key
-                  ? "bg-[#0B5C6C] text-white border-[#0B5C6C]"
-                  : "bg-white text-charcoal/70 border-sand hover:border-[#0B5C6C]/40 hover:text-[#0B5C6C]"
-                }`}
-            >
-              {label}
-            </button>
-          ))}
         </div>
       </div>
 

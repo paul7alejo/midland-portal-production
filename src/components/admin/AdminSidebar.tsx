@@ -143,7 +143,7 @@ export default function AdminSidebar() {
                       <Icon className="h-5 w-5 shrink-0" />
                       <span className="flex-1">{item.label}</span>
                       {item.badge != null && item.badge > 0 && (
-                        <span className="ml-auto text-[10px] font-bold tabular-nums leading-none px-1.5 py-0.5 rounded-full bg-amber-400 text-amber-900">
+                        <span className="ml-auto text-[10px] font-bold tabular-nums leading-none px-1.5 py-0.5 rounded-full bg-orange-500 text-white">
                           {item.badge}
                         </span>
                       )}
