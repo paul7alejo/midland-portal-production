@@ -45,10 +45,12 @@ export function PortalAccountsTable({
   accounts,
   onResetPassword,
   onUnlockAccount,
+  onViewDetails,
 }: {
   accounts: PortalAccount[];
   onResetPassword: (account: PortalAccount) => void;
   onUnlockAccount: (account: PortalAccount) => void;
+  onViewDetails: (account: PortalAccount) => void;
 }) {
   const [createdSort, setCreatedSort] = useState<"newest" | "oldest">("newest");
 
@@ -111,7 +113,15 @@ export function PortalAccountsTable({
           <tbody className="divide-y divide-sand/70">
             {sortedAccounts.map((acct) => (
               <tr key={acct.id} className="hover:bg-sand-pale/45 transition-colors">
-                <td className="px-4 py-3 font-medium text-charcoal whitespace-nowrap">{acct.name}</td>
+                <td className="px-4 py-3 whitespace-nowrap">
+                  <button
+                    type="button"
+                    onClick={() => onViewDetails(acct)}
+                    className="font-medium text-charcoal hover:text-[#0B5C6C] transition-colors text-left"
+                  >
+                    {acct.name}
+                  </button>
+                </td>
                 <td className="px-4 py-3 font-mono text-xs text-charcoal/80">{displayPortalId(acct.msid)}</td>
                 <td className="px-4 py-3 font-mono text-xs text-charcoal/60 select-none">{acct.nhiMasked}</td>
                 <td className="px-4 py-3 text-xs text-charcoal/70 whitespace-nowrap">{formatDate(acct.createdAt)}</td>
