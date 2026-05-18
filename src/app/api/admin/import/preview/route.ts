@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminUser, isAuthorizedAdmin } from '@/lib/security';
-import { previewImport, detectDuplicates } from '@/lib/csv-import/patient-import';
+import { previewImport, detectDuplicates, type ParsedPatient } from '@/lib/csv-import/patient-import';
+import { getPatientByNhiHash, getDeviceBySerialNumber } from '@/lib/aws/dynamodb';
+import { hashNHIForSearch } from '@/lib/nhi';
+
+const ORG_ID = 'midland-sleep';
 
 export async function POST(request: NextRequest) {
   const user = await getAdminUser();
@@ -21,30 +25,74 @@ export async function POST(request: NextRequest) {
   }
 
   const preview = previewImport(csv);
-  const { reviewRows, dupNhiGroupCount, dupSerialGroupCount, dupContactWarnCount } =
-    detectDuplicates([...preview.valid, ...preview.invalid]);
+
+  // DB-level duplicate detection — read-only, valid rows only.
+  // Rows that collide with existing DB records are reclassified as invalid so
+  // they flow through the same blocking path as CSV-invalid rows
+  // (result.invalid.length > 0 → invalidCount > 0 → preflightState 'blocked').
+  const dbErrors = new Map<number, string[]>();
+
+  for (const row of preview.valid) {
+    const rowNum = row.rowNumber ?? 0;
+    const errors: string[] = [];
+
+    if (row.nhi) {
+      const nhiHash = await hashNHIForSearch(row.nhi.toUpperCase());
+      const existingPatient = await getPatientByNhiHash(nhiHash, ORG_ID);
+      if (existingPatient) {
+        errors.push('Patient with matching NHI already exists in database');
+      }
+    }
+
+    const serialNumber = row.machine.serial.trim();
+    if (serialNumber) {
+      const existingDevice = await getDeviceBySerialNumber(serialNumber, ORG_ID);
+      if (existingDevice) {
+        errors.push('Machine serial already exists in database');
+      }
+    }
+
+    if (errors.length > 0) {
+      dbErrors.set(rowNum, errors);
+    }
+  }
+
+  // Split valid rows: DB-blocked ones become invalid, clean ones stay valid.
+  const dbInvalidRows: ParsedPatient[] = preview.valid
+    .filter(r => dbErrors.has(r.rowNumber ?? 0))
+    .map(r => ({ ...r, importErrors: dbErrors.get(r.rowNumber ?? 0)! }));
+
+  const cleanValid = preview.valid.filter(r => !dbErrors.has(r.rowNumber ?? 0));
+  const allInvalid = [...preview.invalid, ...dbInvalidRows];
+
+  const {
+    reviewRows,
+    dupNhiGroupCount,
+    dupSerialGroupCount,
+    dupContactWarnCount,
+  } = detectDuplicates([...cleanValid, ...allInvalid]);
 
   const hasBlockers =
-    preview.invalid.length > 0 ||
+    allInvalid.length > 0 ||
     reviewRows.some(r => r.severity === 'review' || r.severity === 'error');
   const hasWarnings = reviewRows.some(r => r.severity === 'warning');
   const readiness: 'ready' | 'review_required' | 'not_ready' =
-    hasBlockers ? 'not_ready' :
-    hasWarnings ? 'review_required' :
-                  'ready';
+    hasBlockers   ? 'not_ready' :
+    hasWarnings   ? 'review_required' :
+                    'ready';
 
   const portalAccessSummary = {
-    requestingAccess: preview.valid.filter(r => r.enablePortalAccess).length,
-    missingEmail: preview.valid.filter(r => r.enablePortalAccess && !r.email.trim()).length,
+    requestingAccess: cleanValid.filter(r => r.enablePortalAccess).length,
+    missingEmail:     cleanValid.filter(r => r.enablePortalAccess && !r.email.trim()).length,
   };
 
   return NextResponse.json({
-    totalRows: preview.totalRows,
-    validCount: preview.valid.length,
-    invalidCount: preview.invalid.length,
-    valid: preview.valid,
-    invalid: preview.invalid,
-    errorSummary: preview.errorSummary,
+    totalRows:          preview.totalRows,
+    validCount:         cleanValid.length,
+    invalidCount:       allInvalid.length,
+    valid:              cleanValid,
+    invalid:            allInvalid,
+    errorSummary:       preview.errorSummary,
     reviewRows,
     readiness,
     dupNhiGroupCount,
