@@ -12,7 +12,7 @@ export type PortalAccount = {
 };
 
 export const MOCK_ACCOUNTS: PortalAccount[] = [
-  { id: "1",  name: "James Rutherford", msid: "MS-10047", nhiMasked: "MZV****", createdAt: "2025-12-01", passwordStatus: "changed", twoFa: true,  accountStatus: "active" },
+  { id: "1",  name: "Generated Final Guard Patient", msid: "MS-525374", nhiMasked: "ZZZ****", createdAt: "2025-12-01", passwordStatus: "temp",    twoFa: false, accountStatus: "active" },
   { id: "2",  name: "Sarah Chen",        msid: "MS-10052", nhiMasked: "GHT****", createdAt: "2025-12-03", passwordStatus: "temp",    twoFa: false, accountStatus: "active" },
   { id: "3",  name: "Michael Torres",    msid: "MS-10061", nhiMasked: "KRP****", createdAt: "2025-12-08", passwordStatus: "changed", twoFa: false, accountStatus: "locked" },
   { id: "4",  name: "Emily Watson",      msid: "MS-10074", nhiMasked: "LQF****", createdAt: "2026-01-05", passwordStatus: "temp",    twoFa: false, accountStatus: "active" },
@@ -30,7 +30,13 @@ function formatDate(iso: string): string {
   return d.toLocaleString("en-NZ", { day: "numeric", month: "short", year: "numeric" });
 }
 
-export function PortalAccountsTable({ accounts }: { accounts: PortalAccount[] }) {
+export function PortalAccountsTable({
+  accounts,
+  onResetPassword,
+}: {
+  accounts: PortalAccount[];
+  onResetPassword: (account: PortalAccount) => void;
+}) {
   if (accounts.length === 0) {
     return (
       <div className="bg-white border border-sand rounded-xl px-6 py-12 text-center shadow-[0_18px_50px_rgba(11,42,60,0.08)]">
@@ -95,6 +101,7 @@ export function PortalAccountsTable({ accounts }: { accounts: PortalAccount[] })
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
+                      onClick={() => onResetPassword(acct)}
                       className="text-xs font-medium text-[#0B5C6C] border border-[#0B5C6C]/40 rounded-md px-3 py-1.5 hover:bg-[#0B5C6C]/5 transition-colors whitespace-nowrap"
                     >
                       Reset Password

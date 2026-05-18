@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import type { PortalAccount } from "@/components/admin/PortalAccountsTable";
 import { MOCK_ACCOUNTS, PortalAccountsTable } from "@/components/admin/PortalAccountsTable";
+import { ResetPasswordModal } from "@/components/admin/ResetPasswordModal";
 
 type FilterKey = "all" | "temp" | "locked" | "no2fa";
 
@@ -13,8 +15,9 @@ const FILTERS: { key: FilterKey; label: string }[] = [
 ];
 
 export default function PortalAccountsPage() {
-  const [search, setSearch]           = useState("");
+  const [search, setSearch]             = useState("");
   const [activeFilter, setActiveFilter] = useState<FilterKey>("all");
+  const [resetTarget, setResetTarget]   = useState<PortalAccount | null>(null);
 
   const totalAccounts   = MOCK_ACCOUNTS.length;
   const passwordChanged = MOCK_ACCOUNTS.filter((a) => a.passwordStatus === "changed").length;
@@ -114,7 +117,19 @@ export default function PortalAccountsPage() {
       </div>
 
       {/* Accounts table */}
-      <PortalAccountsTable accounts={filtered} />
+      <PortalAccountsTable
+        accounts={filtered}
+        onResetPassword={(account) => setResetTarget(account)}
+      />
+
+      {/* Reset password modal — key forces fresh mount per account */}
+      {resetTarget && (
+        <ResetPasswordModal
+          key={resetTarget.id}
+          account={resetTarget}
+          onClose={() => setResetTarget(null)}
+        />
+      )}
 
     </div>
   );

@@ -142,3 +142,47 @@ export async function createPatientPortalUser(params: {
 
   return { status: 'created', temporaryPassword }
 }
+
+export type ResetPasswordResult =
+  | { status: 'reset'; temporaryPassword: string }
+  | { status: 'error'; message: string }
+
+export async function resetPatientPortalPassword(
+  username: string  // number-only, e.g. "10047"
+): Promise<ResetPasswordResult> {
+  const temporaryPassword = generateTemporaryPassword()
+
+  try {
+    await client.send(new AdminSetUserPasswordCommand({
+      UserPoolId: USER_POOL_ID,
+      Username: username,
+      Password: temporaryPassword,
+      Permanent: false,
+    }))
+  } catch (err: unknown) {
+    const errorName    = err instanceof Error ? err.name    : 'UnknownError'
+    const errorMessage = err instanceof Error ? err.message.slice(0, 300) : String(err).slice(0, 300)
+    const meta = (err as { $metadata?: { httpStatusCode?: number; requestId?: string } }).$metadata
+
+    console.error('[cognito-admin] resetPatientPortalPassword failed', {
+      username,   // number-only portal username — not a secret
+      errorName,
+      errorMessage,
+      httpStatusCode: meta?.httpStatusCode,
+      requestId:      meta?.requestId,
+    })
+
+    const message =
+      errorName === 'AccessDeniedException'
+        ? 'AWS credentials cannot reset password (check cognito-idp:AdminSetUserPassword IAM permission)'
+        : errorName === 'InvalidPasswordException'
+          ? 'Generated password did not meet Cognito policy'
+          : errorName === 'UserNotFoundException'
+            ? 'Portal account not found in Cognito'
+            : 'Password reset failed — check server logs for details'
+
+    return { status: 'error', message }
+  }
+
+  return { status: 'reset', temporaryPassword }
+}
