@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "@/lib/aws/cognito";
@@ -17,7 +18,10 @@ import {
   Upload,
   Shield,
 } from "lucide-react";
-import { MOCK_ACCOUNTS } from "@/components/admin/PortalAccountsTable";
+import {
+  getLockedCount,
+  subscribeLockedCount,
+} from "@/components/admin/portalAccountsStore";
 
 type NavItem = {
   href: string;
@@ -31,51 +35,51 @@ type NavSection = {
   items: NavItem[];
 };
 
-// Replaced with live Cognito data in Phase 2A wiring sprint.
-const LOCKED_PORTAL_ACCOUNTS = MOCK_ACCOUNTS.filter((a) => a.accountStatus === "locked").length;
-
-const navSections: NavSection[] = [
-  {
-    label: "MAIN",
-    items: [
-      { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
-    ],
-  },
-  {
-    label: "PATIENT OPERATIONS",
-    items: [
-      { href: "/admin/patients", label: "Patients", icon: Users },
-      { href: "/admin/orders", label: "Orders", icon: ShoppingCart },
-      { href: "/admin/outreach", label: "Outreach", icon: Mail },
-      { href: "/admin/inventory", label: "Inventory", icon: PackageSearch },
-    ],
-  },
-  {
-    label: "DATA OPERATIONS",
-    items: [
-      { href: "/admin/import", label: "Import", icon: Upload },
-      { href: "/admin/segments", label: "Segments", icon: Target },
-    ],
-  },
-  {
-    label: "FINANCE & FUNDING",
-    items: [
-      { href: "/admin/entitlement", label: "Entitlement", icon: Gift },
-      { href: "/admin/reports", label: "Reports", icon: BarChart3 },
-    ],
-  },
-  {
-    label: "SYSTEM",
-    items: [
-      { href: "/admin/portal-accounts", label: "Portal Accounts", icon: Shield, badge: LOCKED_PORTAL_ACCOUNTS },
-      { href: "/admin/audit", label: "Audit Log", icon: FileText },
-      { href: "/admin/config", label: "Config", icon: Settings },
-    ],
-  },
-];
-
 export default function AdminSidebar() {
   const pathname = usePathname();
+  const [lockedCount, setLockedCount] = useState(getLockedCount);
+
+  useEffect(() => subscribeLockedCount(() => setLockedCount(getLockedCount())), []);
+
+  const navSections: NavSection[] = [
+    {
+      label: "MAIN",
+      items: [
+        { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
+      ],
+    },
+    {
+      label: "PATIENT OPERATIONS",
+      items: [
+        { href: "/admin/patients", label: "Patients", icon: Users },
+        { href: "/admin/orders", label: "Orders", icon: ShoppingCart },
+        { href: "/admin/outreach", label: "Outreach", icon: Mail },
+        { href: "/admin/inventory", label: "Inventory", icon: PackageSearch },
+      ],
+    },
+    {
+      label: "DATA OPERATIONS",
+      items: [
+        { href: "/admin/import", label: "Import", icon: Upload },
+        { href: "/admin/segments", label: "Segments", icon: Target },
+      ],
+    },
+    {
+      label: "FINANCE & FUNDING",
+      items: [
+        { href: "/admin/entitlement", label: "Entitlement", icon: Gift },
+        { href: "/admin/reports", label: "Reports", icon: BarChart3 },
+      ],
+    },
+    {
+      label: "SYSTEM",
+      items: [
+        { href: "/admin/portal-accounts", label: "Portal Accounts", icon: Shield, badge: lockedCount },
+        { href: "/admin/audit", label: "Audit Log", icon: FileText },
+        { href: "/admin/config", label: "Config", icon: Settings },
+      ],
+    },
+  ];
 
   async function handleLogout() {
     try {

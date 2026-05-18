@@ -4,6 +4,8 @@ import { useState, useMemo } from "react";
 import type { PortalAccount } from "@/components/admin/PortalAccountsTable";
 import { MOCK_ACCOUNTS, PortalAccountsTable } from "@/components/admin/PortalAccountsTable";
 import { ResetPasswordModal } from "@/components/admin/ResetPasswordModal";
+import { UnlockAccountModal } from "@/components/admin/UnlockAccountModal";
+import { decrementLockedCount } from "@/components/admin/portalAccountsStore";
 
 type FilterKey = "all" | "temp" | "locked" | "no2fa";
 
@@ -15,17 +17,19 @@ const FILTERS: { key: FilterKey; label: string }[] = [
 ];
 
 export default function PortalAccountsPage() {
+  const [accounts, setAccounts]         = useState<PortalAccount[]>(MOCK_ACCOUNTS);
   const [search, setSearch]             = useState("");
   const [activeFilter, setActiveFilter] = useState<FilterKey>("all");
   const [resetTarget, setResetTarget]   = useState<PortalAccount | null>(null);
+  const [unlockTarget, setUnlockTarget] = useState<PortalAccount | null>(null);
 
-  const totalAccounts   = MOCK_ACCOUNTS.length;
-  const passwordChanged = MOCK_ACCOUNTS.filter((a) => a.passwordStatus === "changed").length;
-  const tempPassword    = MOCK_ACCOUNTS.filter((a) => a.passwordStatus === "temp").length;
-  const lockedAccounts  = MOCK_ACCOUNTS.filter((a) => a.accountStatus === "locked").length;
+  const totalAccounts   = accounts.length;
+  const passwordChanged = accounts.filter((a) => a.passwordStatus === "changed").length;
+  const tempPassword    = accounts.filter((a) => a.passwordStatus === "temp").length;
+  const lockedAccounts  = accounts.filter((a) => a.accountStatus === "locked").length;
 
   const filtered = useMemo(() => {
-    let list = MOCK_ACCOUNTS;
+    let list = accounts;
     if (activeFilter === "temp")   list = list.filter((a) => a.passwordStatus === "temp");
     if (activeFilter === "locked") list = list.filter((a) => a.accountStatus === "locked");
     if (activeFilter === "no2fa")  list = list.filter((a) => !a.twoFa);
@@ -36,7 +40,14 @@ export default function PortalAccountsPage() {
       );
     }
     return list;
-  }, [search, activeFilter]);
+  }, [accounts, search, activeFilter]);
+
+  function handleUnlockSuccess(msid: string) {
+    setAccounts((prev) =>
+      prev.map((a) => a.msid === msid ? { ...a, accountStatus: "active" as const } : a)
+    );
+    decrementLockedCount();
+  }
 
   return (
     <div className="space-y-6">
@@ -120,6 +131,7 @@ export default function PortalAccountsPage() {
       <PortalAccountsTable
         accounts={filtered}
         onResetPassword={(account) => setResetTarget(account)}
+        onUnlockAccount={(account) => setUnlockTarget(account)}
       />
 
       {/* Reset password modal — key forces fresh mount per account */}
@@ -128,6 +140,16 @@ export default function PortalAccountsPage() {
           key={resetTarget.id}
           account={resetTarget}
           onClose={() => setResetTarget(null)}
+        />
+      )}
+
+      {/* Unlock account modal — key forces fresh mount per account */}
+      {unlockTarget && (
+        <UnlockAccountModal
+          key={unlockTarget.id}
+          account={unlockTarget}
+          onClose={() => setUnlockTarget(null)}
+          onSuccess={handleUnlockSuccess}
         />
       )}
 

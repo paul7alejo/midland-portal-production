@@ -3,6 +3,7 @@ import {
   AdminGetUserCommand,
   AdminCreateUserCommand,
   AdminSetUserPasswordCommand,
+  AdminEnableUserCommand,
 } from '@aws-sdk/client-cognito-identity-provider'
 import { randomBytes } from 'crypto'
 
@@ -185,4 +186,42 @@ export async function resetPatientPortalPassword(
   }
 
   return { status: 'reset', temporaryPassword }
+}
+
+export type UnlockAccountResult =
+  | { status: 'unlocked' }
+  | { status: 'error'; message: string }
+
+export async function unlockPatientPortalAccount(
+  username: string  // number-only, e.g. "10047"
+): Promise<UnlockAccountResult> {
+  try {
+    await client.send(new AdminEnableUserCommand({
+      UserPoolId: USER_POOL_ID,
+      Username: username,
+    }))
+  } catch (err: unknown) {
+    const errorName    = err instanceof Error ? err.name    : 'UnknownError'
+    const errorMessage = err instanceof Error ? err.message.slice(0, 300) : String(err).slice(0, 300)
+    const meta = (err as { $metadata?: { httpStatusCode?: number; requestId?: string } }).$metadata
+
+    console.error('[cognito-admin] unlockPatientPortalAccount failed', {
+      username,   // number-only portal username — not a secret
+      errorName,
+      errorMessage,
+      httpStatusCode: meta?.httpStatusCode,
+      requestId:      meta?.requestId,
+    })
+
+    const message =
+      errorName === 'AccessDeniedException'
+        ? 'AWS credentials cannot enable user (check cognito-idp:AdminEnableUser IAM permission)'
+        : errorName === 'UserNotFoundException'
+          ? 'Portal account not found in Cognito'
+          : 'Unlock failed — check server logs for details'
+
+    return { status: 'error', message }
+  }
+
+  return { status: 'unlocked' }
 }
