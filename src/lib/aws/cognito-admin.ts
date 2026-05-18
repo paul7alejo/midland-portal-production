@@ -2,6 +2,7 @@ import {
   CognitoIdentityProviderClient,
   AdminGetUserCommand,
   AdminCreateUserCommand,
+  AdminSetUserPasswordCommand,
 } from '@aws-sdk/client-cognito-identity-provider'
 import { randomBytes } from 'crypto'
 
@@ -66,11 +67,13 @@ export async function createPatientPortalUser(params: {
 
   const temporaryPassword = generateTemporaryPassword()
 
+  // Create user without TemporaryPassword — Cognito may auto-generate and ignore an
+  // explicitly provided one when MessageAction is SUPPRESS on some pool configurations.
+  // We set the exact known password immediately after via AdminSetUserPassword.
   try {
     await client.send(new AdminCreateUserCommand({
       UserPoolId: USER_POOL_ID,
       Username: username,
-      TemporaryPassword: temporaryPassword,
       MessageAction: 'SUPPRESS',
       UserAttributes: [
         { Name: 'custom:msid',   Value: msid },
@@ -79,11 +82,28 @@ export async function createPatientPortalUser(params: {
         { Name: 'name',          Value: name },
       ],
     }))
-    return { status: 'created', temporaryPassword }
   } catch (err: unknown) {
     return {
       status: 'error',
       message: err instanceof Error ? err.message : 'Failed to create portal user',
     }
   }
+
+  // Permanent: false preserves FORCE_CHANGE_PASSWORD status and sets exactly the
+  // password that will be displayed to the admin — no auto-generated value can interfere.
+  try {
+    await client.send(new AdminSetUserPasswordCommand({
+      UserPoolId: USER_POOL_ID,
+      Username: username,
+      Password: temporaryPassword,
+      Permanent: false,
+    }))
+  } catch (err: unknown) {
+    return {
+      status: 'error',
+      message: 'Portal user created but temporary password could not be set — contact system administrator',
+    }
+  }
+
+  return { status: 'created', temporaryPassword }
 }

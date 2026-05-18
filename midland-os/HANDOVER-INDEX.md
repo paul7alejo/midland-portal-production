@@ -45,12 +45,16 @@ SOPs:
 - [Import SOP](04-sops/import-sop.md)
 - [Admin Review SOP](04-sops/admin-review-sop.md)
 - [Release SOP](04-sops/release-sop.md)
+- [Backup SOP](04-sops/backup-sop.md)
+- [Export SOP](04-sops/export-sop.md)
+- [Onboarding SOP](04-sops/onboarding-sop.md)
+- [Support Model](04-sops/support-model.md) — full commercial and operational terms, retainer anchor, change request process
 
 Memory and governance:
 
 - [Known Limitations](06-memory/known-limitations.md)
 - [Risks](06-memory/risks.md)
-- [Support Model](06-memory/support-model.md)
+- [Support Model — internal summary](06-memory/support-model.md) — condensed reference; see 04-sops/support-model.md for full terms
 
 Phase 1 outputs:
 
