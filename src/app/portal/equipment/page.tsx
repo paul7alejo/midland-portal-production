@@ -69,11 +69,11 @@ export default function EquipmentPage() {
   if (loading) return <div className="p-8 text-charcoal/70 text-lg leading-7">Loading equipment...</div>;
 
   const machineName = device
-    ? [device.brand, device.name ?? device.model].filter(Boolean).join(" ") ||
+    ? device.name || [device.brand, device.model].filter(Boolean).join(" ") ||
       "Machine details not recorded"
     : "";
   const maskName = mask
-    ? [mask.brand, mask.name].filter(Boolean).join(" ") ||
+    ? mask.name || mask.brand ||
       "Mask details not recorded"
     : "";
   const replacementDue = addYears(device?.setup_date);

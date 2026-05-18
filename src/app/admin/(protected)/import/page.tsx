@@ -4,6 +4,9 @@ import { useState, useRef } from "react";
 import type { ParsedPatient, ReviewRow } from "@/lib/csv-import/patient-import";
 import type { ImportManifestRow, PreflightState } from "@/lib/csv-import/import-preflight";
 import { computePreflightState, buildManifest } from "@/lib/csv-import/import-preflight";
+import type { CompletedBatch } from "@/components/admin/ImportHistoryTable";
+import { ImportHistoryTable } from "@/components/admin/ImportHistoryTable";
+import { ImportDetailsSheet } from "@/components/admin/ImportDetailsSheet";
 
 type PreviewResult = {
   valid: ParsedPatient[];
@@ -1288,8 +1291,21 @@ function ExecuteResultPanel({ result }: { result: ExecuteResultState }) {
           </div>
         </div>
       )}
-    </div>
+      </div>
   );
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function computeBatchStatus(
+  created: number,
+  skipped: number,
+  failed: number
+): CompletedBatch["status"] {
+  if (created > 0 && failed === 0) return "success";
+  if (created === 0 && failed > 0) return "failed";
+  if (created > 0 && failed > 0) return "partial";
+  return "all_skipped";
 }
 
 // ─── Main page ────────────────────────────────────────────────────────────────
@@ -1305,6 +1321,9 @@ export default function AdminImportPage() {
   const [executeResult, setExecuteResult] = useState<ExecuteResultState | null>(null);
   const [executeError, setExecuteError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [view,             setView]             = useState<"history" | "wizard">("history");
+  const [completedBatches, setCompletedBatches] = useState<CompletedBatch[]>([]);
+  const [selectedBatch,    setSelectedBatch]    = useState<CompletedBatch | null>(null);
 
   const manifest: ImportManifestRow[] = result
     ? buildManifest({ valid: result.valid, invalid: result.invalid, reviewRows: result.reviewRows })
@@ -1381,6 +1400,23 @@ export default function AdminImportPage() {
         setExecuteError(data.error ?? 'Import failed. Try again.');
         return;
       }
+      const batch: CompletedBatch = {
+        batchId: data.importBatchId,
+        executedAt: new Date().toISOString(),
+        importedBy: "Admin session",
+        totalRows: data.summary.created + data.summary.skipped + data.summary.failed,
+        created: data.summary.created,
+        skipped: data.summary.skipped,
+        failed: data.summary.failed,
+        status: computeBatchStatus(data.summary.created, data.summary.skipped, data.summary.failed),
+        portalUsersCreated: data.portalUsersCreated ?? [],
+        portalUsersAlreadyExisted: data.summary.portalUsersAlreadyExisted ?? 0,
+        portalUserFailures: data.summary.portalUserFailures ?? 0,
+        failedRows: data.failedRows ?? [],
+        skippedRows: data.skippedRows ?? [],
+        portalUserFailureDetails: data.portalUserFailureDetails ?? [],
+      };
+      setCompletedBatches(prev => [batch, ...prev]);
       setExecuteResult({
         created: data.summary.created,
         skipped: data.summary.skipped,
@@ -1391,7 +1427,7 @@ export default function AdminImportPage() {
         portalUserFailures: data.summary.portalUserFailures ?? 0,
         failedRows: data.failedRows ?? [],
         skippedRows: data.skippedRows ?? [],
-        portalUserFailureDetails: data.portalUserFailures ?? [],
+        portalUserFailureDetails: data.portalUserFailureDetails ?? [],
       });
     } catch {
       setExecuteError('Import failed. Try again.');
@@ -1408,6 +1444,18 @@ export default function AdminImportPage() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
+  function openWizard() {
+    setCsvText("");
+    setFileName(null);
+    setResult(null);
+    setActiveTab("valid");
+    setPreviewError(null);
+    setExecuteResult(null);
+    setExecuteError(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    setView("wizard");
+  }
+
   const canPreview  = csvText.trim().length > 0 && !isPreviewing;
   const canClear    = csvText.length > 0 || result !== null;
   const canExecute  = preflightState === 'passed' && !isExecuting && !executeResult;
@@ -1415,15 +1463,74 @@ export default function AdminImportPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="space-y-2">
-        <p className="text-sm font-semibold uppercase tracking-wide text-deep-teal">
-          Data operations
-        </p>
-        <h1 className="text-3xl font-bold text-navy">Import patients</h1>
-        <p className="text-base leading-6 text-gray-600">
-          Validate CSV data, review risks, and prepare evidence before any approved production import.
-        </p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="space-y-1">
+          <p className="text-sm font-semibold uppercase tracking-wide text-deep-teal">
+            Data operations
+          </p>
+          <h1 className="font-display text-[38px] leading-tight font-semibold text-navy">Import Operations</h1>
+          <p className="text-base leading-6 text-charcoal/70">
+            Review import history first, then start a controlled CSV import when needed.
+          </p>
+        </div>
+        {view === "history" && (
+          <button
+            type="button"
+            onClick={openWizard}
+            className="bg-[#0B5C6C] text-white text-sm font-medium px-5 py-2.5 rounded-lg min-h-[40px] hover:bg-[#0B5C6C]/90 transition-colors"
+          >
+            Start New Import
+          </button>
+        )}
+        {view === "wizard" && (
+          <button
+            type="button"
+            onClick={() => setView("history")}
+            className="flex items-center gap-2 border border-sand bg-white text-charcoal text-sm font-medium px-4 py-2.5 rounded-lg min-h-[40px] hover:border-[#0B5C6C] hover:text-[#0B5C6C] transition-colors shadow-sm"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+            </svg>
+            Back to Import History
+          </button>
+        )}
       </div>
+
+      {/* Details sheet */}
+      {selectedBatch && (
+        <ImportDetailsSheet batch={selectedBatch} onClose={() => setSelectedBatch(null)} />
+      )}
+
+      {/* History view */}
+      {view === "history" && (
+        completedBatches.length === 0 ? (
+          <div className="flex flex-col items-center justify-center text-center py-16 border-2 border-dashed border-sand rounded-2xl bg-white shadow-[0_18px_50px_rgba(11,42,60,0.08)]">
+            <svg className="h-10 w-10 text-gray-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+            </svg>
+            <h2 className="font-display text-2xl font-semibold text-navy">No import batches yet</h2>
+            <p className="mt-2 text-sm leading-6 text-charcoal/65 max-w-sm">
+              Import history will appear after a batch is executed in this session. No mock production batches are shown.
+            </p>
+            <button
+              type="button"
+              onClick={openWizard}
+              className="mt-6 bg-[#0B5C6C] text-white text-sm font-medium px-6 py-3 rounded-lg min-h-[44px] hover:bg-[#0B5C6C]/90 transition-colors"
+            >
+              Start New Import
+            </button>
+          </div>
+        ) : (
+          <ImportHistoryTable
+            batches={completedBatches}
+            onViewDetails={(batch) => setSelectedBatch(batch)}
+          />
+        )
+      )}
+
+      {/* Wizard view */}
+      {view === "wizard" && (
+        <div className="space-y-6">
 
       {/* Workflow banner — always visible */}
       <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-4">
@@ -1724,6 +1831,8 @@ export default function AdminImportPage() {
           )}
 
         </div>
+      )}
+      </div>
       )}
     </div>
   );

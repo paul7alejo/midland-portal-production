@@ -1067,7 +1067,7 @@ export default function AdminPatientsPage() {
                       </td>
                       <td className="px-4 py-4">
                         <span className="whitespace-nowrap tabular-nums min-w-[80px] font-mono text-sm leading-5 text-gray-700">
-                          {patient.msid.replace(/^MS-/, "")}
+                          {patient.msid}
                         </span>
                       </td>
                       <td className="px-4 py-4">

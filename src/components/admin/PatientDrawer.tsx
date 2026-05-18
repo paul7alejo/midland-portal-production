@@ -437,6 +437,7 @@ function EquipmentTab({ patient }: { patient: DrawerPatient }) {
 
 function EntitlementTab({ patient }: { patient: DrawerPatient }) {
   const { funding } = patient;
+  const pendingReview = funding.annualAllowance === 0 && patient.entitlement.length === 0;
   const remainingColor =
     funding.remainingAmount > 75
       ? "text-emerald-700"
@@ -446,27 +447,36 @@ function EntitlementTab({ patient }: { patient: DrawerPatient }) {
 
   return (
     <div className="space-y-5">
-      {/* Funding summary */}
-      <div className="bg-gray-50 rounded-xl p-4 space-y-4">
-        <dl className="grid gap-4 sm:grid-cols-3">
-          <div>
-            <dt className="text-sm font-medium text-gray-500 uppercase tracking-wide">Annual allowance</dt>
-            <dd className="text-base font-semibold text-gray-800 mt-0.5">${funding.annualAllowance}</dd>
-          </div>
-          <div>
-            <dt className="text-sm font-medium text-gray-500 uppercase tracking-wide">Used to date</dt>
-            <dd className="text-base font-semibold text-gray-800 mt-0.5">${funding.usedAmount}</dd>
-          </div>
-          <div>
-            <dt className="text-sm font-medium text-gray-500 uppercase tracking-wide">Remaining</dt>
-            <dd className={`text-base font-semibold mt-0.5 ${remainingColor}`}>${funding.remainingAmount}</dd>
-          </div>
-        </dl>
-        <FieldRow
-          label="Funding period"
-          value={`${funding.fundingPeriodStart} – ${funding.fundingPeriodEnd}`}
-        />
-      </div>
+      {pendingReview ? (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-2">
+          <p className="text-sm font-semibold text-amber-900 uppercase tracking-wide">Funding review required</p>
+          <p className="text-sm text-amber-800">
+            Entitlement data is not yet available for this record. Staff review is required before funding amounts can be confirmed.
+          </p>
+        </div>
+      ) : (
+        /* Funding summary */
+        <div className="bg-gray-50 rounded-xl p-4 space-y-4">
+          <dl className="grid gap-4 sm:grid-cols-3">
+            <div>
+              <dt className="text-sm font-medium text-gray-500 uppercase tracking-wide">Annual allowance</dt>
+              <dd className="text-base font-semibold text-gray-800 mt-0.5">${funding.annualAllowance}</dd>
+            </div>
+            <div>
+              <dt className="text-sm font-medium text-gray-500 uppercase tracking-wide">Used to date</dt>
+              <dd className="text-base font-semibold text-gray-800 mt-0.5">${funding.usedAmount}</dd>
+            </div>
+            <div>
+              <dt className="text-sm font-medium text-gray-500 uppercase tracking-wide">Remaining</dt>
+              <dd className={`text-base font-semibold mt-0.5 ${remainingColor}`}>${funding.remainingAmount}</dd>
+            </div>
+          </dl>
+          <FieldRow
+            label="Funding period"
+            value={`${funding.fundingPeriodStart} – ${funding.fundingPeriodEnd}`}
+          />
+        </div>
+      )}
 
       {/* Suggested remaining items */}
       {funding.suggestedItemsRemaining.length > 0 && (
@@ -485,36 +495,42 @@ function EntitlementTab({ patient }: { patient: DrawerPatient }) {
         </div>
       )}
 
-      {/* Funding note */}
-      {funding.fundingNote && (
+      {/* Funding note — only shown when entitlement data is present */}
+      {!pendingReview && funding.fundingNote && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
           <p className="text-sm text-amber-800">{funding.fundingNote}</p>
         </div>
       )}
 
       {/* Staff-only notice */}
-      <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3">
-        <p className="text-sm text-gray-600">
-          Funding balance is visible to staff only and is not shown to patients.
-        </p>
-      </div>
+      {!pendingReview && (
+        <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3">
+          <p className="text-sm text-gray-600">
+            Funding balance is visible to staff only and is not shown to patients.
+          </p>
+        </div>
+      )}
 
-      <hr className="border-gray-200" />
+      {!pendingReview && patient.entitlement.length > 0 && (
+        <>
+          <hr className="border-gray-200" />
 
-      {/* Per-item entitlement cards */}
-      <div className="space-y-3">
-        <p className="text-sm font-medium text-gray-500 uppercase tracking-wide">Item entitlement</p>
-        {patient.entitlement.map((item) => (
-          <div key={item.item} className="bg-gray-50 rounded-xl p-4 space-y-3">
-            <p className="text-base font-semibold text-gray-800">{item.item}</p>
-            <dl className="grid gap-3 sm:grid-cols-3">
-              <FieldRow label="Last reorder"  value={item.lastReorder} />
-              <FieldRow label="Next eligible" value={item.nextEligible} />
-              <FieldRow label="Usage / cap"   value={item.usageVsCap} />
-            </dl>
+          {/* Per-item entitlement cards */}
+          <div className="space-y-3">
+            <p className="text-sm font-medium text-gray-500 uppercase tracking-wide">Item entitlement</p>
+            {patient.entitlement.map((item) => (
+              <div key={item.item} className="bg-gray-50 rounded-xl p-4 space-y-3">
+                <p className="text-base font-semibold text-gray-800">{item.item}</p>
+                <dl className="grid gap-3 sm:grid-cols-3">
+                  <FieldRow label="Last reorder"  value={item.lastReorder} />
+                  <FieldRow label="Next eligible" value={item.nextEligible} />
+                  <FieldRow label="Usage / cap"   value={item.usageVsCap} />
+                </dl>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </>
+      )}
     </div>
   );
 }
@@ -592,12 +608,12 @@ function NotesTab({
     <div className="space-y-5">
       <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
         <p className="text-sm text-amber-800">
-          Staff only — these session notes are never shown to the patient and are not a persistent audit record.
+          Staff only — temporary notes exist in this browser session only. They are cleared when this drawer is closed and are not saved to the patient record.
         </p>
       </div>
 
       <div className="space-y-2">
-        <label className="block text-base font-medium text-gray-700">Add note</label>
+        <label className="block text-base font-medium text-gray-700">Temporary note</label>
         <textarea
           value={noteText}
           onChange={(e) => setNoteText(e.target.value)}
@@ -614,13 +630,13 @@ function NotesTab({
           className="bg-[#0B5C6C] text-white text-base font-medium px-5 py-2.5 rounded-lg min-h-[44px]
                      hover:bg-[#0B5C6C]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Save session note
+          Add temporary note
         </button>
       </div>
 
       {savedNotes.length > 0 && (
         <div className="space-y-3">
-          <h4 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Session notes</h4>
+          <h4 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Temporary notes (this session only)</h4>
           {savedNotes.map((note) => (
             <div key={note.id} className="bg-gray-50 rounded-xl p-4 space-y-2">
               {editingNoteId === note.id ? (

@@ -15,9 +15,26 @@ import {
   BarChart3,
   Settings,
   Upload,
+  Shield,
 } from "lucide-react";
+import { MOCK_ACCOUNTS } from "@/components/admin/PortalAccountsTable";
 
-const navSections = [
+type NavItem = {
+  href: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  badge?: number;
+};
+
+type NavSection = {
+  label: string;
+  items: NavItem[];
+};
+
+// Replaced with live Cognito data in Phase 2A wiring sprint.
+const LOCKED_PORTAL_ACCOUNTS = MOCK_ACCOUNTS.filter((a) => a.accountStatus === "locked").length;
+
+const navSections: NavSection[] = [
   {
     label: "MAIN",
     items: [
@@ -50,6 +67,7 @@ const navSections = [
   {
     label: "SYSTEM",
     items: [
+      { href: "/admin/portal-accounts", label: "Portal Accounts", icon: Shield, badge: LOCKED_PORTAL_ACCOUNTS },
       { href: "/admin/audit", label: "Audit Log", icon: FileText },
       { href: "/admin/config", label: "Config", icon: Settings },
     ],
@@ -119,7 +137,12 @@ export default function AdminSidebar() {
                       `}
                     >
                       <Icon className="h-5 w-5 shrink-0" />
-                      <span>{item.label}</span>
+                      <span className="flex-1">{item.label}</span>
+                      {item.badge != null && item.badge > 0 && (
+                        <span className="ml-auto text-[10px] font-bold tabular-nums leading-none px-1.5 py-0.5 rounded-full bg-amber-400 text-amber-900">
+                          {item.badge}
+                        </span>
+                      )}
                     </Link>
                   );
                 })}

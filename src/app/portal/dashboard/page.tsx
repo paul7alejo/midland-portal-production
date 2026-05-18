@@ -23,12 +23,6 @@ function addYears(iso: string, years: number): string | null {
   return date.toISOString();
 }
 
-function formatMaskType(type: string): string {
-  if (type === "full_face") return "Full face";
-  if (type === "nasal") return "Nasal";
-  if (type === "nasal_pillow") return "Nasal pillow";
-  return type;
-}
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -58,10 +52,10 @@ export default function DashboardPage() {
         badgeClass: "bg-seafoam text-navy",
       }
     : {
-        label: "Entitlement exhausted",
-        detail: "Please contact Midland Sleep for next steps.",
-        cardClass: "border-[#E9A29A]/60 bg-[#FDECEC] text-[#7A2721]",
-        badgeClass: "bg-[#C85A4F] text-white",
+        label: "No funded supplies available right now",
+        detail: "Contact Midland Sleep if you have questions about your supply entitlement.",
+        cardClass: "border-sand bg-sand-pale text-charcoal",
+        badgeClass: "bg-charcoal/70 text-white",
       };
   const overdueChecks = maintenance.filter((c: any) => c.status === "OVERDUE");
   const dueSoonChecks = maintenance.filter((c: any) => c.status === "DUE");
@@ -139,7 +133,7 @@ export default function DashboardPage() {
                 <div className="rounded-xl border border-sand bg-sand-pale/40 p-4">
                   <Link
                     href="/portal/equipment"
-                    aria-label={`View equipment details for ${device.brand} ${device.name}`}
+                    aria-label={`View equipment details for ${device.name}`}
                     className="block rounded-lg transition-colors hover:bg-white/50 focus:outline-none focus:ring-2 focus:ring-deep-teal"
                   >
                     <EquipmentVisual type="machine" className="h-32 w-full min-w-0 sm:h-36" />
@@ -150,7 +144,7 @@ export default function DashboardPage() {
                       href="/portal/equipment"
                       className="mt-1 block text-xl font-semibold text-charcoal leading-snug hover:text-deep-teal hover:underline"
                     >
-                      {device.brand} {device.name}
+                      {device.name}
                     </Link>
                     {machineReplacementDue && (
                       <p className="mt-2 text-base leading-6 text-charcoal/80">
@@ -164,7 +158,7 @@ export default function DashboardPage() {
                 <div className="rounded-xl border border-sand bg-sand-pale/40 p-4">
                   <Link
                     href="/portal/equipment"
-                    aria-label={`View equipment details for ${mask.brand} ${mask.name}`}
+                    aria-label={`View equipment details for ${mask.name}`}
                     className="block rounded-lg transition-colors hover:bg-white/50 focus:outline-none focus:ring-2 focus:ring-deep-teal"
                   >
                     <EquipmentVisual type="mask" className="h-32 w-full min-w-0 sm:h-36" />
@@ -175,7 +169,7 @@ export default function DashboardPage() {
                       href="/portal/equipment"
                       className="mt-1 block text-xl font-semibold text-charcoal leading-snug hover:text-deep-teal hover:underline"
                     >
-                      {mask.brand} {mask.name}
+                      {mask.name}
                     </Link>
                   </div>
                 </div>
@@ -237,7 +231,7 @@ export default function DashboardPage() {
             <div>
               <p className="text-sm uppercase tracking-wide text-charcoal/80 font-mono mb-1.5">Mask</p>
               <p className="text-charcoal font-medium">
-                {mask ? `${mask.brand} ${mask.name} ${formatMaskType(mask.type)}` : "No mask on file"}
+                {mask ? mask.name : "No mask on file"}
               </p>
             </div>
             <div>
@@ -275,7 +269,10 @@ export default function DashboardPage() {
           ) : (
             <div className="bg-sand-pale rounded-lg p-5 space-y-2">
               <p className="text-charcoal font-medium text-lg leading-7">
-                Please contact Midland Sleep for next steps.
+                No funded supplies are available right now.
+              </p>
+              <p className="text-base leading-6 text-charcoal/80">
+                Contact Midland Sleep if you have questions about your supply entitlement.
               </p>
             </div>
           )}
