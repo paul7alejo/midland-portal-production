@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAdminUser, isAuthorizedAdmin } from '@/lib/security'
-import { appendAuditLog } from '@/lib/aws/dynamodb'
+import { writeAdminAuditEvent } from '@/lib/aws/audit'
 import { unlockPatientPortalAccount } from '@/lib/aws/cognito-admin'
 
 const MSID_RE = /^MS-\d+$/
@@ -31,16 +31,21 @@ export async function POST(request: NextRequest) {
   // Cognito username is the number-only portion of the MSID
   const username = msid.slice(3)  // strip "MS-"
 
-  // Audit attempt must be written before any Cognito action
-  await appendAuditLog({
-    userId:       user.sub,
-    event_type:   'ADMIN_ACCOUNT_UNLOCK_ATTEMPT',
-    admin_id:     user.sub,
-    admin_email:  user.email,
-    patient_msid: msid,
-    timestamp:    new Date().toISOString(),
-    result:       'attempted',
+  // Audit write is awaited and must succeed before any Cognito action.
+  // NHI is not sent by the unlock modal, so patientNhiMasked is omitted.
+  const audit = await writeAdminAuditEvent({
+    action:      'ADMIN_ACCOUNT_UNLOCK_ATTEMPT',
+    adminSub:    user.sub,
+    adminEmail:  user.email,
+    patientMsid: msid,
   })
+
+  if (!audit.ok) {
+    return NextResponse.json(
+      { error: 'Audit write failed — action not taken' },
+      { status: 500 }
+    )
+  }
 
   const result = await unlockPatientPortalAccount(username)
 

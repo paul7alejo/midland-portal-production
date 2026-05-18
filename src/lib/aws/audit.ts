@@ -1,0 +1,57 @@
+import 'server-only'
+import { appendAuditLog } from '@/lib/aws/dynamodb'
+
+const ORG_ID = 'midland-sleep'
+
+export type AdminAuditAction =
+  | 'ADMIN_PASSWORD_RESET_ATTEMPT'
+  | 'ADMIN_ACCOUNT_UNLOCK_ATTEMPT'
+
+export interface AdminAuditParams {
+  action: AdminAuditAction
+  adminSub: string
+  adminEmail: string
+  patientMsid: string
+  patientNhiMasked?: string   // omit when not available on the server path
+}
+
+export type AuditWriteResult =
+  | { ok: true }
+  | { ok: false; errorName: string }
+
+// PutItem only — enforced by appendAuditLog.
+// Returns { ok: false } on failure; caller MUST check and abort before any Cognito action.
+export async function writeAdminAuditEvent(
+  params: AdminAuditParams
+): Promise<AuditWriteResult> {
+  try {
+    await appendAuditLog({
+      userId:             params.adminSub,
+      // event_type is the existing appendAuditLog field; action is the scannable top-level attribute
+      event_type:         params.action,
+      action:             params.action,
+      admin_id:           params.adminSub,
+      admin_email:        params.adminEmail,
+      patient_msid:       params.patientMsid,
+      ...(params.patientNhiMasked !== undefined && {
+        patient_nhi_masked: params.patientNhiMasked,
+      }),
+      org_id:             ORG_ID,
+      timestamp:          new Date().toISOString(),
+      result:             'attempted',
+    })
+    return { ok: true }
+  } catch (err: unknown) {
+    const errorName  = err instanceof Error ? err.name : 'UnknownError'
+    const requestId  = (err as { $metadata?: { requestId?: string } }).$metadata?.requestId
+    const httpStatus = (err as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode
+    // Log only safe metadata — no user data, no secrets
+    console.error('[audit] writeAdminAuditEvent failed', {
+      action: params.action,
+      errorName,
+      requestId,
+      httpStatus,
+    })
+    return { ok: false, errorName }
+  }
+}
