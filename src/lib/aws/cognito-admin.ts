@@ -116,10 +116,28 @@ export async function createPatientPortalUser(params: {
       Permanent: false,
     }))
   } catch (err: unknown) {
-    return {
-      status: 'error',
-      message: 'Portal user created but temporary password could not be set — contact system administrator',
-    }
+    const errorName    = err instanceof Error ? err.name : 'UnknownError'
+    const errorMessage = err instanceof Error ? err.message.slice(0, 300) : String(err).slice(0, 300)
+    const meta = (err as { $metadata?: { httpStatusCode?: number; requestId?: string } }).$metadata
+
+    console.error('[cognito-admin] AdminSetUserPassword failed', {
+      username,  // number-only portal username — not a secret
+      errorName,
+      errorMessage,
+      httpStatusCode: meta?.httpStatusCode,
+      requestId:      meta?.requestId,
+    })
+
+    const message =
+      errorName === 'AccessDeniedException'
+        ? 'Portal user created but runtime AWS credentials cannot set temporary password (check cognito-idp:AdminSetUserPassword IAM permission)'
+        : errorName === 'InvalidPasswordException'
+          ? 'Portal user created but generated temporary password did not meet Cognito policy'
+          : errorName === 'ResourceNotFoundException' || errorName === 'UserNotFoundException'
+            ? 'Portal user created but could not be found for password setup'
+            : 'Portal user created but temporary password could not be set'
+
+    return { status: 'error', message }
   }
 
   return { status: 'created', temporaryPassword }
