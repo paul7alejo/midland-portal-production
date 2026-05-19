@@ -6,6 +6,17 @@ import { hashNHIForSearch } from '@/lib/nhi';
 
 const ORG_ID = 'midland-sleep';
 
+type DiagDetail = 'nhi_hash' | 'duplicate_lookup' | 'unknown';
+
+function failPreview(detail: DiagDetail, err: unknown): NextResponse {
+  const code = 'IMPORT_PREVIEW_BACKEND_ERROR';
+  const name = err instanceof Error ? err.name : 'UnknownError';
+  const message = err instanceof Error ? err.message : String(err);
+  const awsRequestId = (err as { $metadata?: { requestId?: string } })?.$metadata?.requestId;
+  console.error('[import-preview]', { code, detail, name, message, ...(awsRequestId ? { awsRequestId } : {}) });
+  return NextResponse.json({ error: 'Import preview failed', code, detail }, { status: 500 });
+}
+
 export async function POST(request: NextRequest) {
   const user = await getAdminUser();
   if (!user || !isAuthorizedAdmin(user)) {
@@ -37,8 +48,20 @@ export async function POST(request: NextRequest) {
     const errors: string[] = [];
 
     if (row.nhi) {
-      const nhiHash = await hashNHIForSearch(row.nhi.toUpperCase());
-      const existingPatient = await getPatientByNhiHash(nhiHash, ORG_ID);
+      let nhiHash: string;
+      try {
+        nhiHash = await hashNHIForSearch(row.nhi.toUpperCase());
+      } catch (err) {
+        return failPreview('nhi_hash', err);
+      }
+
+      let existingPatient: Awaited<ReturnType<typeof getPatientByNhiHash>>;
+      try {
+        existingPatient = await getPatientByNhiHash(nhiHash, ORG_ID);
+      } catch (err) {
+        return failPreview('duplicate_lookup', err);
+      }
+
       if (existingPatient) {
         errors.push('Patient with matching NHI already exists in database');
       }
@@ -46,7 +69,13 @@ export async function POST(request: NextRequest) {
 
     const serialNumber = row.machine.serial.trim();
     if (serialNumber) {
-      const existingDevice = await getDeviceBySerialNumber(serialNumber, ORG_ID);
+      let existingDevice: Awaited<ReturnType<typeof getDeviceBySerialNumber>>;
+      try {
+        existingDevice = await getDeviceBySerialNumber(serialNumber, ORG_ID);
+      } catch (err) {
+        return failPreview('duplicate_lookup', err);
+      }
+
       if (existingDevice) {
         errors.push('Machine serial already exists in database');
       }
