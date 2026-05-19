@@ -232,9 +232,10 @@ export async function listPatients(orgId: string): Promise<PatientSummary[]> {
   do {
     const res = await docClient.send(new ScanCommand({
       TableName: TABLES.PATIENTS,
-      FilterExpression: 'org_id = :orgId',
+      FilterExpression: 'org_id = :orgId AND sk = :profileSk',
       ExpressionAttributeValues: {
         ':orgId': orgId,
+        ':profileSk': 'PROFILE',
       },
       ProjectionExpression: [
         '#patientId',
