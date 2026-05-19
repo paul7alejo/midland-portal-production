@@ -82,11 +82,32 @@
 35. Restore documented in release-sop.md but never exposed in portal.
 ```
 
+## Deletion and data mutation
+
+```text
+39. Soft delete is the default for all Midland operational data (notes, records,
+    orders, access history). Mark with is_deleted: true, deleted_at, deleted_by,
+    deleted_by_email. Do not remove from DynamoDB.
+40. Hard delete (DeleteItem) is forbidden for patient records, notes, orders,
+    and operational records. Requires Privacy Officer sign-off and documented ADR.
+    Hard delete is never exposed through the portal UI.
+    Note: Rule 24 ("no portal-driven delete") refers to DynamoDB infrastructure-level
+    operations (table delete, restore). Application-level soft delete (UpdateItem)
+    is permitted and expected for operational records.
+41. Any portal-driven edit or soft-delete action must write a safe audit event
+    BEFORE the mutation. Payload: action, patient_msid, record_id, admin_sub,
+    admin_email, timestamp. No note body, no NHI, no secrets.
+42. Admin notes are owner-only for edit and soft-delete. Ownership = created_by
+    (admin Cognito sub). Enforced server-side. Other admins may view but not mutate.
+43. Delete confirmation UI must require the admin to type DELETE exactly before
+    the action button is enabled. Default action is soft delete.
+```
+
 ## Legal / compliance posture
 
 ```text
-36. Do not provide legal or compliance advice as a lawyer.
-37. Recommend Privacy Officer review when in doubt.
-38. Do not assume responsibility for clinical decisions — surface limitations
+44. Do not provide legal or compliance advice as a lawyer.
+45. Recommend Privacy Officer review when in doubt.
+46. Do not assume responsibility for clinical decisions — surface limitations
     in SOPs and copy.
 ```

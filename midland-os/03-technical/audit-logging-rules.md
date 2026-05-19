@@ -19,7 +19,18 @@ LOGIN                   patient or staff login (Cognito post-auth)
 LOGIN_FAIL              failed auth attempt (rate-limited)
 PROFILE_UPDATE          patient updated own contact details
 DOWNLOAD_MY_DATA        HIPC Rule 6 endpoint (5/day rate limit)
+NOTE_CREATED            admin added a persistent note to a patient record
+NOTE_UPDATED            admin edited their own note (creator only)
+NOTE_SOFT_DELETED       admin soft-deleted their own note (creator only)
 ADMIN_ACTION_OTHER      catch-all for admin actions not specifically named
+```
+
+### Note audit payload rules
+
+```text
+MUST include:   action, patient_msid, note_id (the DynamoDB sk), admin_sub,
+                admin_email, timestamp, result
+MUST NOT include: full note body, NHI (raw or encrypted), tokens, secrets
 ```
 
 ## What does NOT get logged (and why)
