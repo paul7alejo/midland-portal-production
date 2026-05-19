@@ -11,7 +11,15 @@ const region = process.env.DYNAMODB_REGION ?? process.env.AWS_REGION ?? 'ap-sout
 
 const USER_POOL_ID = process.env.COGNITO_PATIENT_USER_POOL_ID!
 
-const client = new CognitoIdentityProviderClient({ region })
+const client = new CognitoIdentityProviderClient({
+  region,
+  ...(process.env.MIDLAND_ACCESS_KEY_ID && {
+    credentials: {
+      accessKeyId:     process.env.MIDLAND_ACCESS_KEY_ID,
+      secretAccessKey: process.env.MIDLAND_SECRET_ACCESS_KEY!,
+    },
+  }),
+})
 
 export type PortalUserResult =
   | { status: 'created'; temporaryPassword: string }
