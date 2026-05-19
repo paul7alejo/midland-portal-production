@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
-type TabId = "overview" | "equipment" | "entitlement" | "orders" | "notes" | "nhi";
+type TabId = "overview" | "equipment" | "entitlement" | "orders" | "notes" | "nhi" | "account";
 
 interface DrawerPatient {
   msid: string;
@@ -279,6 +279,7 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "orders",      label: "Orders" },
   { id: "notes",       label: "Notes" },
   { id: "nhi",         label: "NHI" },
+  { id: "account",     label: "Portal Account" },
 ];
 
 const NHI_REASONS = [
@@ -772,6 +773,132 @@ function NhiTab({
   );
 }
 
+interface PortalAccountLink {
+  username:       string;
+  accountStatus:  string;
+  passwordStatus: string;
+  twoFa:          boolean;
+  createdAt:      string;
+}
+
+type AccountLoadState = "loading" | "loaded" | "none" | "error";
+
+function AccountTab({ msid }: { msid: string }) {
+  const [state, setState]   = useState<AccountLoadState>("loading");
+  const [account, setAccount] = useState<PortalAccountLink | null>(null);
+
+  useEffect(() => {
+    setState("loading");
+    fetch(`/api/admin/portal-accounts?msid=${encodeURIComponent(msid)}`, {
+      credentials: "include",
+    })
+      .then((r) => r.json())
+      .then((data: unknown) => {
+        const payload = data as Record<string, unknown>;
+        if (payload.account === null) {
+          setState("none");
+        } else if (payload.account && typeof payload.account === "object") {
+          const a = payload.account as Record<string, unknown>;
+          setAccount({
+            username:       typeof a.id === "string" ? a.id : "",
+            accountStatus:  typeof a.accountStatus === "string" ? a.accountStatus : "unknown",
+            passwordStatus: typeof a.passwordStatus === "string" ? a.passwordStatus : "unknown",
+            twoFa:          a.twoFa === true,
+            createdAt:      typeof a.createdAt === "string" ? a.createdAt : "",
+          });
+          setState("loaded");
+        } else {
+          setState("error");
+        }
+      })
+      .catch(() => setState("error"));
+  }, [msid]);
+
+  if (state === "loading") {
+    return (
+      <div className="rounded-xl border border-gray-200 bg-gray-50 px-5 py-4">
+        <p className="text-base font-medium text-gray-700">Loading portal account…</p>
+      </div>
+    );
+  }
+
+  if (state === "error") {
+    return (
+      <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4">
+        <p className="text-base font-medium text-amber-900">Portal account status temporarily unavailable.</p>
+      </div>
+    );
+  }
+
+  if (state === "none" || !account) {
+    return (
+      <section className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-1">
+        <p className="text-sm font-medium text-gray-700">No portal account linked.</p>
+        <p className="text-sm text-gray-500">This patient does not have a portal login account.</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="rounded-xl border border-gray-200 bg-white p-4 space-y-4">
+      <dl className="grid grid-cols-2 gap-x-6 gap-y-4">
+        <div>
+          <dt className="text-sm font-medium text-gray-500 uppercase tracking-wide">Username</dt>
+          <dd className="mt-0.5 font-mono text-sm text-gray-800">{account.username}</dd>
+        </div>
+        <div>
+          <dt className="text-sm font-medium text-gray-500 uppercase tracking-wide">Account</dt>
+          <dd className="mt-1">
+            {account.accountStatus === "active" ? (
+              <span className="inline-block text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">Active</span>
+            ) : account.accountStatus === "locked" ? (
+              <span className="inline-block text-xs font-semibold px-2.5 py-1 rounded-full bg-red-100 text-red-700 border border-red-200">Locked</span>
+            ) : (
+              <span className="inline-block text-xs font-semibold px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 border border-gray-200">Unknown</span>
+            )}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-sm font-medium text-gray-500 uppercase tracking-wide">Password</dt>
+          <dd className="mt-1">
+            {account.passwordStatus === "temp" ? (
+              <span className="inline-block text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 border border-amber-200">Temp</span>
+            ) : account.passwordStatus === "changed" ? (
+              <span className="inline-block text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">Changed</span>
+            ) : (
+              <span className="inline-block text-xs font-semibold px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 border border-gray-200">Unknown</span>
+            )}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-sm font-medium text-gray-500 uppercase tracking-wide">2FA</dt>
+          <dd className="mt-1">
+            {account.twoFa ? (
+              <span className="inline-block text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">Enabled</span>
+            ) : (
+              <span className="inline-block text-xs font-semibold px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 border border-gray-200">Not enabled</span>
+            )}
+          </dd>
+        </div>
+        {account.createdAt && (
+          <div className="col-span-2">
+            <dt className="text-sm font-medium text-gray-500 uppercase tracking-wide">Account created</dt>
+            <dd className="mt-0.5 text-sm text-gray-700">{account.createdAt}</dd>
+          </div>
+        )}
+      </dl>
+      <div className="pt-1">
+        <a
+          href={`/admin/portal-accounts?msid=${encodeURIComponent(msid)}`}
+          className="inline-block text-sm font-medium text-[#0B5C6C] border border-[#0B5C6C]/40 rounded-lg px-4 py-2 hover:bg-[#0B5C6C]/5 transition-colors"
+        >
+          Open Portal Account
+        </a>
+      </div>
+    </section>
+  );
+}
+
 export function PatientDrawer({ isOpen, onClose, msid, patientName }: PatientDrawerProps) {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [nhiVisible, setNhiVisible]   = useState(false);
@@ -1027,6 +1154,9 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName }: PatientDra
                   setNhiReason={setNhiReason}
                   onReveal={handleRevealNhi}
                 />
+              )}
+              {activeTab === "account" && (
+                <AccountTab msid={patient.msid} />
               )}
             </>
           ) : (

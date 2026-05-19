@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import type { PortalAccount } from "@/components/admin/PortalAccountsTable";
 import { PortalAccountsTable } from "@/components/admin/PortalAccountsTable";
 import { ResetPasswordModal } from "@/components/admin/ResetPasswordModal";
@@ -266,6 +266,29 @@ function PortalAccountDetailDrawer({
             </div>
           </section>
 
+          {/* Linked Patient Record */}
+          <section className="bg-white border border-sand rounded-xl p-5 space-y-3 shadow-[0_4px_20px_rgba(11,42,60,0.05)]">
+            <p className="text-xs font-semibold uppercase tracking-wide text-charcoal/50">Linked Patient Record</p>
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
+              <div>
+                <dt className="text-xs uppercase tracking-wide text-charcoal/45">MSID</dt>
+                <dd className="mt-0.5 font-mono text-sm text-charcoal/80">{account.msid}</dd>
+              </div>
+              <div>
+                <dt className="text-xs uppercase tracking-wide text-charcoal/45">Name</dt>
+                <dd className="mt-0.5 text-sm text-charcoal">{account.name}</dd>
+              </div>
+            </dl>
+            <div className="pt-1">
+              <a
+                href={`/admin/patients?msid=${encodeURIComponent(account.msid)}`}
+                className="inline-block text-sm font-medium text-[#0B5C6C] border border-[#0B5C6C]/40 rounded-lg px-4 py-2 hover:bg-[#0B5C6C]/5 transition-colors"
+              >
+                Open Patient Record
+              </a>
+            </div>
+          </section>
+
           {/* Recent Account Activity */}
           <section className="bg-white border border-sand rounded-xl p-5 space-y-3 shadow-[0_4px_20px_rgba(11,42,60,0.05)]">
             <p className="text-xs font-semibold uppercase tracking-wide text-charcoal/50">Recent Account Activity</p>
@@ -329,6 +352,7 @@ function PortalAccountDetailDrawer({
 export default function PortalAccountsPage() {
   const [accounts, setAccounts]           = useState<PortalAccount[]>([]);
   const [loading, setLoading]             = useState(true);
+  const autoOpenedRef                     = useRef(false);
   const [search, setSearch]               = useState("");
   const [activeFilter, setActiveFilter]   = useState<FilterKey>("all");
   const [resetTarget, setResetTarget]     = useState<PortalAccount | null>(null);
@@ -349,6 +373,19 @@ export default function PortalAccountsPage() {
       .catch(() => { /* leave empty — network error, table stays blank */ })
       .finally(() => setLoading(false));
   }, []);
+
+  // Auto-open drawer when ?msid= is present in the URL (e.g. navigating from patient drawer)
+  useEffect(() => {
+    if (loading || accounts.length === 0 || autoOpenedRef.current) return;
+    if (typeof window === 'undefined') return;
+    const msidParam = new URLSearchParams(window.location.search).get('msid');
+    if (!msidParam) return;
+    const match = accounts.find((a) => a.msid === msidParam);
+    if (match) {
+      autoOpenedRef.current = true;
+      setDrawerAccount(match);
+    }
+  }, [accounts, loading]);
 
   const totalAccounts   = accounts.length;
   const passwordChanged = accounts.filter((a) => a.passwordStatus === "changed").length;

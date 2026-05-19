@@ -249,6 +249,31 @@ function cognitoAttr(user: UserType, name: string): string {
   return user.Attributes?.find(a => a.Name === name)?.Value ?? ''
 }
 
+export async function getPortalUser(msid: string): Promise<PortalUserSummary | null> {
+  const username = msid.startsWith('MS-') ? msid.slice(3) : msid
+  try {
+    const resp = await client.send(new AdminGetUserCommand({
+      UserPoolId: USER_POOL_ID,
+      Username: username,
+    }))
+    const attrs = resp.UserAttributes ?? []
+    const attr = (name: string) => attrs.find(a => a.Name === name)?.Value ?? ''
+    const msidAttr = attr('custom:msid')
+    if (!msidAttr) return null
+    return {
+      username:   resp.Username ?? username,
+      msid:       msidAttr,
+      name:       attr('name'),
+      enabled:    resp.Enabled ?? true,
+      userStatus: resp.UserStatus ?? '',
+      createdAt:  resp.UserCreateDate?.toISOString().slice(0, 10) ?? '',
+    }
+  } catch (err: unknown) {
+    if ((err as { name?: string }).name === 'UserNotFoundException') return null
+    throw err
+  }
+}
+
 export async function listPortalUsers(): Promise<PortalUserSummary[]> {
   const results: PortalUserSummary[] = []
   let paginationToken: string | undefined

@@ -693,6 +693,14 @@ export default function AdminPatientsPage() {
     setDrawerOpen(true);
   }
 
+  // Auto-open drawer when ?msid= is present in the URL (e.g. navigating from portal account drawer)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const msidParam = new URLSearchParams(window.location.search).get('msid');
+    if (msidParam) openDrawer(msidParam, '');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
 
