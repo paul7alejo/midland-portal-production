@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/components/AuthProvider";
 
 const NAV_ITEMS: { href: string; label: string; icon: string; comingSoon?: boolean }[] = [
   { href: "/portal/dashboard",   label: "Dashboard",        icon: "home" },
@@ -39,6 +40,13 @@ function NavIcon({ name }: { name: string }) {
 
 export default function PortalSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const { logout } = useAuth();
+
+  async function handleLogout() {
+    await logout();
+    router.push("/login");
+  }
 
   return (
     <aside className="fixed inset-y-0 left-0 z-30 w-64 bg-navy flex flex-col">
@@ -92,6 +100,28 @@ export default function PortalSidebar() {
   );
 })}
       </nav>
+
+      {/* Logout */}
+      <div className="px-3 py-4 border-t border-white/10">
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="flex w-full items-center gap-3 px-4 py-3.5 text-base font-medium text-slate-300 hover:bg-white/5 hover:text-white transition-colors rounded-lg"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-5 w-5 shrink-0"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={1.5}
+            aria-hidden="true"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+          </svg>
+          Log out
+        </button>
+      </div>
     </aside>
   );
 }
