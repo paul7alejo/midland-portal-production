@@ -11,9 +11,17 @@ type DiagDetail = NhiSecretErrorCode | 'duplicate_lookup' | 'unknown';
 function failPreview(detail: DiagDetail, err: unknown): NextResponse {
   const code = 'IMPORT_PREVIEW_BACKEND_ERROR';
   const name = err instanceof Error ? err.name : 'UnknownError';
+  const errorName = err instanceof NhiSecretError ? err.originalName : undefined;
   const awsRequestId = (err as { $metadata?: { requestId?: string } })?.$metadata?.requestId;
-  console.error('[import-preview]', { code, detail, name, ...(awsRequestId ? { awsRequestId } : {}) });
-  return NextResponse.json({ error: 'Import preview failed', code, detail }, { status: 500 });
+  console.error('[import-preview]', {
+    code, detail, name,
+    ...(errorName    ? { errorName }    : {}),
+    ...(awsRequestId ? { awsRequestId } : {}),
+  });
+  return NextResponse.json(
+    { error: 'Import preview failed', code, detail, ...(errorName ? { errorName } : {}) },
+    { status: 500 },
+  );
 }
 
 export async function POST(request: NextRequest) {
