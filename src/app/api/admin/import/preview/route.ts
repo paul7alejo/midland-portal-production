@@ -7,6 +7,7 @@ import { hashNHIForSearch, NhiSecretError, type NhiSecretErrorCode } from '@/lib
 const ORG_ID = 'midland-sleep';
 
 type DiagDetail = NhiSecretErrorCode | 'duplicate_lookup' | 'unknown';
+type FailingStep = 'patient_nhi_duplicate_lookup' | 'device_serial_duplicate_lookup';
 
 function safeLen(v: string | undefined): number {
   return v ? v.length : 0;
@@ -19,36 +20,58 @@ function buildEnvDiag() {
   const dynamoDbRegion   = process.env.DYNAMODB_REGION;
   const awsRegion        = process.env.AWS_REGION;
   return {
-    hasNhiSecretName:      !!nhiSecretName,
-    nhiSecretNameLength:   safeLen(nhiSecretName),
-    hasNhiEncryptionKey:   !!nhiEncryptionKey,
+    hasNhiSecretName:       !!nhiSecretName,
+    nhiSecretNameLength:    safeLen(nhiSecretName),
+    hasNhiEncryptionKey:    !!nhiEncryptionKey,
     nhiEncryptionKeyLength: safeLen(nhiEncryptionKey),
-    hasNhiHashSalt:        !!nhiHashSalt,
-    nhiHashSaltLength:     safeLen(nhiHashSalt),
-    hasDynamoDbRegion:     !!dynamoDbRegion,
-    dynamoDbRegionLength:  safeLen(dynamoDbRegion),
-    hasAwsRegion:          !!awsRegion,
-    awsRegionLength:       safeLen(awsRegion),
+    hasNhiHashSalt:         !!nhiHashSalt,
+    nhiHashSaltLength:      safeLen(nhiHashSalt),
+    hasDynamoDbRegion:      !!dynamoDbRegion,
+    dynamoDbRegionLength:   safeLen(dynamoDbRegion),
+    hasAwsRegion:           !!awsRegion,
+    awsRegionLength:        safeLen(awsRegion),
   };
 }
 
-function failPreview(detail: DiagDetail, err: unknown): NextResponse {
+function buildDynDiag() {
+  return {
+    hasDynamoDbRegion:     !!process.env.DYNAMODB_REGION,
+    dynamoDbRegionLength:  safeLen(process.env.DYNAMODB_REGION),
+    hasAwsRegion:          !!process.env.AWS_REGION,
+    awsRegionLength:       safeLen(process.env.AWS_REGION),
+    hasMidlandAccessKeyId: !!process.env.MIDLAND_ACCESS_KEY_ID,
+  };
+}
+
+function failPreview(detail: DiagDetail, err: unknown, failingStep?: FailingStep): NextResponse {
   const code = 'IMPORT_PREVIEW_BACKEND_ERROR';
   const name = err instanceof Error ? err.name : 'UnknownError';
-  const errorName = err instanceof NhiSecretError ? err.originalName : undefined;
-  const awsRequestId = (err as { $metadata?: { requestId?: string } })?.$metadata?.requestId;
+  const errorName = err instanceof NhiSecretError
+    ? err.originalName
+    : (err instanceof Error ? err.name : undefined);
+  const awsMeta = (err as { $metadata?: { requestId?: string; httpStatusCode?: number } })?.$metadata;
+  const awsRequestId   = awsMeta?.requestId;
+  const httpStatusCode = awsMeta?.httpStatusCode;
   const envDiag = detail === 'nhi_secret_env_missing' ? buildEnvDiag() : undefined;
+  const dynDiag = detail === 'duplicate_lookup'        ? buildDynDiag() : undefined;
   console.error('[import-preview]', {
     code, detail, name,
-    ...(errorName    ? { errorName }    : {}),
-    ...(awsRequestId ? { awsRequestId } : {}),
-    ...(envDiag      ? { envDiag }      : {}),
+    ...(errorName      ? { errorName }      : {}),
+    ...(awsRequestId   ? { awsRequestId }   : {}),
+    ...(httpStatusCode ? { httpStatusCode } : {}),
+    ...(failingStep    ? { failingStep }    : {}),
+    ...(envDiag        ? { envDiag }        : {}),
+    ...(dynDiag        ? { dynDiag }        : {}),
   });
   return NextResponse.json(
     {
       error: 'Import preview failed', code, detail,
-      ...(errorName ? { errorName } : {}),
-      ...(envDiag   ? { envDiag }   : {}),
+      ...(errorName      ? { errorName }      : {}),
+      ...(awsRequestId   ? { awsRequestId }   : {}),
+      ...(httpStatusCode ? { httpStatusCode } : {}),
+      ...(failingStep    ? { failingStep }    : {}),
+      ...(envDiag        ? { envDiag }        : {}),
+      ...(dynDiag        ? { dynDiag }        : {}),
     },
     { status: 500 },
   );
@@ -96,7 +119,7 @@ export async function POST(request: NextRequest) {
       try {
         existingPatient = await getPatientByNhiHash(nhiHash, ORG_ID);
       } catch (err) {
-        return failPreview('duplicate_lookup', err);
+        return failPreview('duplicate_lookup', err, 'patient_nhi_duplicate_lookup');
       }
 
       if (existingPatient) {
@@ -110,7 +133,7 @@ export async function POST(request: NextRequest) {
       try {
         existingDevice = await getDeviceBySerialNumber(serialNumber, ORG_ID);
       } catch (err) {
-        return failPreview('duplicate_lookup', err);
+        return failPreview('duplicate_lookup', err, 'device_serial_duplicate_lookup');
       }
 
       if (existingDevice) {
