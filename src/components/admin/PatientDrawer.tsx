@@ -98,11 +98,12 @@ interface DrawerOrder {
   dispatched: string;
 }
 
-interface Note {
-  id: string;
-  text: string;
-  author: string;
-  timestamp: string;
+interface PersistedNote {
+  note_id: string;
+  patient_msid: string;
+  body: string;
+  created_at: string;
+  created_by_email: string | null;
 }
 
 export interface PatientDrawerProps {
@@ -583,117 +584,72 @@ function OrdersTab({ patient }: { patient: DrawerPatient }) {
 function NotesTab({
   noteText,
   setNoteText,
-  savedNotes,
-  onSave,
-  editingNoteId,
-  editText,
-  setEditText,
-  onStartEdit,
-  onCancelEdit,
-  onCommitEdit,
-  onDelete,
+  notes,
+  notesLoading,
+  notesError,
+  noteSaving,
+  onAdd,
 }: {
   noteText: string;
   setNoteText: (v: string) => void;
-  savedNotes: Note[];
-  onSave: () => void;
-  editingNoteId: string | null;
-  editText: string;
-  setEditText: (v: string) => void;
-  onStartEdit: (noteId: string, text: string) => void;
-  onCancelEdit: () => void;
-  onCommitEdit: () => void;
-  onDelete: (noteId: string) => void;
+  notes: PersistedNote[];
+  notesLoading: boolean;
+  notesError: string | null;
+  noteSaving: boolean;
+  onAdd: () => void;
 }) {
+  const remaining = 1000 - noteText.length;
   return (
     <div className="space-y-5">
-      <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
-        <p className="text-sm text-amber-800">
-          Staff only — temporary notes exist in this browser session only. They are cleared when this drawer is closed and are not saved to the patient record.
-        </p>
-      </div>
-
       <div className="space-y-2">
-        <label className="block text-base font-medium text-gray-700">Temporary note</label>
+        <label className="block text-base font-medium text-gray-700">Add a note</label>
         <textarea
           value={noteText}
           onChange={(e) => setNoteText(e.target.value)}
           placeholder="Enter a staff note…"
           rows={4}
+          maxLength={1000}
           className="w-full px-3 py-3 border border-gray-300 rounded-lg text-base text-gray-800
                      focus:outline-none focus:ring-2 focus:ring-[#0B5C6C] focus:border-transparent
                      placeholder:text-gray-400 min-h-[100px]"
         />
-        <button
-          type="button"
-          onClick={onSave}
-          disabled={!noteText.trim()}
-          className="bg-[#0B5C6C] text-white text-base font-medium px-5 py-2.5 rounded-lg min-h-[44px]
-                     hover:bg-[#0B5C6C]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          Add temporary note
-        </button>
+        <div className="flex items-center justify-between">
+          <span className={cn("text-xs", remaining < 100 ? "text-amber-600" : "text-gray-400")}>
+            {remaining} characters remaining
+          </span>
+          <button
+            type="button"
+            onClick={onAdd}
+            disabled={!noteText.trim() || noteSaving}
+            className="bg-[#0B5C6C] text-white text-base font-medium px-5 py-2.5 rounded-lg min-h-[44px]
+                       hover:bg-[#0B5C6C]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {noteSaving ? "Saving…" : "Add note"}
+          </button>
+        </div>
       </div>
 
-      {savedNotes.length > 0 && (
+      {notesLoading ? (
+        <div className="rounded-xl border border-gray-200 bg-gray-50 px-5 py-4">
+          <p className="text-sm text-gray-500">Loading notes…</p>
+        </div>
+      ) : notesError ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4">
+          <p className="text-sm text-amber-800">{notesError}</p>
+        </div>
+      ) : notes.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-5 py-4">
+          <p className="text-sm text-gray-500">No notes yet for this patient.</p>
+        </div>
+      ) : (
         <div className="space-y-3">
-          <h4 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Temporary notes (this session only)</h4>
-          {savedNotes.map((note) => (
-            <div key={note.id} className="bg-gray-50 rounded-xl p-4 space-y-2">
-              {editingNoteId === note.id ? (
-                <div className="space-y-2">
-                  <textarea
-                    value={editText}
-                    onChange={(e) => setEditText(e.target.value)}
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base text-gray-800
-                               focus:outline-none focus:ring-2 focus:ring-[#0B5C6C] focus:border-transparent"
-                  />
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={onCommitEdit}
-                      disabled={!editText.trim()}
-                      className="bg-[#0B5C6C] text-white text-sm font-medium px-4 py-2 rounded-lg min-h-[36px]
-                                 hover:bg-[#0B5C6C]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Save
-                    </button>
-                    <button
-                      type="button"
-                      onClick={onCancelEdit}
-                      className="text-sm font-medium text-gray-600 hover:text-gray-800 px-4 py-2 min-h-[36px] transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <p className="text-base text-gray-800">{note.text}</p>
-                  <div className="flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
-                    <p className="text-sm text-gray-500">
-                      {note.author} · {note.timestamp}
-                    </p>
-                    <div className="flex gap-3">
-                      <button
-                        type="button"
-                        onClick={() => onStartEdit(note.id, note.text)}
-                        className="text-sm font-medium text-[#0B5C6C] hover:text-[#0B5C6C]/80 transition-colors"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onDelete(note.id)}
-                        className="text-sm font-medium text-red-500 hover:text-red-700 transition-colors"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                </>
-              )}
+          <h4 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Staff notes</h4>
+          {notes.map((note) => (
+            <div key={note.note_id} className="bg-gray-50 rounded-xl p-4 space-y-2">
+              <p className="text-base text-gray-800 whitespace-pre-wrap">{note.body}</p>
+              <p className="text-sm text-gray-500">
+                {note.created_by_email ?? "Staff"} · {formatNzDateTime(note.created_at)}
+              </p>
             </div>
           ))}
         </div>
@@ -903,10 +859,11 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName }: PatientDra
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [nhiVisible, setNhiVisible]   = useState(false);
   const [nhiReason, setNhiReason]     = useState("");
-  const [noteText, setNoteText]           = useState("");
-  const [notesByMsid, setNotesByMsid]     = useState<Record<string, Note[]>>({});
-  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
-  const [editText, setEditText]           = useState("");
+  const [noteText, setNoteText]       = useState("");
+  const [persistedNotes, setPersistedNotes] = useState<PersistedNote[]>([]);
+  const [notesLoading, setNotesLoading]     = useState(false);
+  const [notesError, setNotesError]         = useState<string | null>(null);
+  const [noteSaving, setNoteSaving]         = useState(false);
   const [importedPatient, setImportedPatient] = useState<DrawerPatient | null>(null);
   const [importedLoading, setImportedLoading] = useState(false);
   const [importedError, setImportedError] = useState<string | null>(null);
@@ -928,16 +885,14 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName }: PatientDra
       setNhiVisible(false);
       setNhiReason("");
       setActiveTab("overview");
-      setEditingNoteId(null);
-      setEditText("");
       if (nhiTimerRef.current) clearTimeout(nhiTimerRef.current);
     }
   }, [isOpen]);
 
   useEffect(() => {
     setNoteText("");
-    setEditingNoteId(null);
-    setEditText("");
+    setPersistedNotes([]);
+    setNotesError(null);
     setImportedPatient(null);
     setImportedError(null);
   }, [msid]);
@@ -975,6 +930,27 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName }: PatientDra
     return () => { if (nhiTimerRef.current) clearTimeout(nhiTimerRef.current); };
   }, []);
 
+  useEffect(() => {
+    if (!isOpen || !msid || activeTab !== "notes") return;
+    let cancelled = false;
+    setNotesLoading(true);
+    setNotesError(null);
+    fetch(`/api/admin/patients/notes?msid=${encodeURIComponent(msid)}`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((data: unknown) => {
+        if (cancelled) return;
+        const payload = data as Record<string, unknown>;
+        if (Array.isArray(payload.notes)) {
+          setPersistedNotes(payload.notes as PersistedNote[]);
+        } else {
+          setNotesError("Notes could not be loaded.");
+        }
+      })
+      .catch(() => { if (!cancelled) setNotesError("Notes could not be loaded."); })
+      .finally(() => { if (!cancelled) setNotesLoading(false); });
+    return () => { cancelled = true; };
+  }, [isOpen, msid, activeTab]);
+
   function handleRevealNhi() {
     if (!nhiReason || !patient || patient.imported) return;
     setNhiVisible(true);
@@ -982,51 +958,27 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName }: PatientDra
     nhiTimerRef.current = setTimeout(() => setNhiVisible(false), 30000);
   }
 
-  const currentNotes: Note[] = patient ? (notesByMsid[patient.msid] ?? []) : [];
-
-  function handleSaveNote() {
-    if (!noteText.trim() || !patient) return;
-    const key = patient.msid;
-    const newNote: Note = {
-      id: String(Date.now()),
-      text: noteText.trim(),
-      author: "Staff (demo)",
-      timestamp: new Date().toLocaleString("en-NZ"),
-    };
-    setNotesByMsid((prev) => ({ ...prev, [key]: [newNote, ...(prev[key] ?? [])] }));
-    setNoteText("");
-  }
-
-  function handleStartEdit(noteId: string, text: string) {
-    setEditingNoteId(noteId);
-    setEditText(text);
-  }
-
-  function handleCancelEdit() {
-    setEditingNoteId(null);
-    setEditText("");
-  }
-
-  function handleCommitEdit() {
-    if (!editingNoteId || !patient || !editText.trim()) return;
-    const key = patient.msid;
-    setNotesByMsid((prev) => ({
-      ...prev,
-      [key]: (prev[key] ?? []).map((n) =>
-        n.id === editingNoteId ? { ...n, text: editText.trim() } : n
-      ),
-    }));
-    setEditingNoteId(null);
-    setEditText("");
-  }
-
-  function handleDeleteNote(noteId: string) {
-    if (!patient) return;
-    const key = patient.msid;
-    setNotesByMsid((prev) => ({
-      ...prev,
-      [key]: (prev[key] ?? []).filter((n) => n.id !== noteId),
-    }));
+  async function handleAddNote() {
+    if (!noteText.trim() || !patient || noteSaving) return;
+    setNoteSaving(true);
+    setNotesError(null);
+    try {
+      const res = await fetch("/api/admin/patients/notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ msid: patient.msid, body: noteText.trim() }),
+      });
+      if (!res.ok) throw new Error("Save failed");
+      const data = (await res.json()) as Record<string, unknown>;
+      const note = data.note as PersistedNote;
+      setPersistedNotes((prev) => [note, ...prev]);
+      setNoteText("");
+    } catch {
+      setNotesError("Note could not be saved. Please try again.");
+    } finally {
+      setNoteSaving(false);
+    }
   }
 
   return (
@@ -1135,15 +1087,11 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName }: PatientDra
                 <NotesTab
                   noteText={noteText}
                   setNoteText={setNoteText}
-                  savedNotes={currentNotes}
-                  onSave={handleSaveNote}
-                  editingNoteId={editingNoteId}
-                  editText={editText}
-                  setEditText={setEditText}
-                  onStartEdit={handleStartEdit}
-                  onCancelEdit={handleCancelEdit}
-                  onCommitEdit={handleCommitEdit}
-                  onDelete={handleDeleteNote}
+                  notes={persistedNotes}
+                  notesLoading={notesLoading}
+                  notesError={notesError}
+                  noteSaving={noteSaving}
+                  onAdd={handleAddNote}
                 />
               )}
               {activeTab === "nhi" && (

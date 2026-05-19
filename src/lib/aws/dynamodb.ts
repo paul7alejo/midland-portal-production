@@ -673,3 +673,71 @@ export async function createCommsRecord(record: CommsRecord): Promise<void> {
     },
   }))
 }
+
+// ── Patient notes (admin-only, persistent) ────────────────────────────────────
+
+export interface PatientNoteRecord {
+  pk: string               // NOTE#<msid>
+  sk: string               // NOTE#<timestamp_ms>#<uuid>
+  entity_type: 'patient_note'
+  patient_msid: string     // normalised with MS- prefix
+  org_id: string
+  body: string
+  created_at: string       // ISO timestamp
+  created_by: string       // admin Cognito sub
+  created_by_email: string
+  note_type: 'internal'
+  visibility: 'admin_only'
+}
+
+export async function putPatientNote(params: {
+  msid: string
+  orgId: string
+  body: string
+  adminSub: string
+  adminEmail: string
+}): Promise<PatientNoteRecord> {
+  const msidNorm = params.msid.startsWith('MS-') ? params.msid : `MS-${params.msid}`
+  const timestamp_ms = Date.now()
+  const noteId = randomUUID()
+  const created_at = new Date().toISOString()
+  const record: PatientNoteRecord = {
+    pk: `NOTE#${msidNorm}`,
+    sk: `NOTE#${timestamp_ms}#${noteId}`,
+    entity_type: 'patient_note',
+    patient_msid: msidNorm,
+    org_id: params.orgId,
+    body: params.body,
+    created_at,
+    created_by: params.adminSub,
+    created_by_email: params.adminEmail,
+    note_type: 'internal',
+    visibility: 'admin_only',
+  }
+  await docClient.send(new PutCommand({
+    TableName: TABLES.PATIENTS,
+    Item: record,
+  }))
+  return record
+}
+
+export async function listPatientNotes(
+  msid: string,
+  orgId: string,
+  limit = 50
+): Promise<PatientNoteRecord[]> {
+  const msidNorm = msid.startsWith('MS-') ? msid : `MS-${msid}`
+  const res = await docClient.send(new QueryCommand({
+    TableName: TABLES.PATIENTS,
+    KeyConditionExpression: 'pk = :pk AND begins_with(sk, :skPrefix)',
+    FilterExpression: 'org_id = :orgId',
+    ExpressionAttributeValues: {
+      ':pk': `NOTE#${msidNorm}`,
+      ':skPrefix': 'NOTE#',
+      ':orgId': orgId,
+    },
+    ScanIndexForward: false,
+    Limit: limit,
+  }))
+  return (res.Items ?? []) as PatientNoteRecord[]
+}
