@@ -8,18 +8,48 @@ const ORG_ID = 'midland-sleep';
 
 type DiagDetail = NhiSecretErrorCode | 'duplicate_lookup' | 'unknown';
 
+function safeLen(v: string | undefined): number {
+  return v ? v.length : 0;
+}
+
+function buildEnvDiag() {
+  const nhiSecretName    = process.env.NHI_SECRET_NAME;
+  const nhiEncryptionKey = process.env.NHI_ENCRYPTION_KEY;
+  const nhiHashSalt      = process.env.NHI_HASH_SALT;
+  const dynamoDbRegion   = process.env.DYNAMODB_REGION;
+  const awsRegion        = process.env.AWS_REGION;
+  return {
+    hasNhiSecretName:      !!nhiSecretName,
+    nhiSecretNameLength:   safeLen(nhiSecretName),
+    hasNhiEncryptionKey:   !!nhiEncryptionKey,
+    nhiEncryptionKeyLength: safeLen(nhiEncryptionKey),
+    hasNhiHashSalt:        !!nhiHashSalt,
+    nhiHashSaltLength:     safeLen(nhiHashSalt),
+    hasDynamoDbRegion:     !!dynamoDbRegion,
+    dynamoDbRegionLength:  safeLen(dynamoDbRegion),
+    hasAwsRegion:          !!awsRegion,
+    awsRegionLength:       safeLen(awsRegion),
+  };
+}
+
 function failPreview(detail: DiagDetail, err: unknown): NextResponse {
   const code = 'IMPORT_PREVIEW_BACKEND_ERROR';
   const name = err instanceof Error ? err.name : 'UnknownError';
   const errorName = err instanceof NhiSecretError ? err.originalName : undefined;
   const awsRequestId = (err as { $metadata?: { requestId?: string } })?.$metadata?.requestId;
+  const envDiag = detail === 'nhi_secret_env_missing' ? buildEnvDiag() : undefined;
   console.error('[import-preview]', {
     code, detail, name,
     ...(errorName    ? { errorName }    : {}),
     ...(awsRequestId ? { awsRequestId } : {}),
+    ...(envDiag      ? { envDiag }      : {}),
   });
   return NextResponse.json(
-    { error: 'Import preview failed', code, detail, ...(errorName ? { errorName } : {}) },
+    {
+      error: 'Import preview failed', code, detail,
+      ...(errorName ? { errorName } : {}),
+      ...(envDiag   ? { envDiag }   : {}),
+    },
     { status: 500 },
   );
 }
