@@ -22,6 +22,7 @@ export function ResetPasswordModal({
     try {
       const res = await fetch("/api/admin/portal-accounts/reset-password", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ msid: account.msid, nhiMasked: account.nhiMasked }),
       });

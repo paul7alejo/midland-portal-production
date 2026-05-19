@@ -25,14 +25,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
   }
 
-  const { msid, nhiMasked } = body as Record<string, unknown>
+  const { msid, nhiMasked: nhiMaskedRaw } = body as Record<string, unknown>
 
   if (typeof msid !== 'string' || !MSID_RE.test(msid)) {
     return NextResponse.json({ error: 'Valid MSID is required' }, { status: 400 })
   }
-  if (typeof nhiMasked !== 'string' || !NHI_MASKED_RE.test(nhiMasked)) {
-    return NextResponse.json({ error: 'Valid masked NHI is required' }, { status: 400 })
-  }
+  // Accept a valid NHI mask or '—' sentinel for imported accounts without on-file NHI
+  const nhiMasked =
+    typeof nhiMaskedRaw === 'string' && NHI_MASKED_RE.test(nhiMaskedRaw)
+      ? nhiMaskedRaw
+      : '—'
 
   // Cognito username is the number-only portion of the MSID
   const username = msid.slice(3)  // strip "MS-"

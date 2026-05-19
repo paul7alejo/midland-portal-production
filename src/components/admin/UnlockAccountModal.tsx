@@ -22,6 +22,7 @@ export function UnlockAccountModal({
     try {
       const res = await fetch("/api/admin/portal-accounts/unlock", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ msid: account.msid }),
       });

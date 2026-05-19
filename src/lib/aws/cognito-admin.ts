@@ -4,6 +4,8 @@ import {
   AdminCreateUserCommand,
   AdminSetUserPasswordCommand,
   AdminEnableUserCommand,
+  ListUsersCommand,
+  type UserType,
 } from '@aws-sdk/client-cognito-identity-provider'
 import { randomBytes } from 'crypto'
 
@@ -232,4 +234,47 @@ export async function unlockPatientPortalAccount(
   }
 
   return { status: 'unlocked' }
+}
+
+export interface PortalUserSummary {
+  username:   string
+  msid:       string
+  name:       string
+  enabled:    boolean
+  userStatus: string
+  createdAt:  string
+}
+
+function cognitoAttr(user: UserType, name: string): string {
+  return user.Attributes?.find(a => a.Name === name)?.Value ?? ''
+}
+
+export async function listPortalUsers(): Promise<PortalUserSummary[]> {
+  const results: PortalUserSummary[] = []
+  let paginationToken: string | undefined
+
+  do {
+    const resp = await client.send(new ListUsersCommand({
+      UserPoolId: USER_POOL_ID,
+      Limit: 60,
+      ...(paginationToken && { PaginationToken: paginationToken }),
+    }))
+
+    for (const u of resp.Users ?? []) {
+      const msid = cognitoAttr(u, 'custom:msid')
+      if (!msid) continue
+      results.push({
+        username:   u.Username ?? '',
+        msid,
+        name:       cognitoAttr(u, 'name'),
+        enabled:    u.Enabled ?? true,
+        userStatus: u.UserStatus ?? '',
+        createdAt:  u.UserCreateDate?.toISOString().slice(0, 10) ?? '',
+      })
+    }
+
+    paginationToken = resp.PaginationToken
+  } while (paginationToken)
+
+  return results
 }
