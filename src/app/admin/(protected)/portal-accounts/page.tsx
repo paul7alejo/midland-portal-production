@@ -77,11 +77,31 @@ function KpiFilterCard({
 
 // ── Account detail drawer ─────────────────────────────────────────────────────
 
+type ActivityLoadState = "loading" | "loaded" | "error";
+
+interface ActivityEvent {
+  timestamp:  string;
+  label:      string;
+  action:     string;
+  adminEmail: string | null;
+  result:     string | null;
+}
+
 function formatDrawerDate(iso: string): string {
   if (!iso) return "—";
   const d = new Date(iso);
   if (isNaN(d.getTime())) return "—";
   return d.toLocaleString("en-NZ", { day: "numeric", month: "long", year: "numeric" });
+}
+
+function formatActivityTime(iso: string): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleString("en-NZ", {
+    day: "numeric", month: "short", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
 }
 
 function PortalAccountDetailDrawer({
@@ -96,6 +116,27 @@ function PortalAccountDetailDrawer({
   onUnlockAccount: (account: PortalAccount) => void;
 }) {
   const loginUsername = account.msid.startsWith("MS-") ? account.msid.slice(3) : account.msid;
+
+  const [activityState, setActivityState] = useState<ActivityLoadState>("loading");
+  const [activity, setActivity]           = useState<ActivityEvent[]>([]);
+
+  useEffect(() => {
+    setActivityState("loading");
+    fetch(`/api/admin/portal-accounts/activity?msid=${encodeURIComponent(account.msid)}`, {
+      credentials: "include",
+    })
+      .then((r) => r.json())
+      .then((data: unknown) => {
+        const payload = data as Record<string, unknown>;
+        if (Array.isArray(payload.activity)) {
+          setActivity(payload.activity as ActivityEvent[]);
+          setActivityState("loaded");
+        } else {
+          setActivityState("error");
+        }
+      })
+      .catch(() => setActivityState("error"));
+  }, [account.msid]);
 
   return (
     <>
@@ -225,12 +266,45 @@ function PortalAccountDetailDrawer({
             </div>
           </section>
 
-          {/* Recent activity */}
-          <section className="bg-white border border-sand rounded-xl p-5 space-y-2 shadow-[0_4px_20px_rgba(11,42,60,0.05)]">
-            <p className="text-xs font-semibold uppercase tracking-wide text-charcoal/50">Recent account activity</p>
-            <p className="text-sm text-charcoal/50 leading-6">
-              Full audit-linked activity is available from Audit Log. Account-specific activity feed is planned.
-            </p>
+          {/* Recent Account Activity */}
+          <section className="bg-white border border-sand rounded-xl p-5 space-y-3 shadow-[0_4px_20px_rgba(11,42,60,0.05)]">
+            <p className="text-xs font-semibold uppercase tracking-wide text-charcoal/50">Recent Account Activity</p>
+
+            {activityState === "loading" && (
+              <p className="text-sm text-charcoal/45">Loading activity…</p>
+            )}
+
+            {activityState === "error" && (
+              <p className="text-sm text-charcoal/45">Account activity temporarily unavailable.</p>
+            )}
+
+            {activityState === "loaded" && activity.length === 0 && (
+              <div className="space-y-1">
+                <p className="text-sm text-charcoal/50">No recent account activity found.</p>
+                <p className="text-xs text-charcoal/40">Full audit-linked activity is available from Audit Log.</p>
+              </div>
+            )}
+
+            {activityState === "loaded" && activity.length > 0 && (
+              <ul className="divide-y divide-sand">
+                {activity.map((event, i) => (
+                  <li key={i} className="flex items-start justify-between gap-3 py-3 first:pt-0 last:pb-0">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-charcoal">{event.label}</p>
+                      <p className="text-xs text-charcoal/50 mt-0.5">
+                        {formatActivityTime(event.timestamp)}
+                        {event.adminEmail ? ` · ${event.adminEmail}` : ""}
+                      </p>
+                    </div>
+                    {event.result && (
+                      <span className="shrink-0 mt-0.5 text-xs font-medium px-2 py-0.5 rounded-full bg-sand text-charcoal/55 border border-sand/80">
+                        {event.result}
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
 
         </div>

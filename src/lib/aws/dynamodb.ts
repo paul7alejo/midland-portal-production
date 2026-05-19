@@ -426,6 +426,59 @@ export async function appendAuditLog(entry: AuditEntry): Promise<void> {
   }))
 }
 
+export interface PatientAuditEvent {
+  timestamp:  string
+  action:     string
+  adminEmail: string | null
+  result:     string | null
+  sk:         string
+}
+
+// Scan-based lookup by patient_msid — no GSI exists on the audit table.
+// Acceptable for small clinic volumes (< 10k audit records total).
+export async function queryAuditByPatient(
+  msid: string,
+  limit = 20
+): Promise<PatientAuditEvent[]> {
+  const msidNorm = msid.startsWith('MS-') ? msid : `MS-${msid}`
+  const username = msidNorm.slice(3)  // numeric portion only
+
+  // Handle current field name (patient_msid) and older camelCase variant (patientMsid).
+  // Also match by bare username in case older records stored the numeric form.
+  const res = await docClient.send(new ScanCommand({
+    TableName: TABLES.AUDIT,
+    FilterExpression:
+      'patient_msid = :msid OR patient_msid = :username' +
+      ' OR patientMsid = :msid OR patientMsid = :username',
+    ExpressionAttributeValues: {
+      ':msid':     msidNorm,
+      ':username': username,
+    },
+  }))
+
+  const items = (res.Items ?? []) as Array<Record<string, unknown>>
+
+  // Sort newest-first by sk (EVENT#timestamp_ms — lexicographic == chronological)
+  items.sort((a, b) => {
+    const sa = typeof a.sk === 'string' ? a.sk : ''
+    const sb = typeof b.sk === 'string' ? b.sk : ''
+    return sb.localeCompare(sa)
+  })
+
+  return items.slice(0, limit).map((item) => ({
+    timestamp:  typeof item.timestamp   === 'string' ? item.timestamp   : '',
+    action:     typeof item.action      === 'string' ? item.action
+              : typeof item.event_type  === 'string' ? item.event_type
+              : typeof item.eventType   === 'string' ? item.eventType
+              : '',
+    adminEmail: typeof item.admin_email === 'string' ? item.admin_email
+              : typeof item.adminEmail  === 'string' ? item.adminEmail
+              : null,
+    result:     typeof item.result      === 'string' ? item.result      : null,
+    sk:         typeof item.sk          === 'string' ? item.sk          : '',
+  }))
+}
+
 export async function countAuditEventsSince(
   userId: string,
   eventType: string,
