@@ -1,10 +1,13 @@
-import { MOCK_ACCOUNTS } from "@/components/admin/PortalAccountsTable";
-
-let _lockedCount = MOCK_ACCOUNTS.filter((a) => a.accountStatus === "locked").length;
+let _lockedCount = 0;
 const _listeners = new Set<() => void>();
 
 export function getLockedCount(): number {
   return _lockedCount;
+}
+
+export function setLockedCount(n: number): void {
+  _lockedCount = Math.max(0, n);
+  _listeners.forEach((fn) => fn());
 }
 
 export function decrementLockedCount(): void {

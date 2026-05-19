@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import type { PortalAccount } from "@/components/admin/PortalAccountsTable";
-import { MOCK_ACCOUNTS, PortalAccountsTable } from "@/components/admin/PortalAccountsTable";
+import { PortalAccountsTable } from "@/components/admin/PortalAccountsTable";
 import { ResetPasswordModal } from "@/components/admin/ResetPasswordModal";
 import { UnlockAccountModal } from "@/components/admin/UnlockAccountModal";
-import { decrementLockedCount } from "@/components/admin/portalAccountsStore";
+import { decrementLockedCount, setLockedCount } from "@/components/admin/portalAccountsStore";
 
 type FilterKey = "all" | "changed" | "temp" | "locked";
 
@@ -253,12 +253,28 @@ function PortalAccountDetailDrawer({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function PortalAccountsPage() {
-  const [accounts, setAccounts]           = useState<PortalAccount[]>(MOCK_ACCOUNTS);
+  const [accounts, setAccounts]           = useState<PortalAccount[]>([]);
+  const [loading, setLoading]             = useState(true);
   const [search, setSearch]               = useState("");
   const [activeFilter, setActiveFilter]   = useState<FilterKey>("all");
   const [resetTarget, setResetTarget]     = useState<PortalAccount | null>(null);
   const [unlockTarget, setUnlockTarget]   = useState<PortalAccount | null>(null);
   const [drawerAccount, setDrawerAccount] = useState<PortalAccount | null>(null);
+
+  useEffect(() => {
+    fetch("/api/admin/portal-accounts", { credentials: "include" })
+      .then((r) => r.json())
+      .then((data: unknown) => {
+        const payload = data as Record<string, unknown>;
+        if (Array.isArray(payload.accounts)) {
+          const loaded = payload.accounts as PortalAccount[];
+          setAccounts(loaded);
+          setLockedCount(loaded.filter((a) => a.accountStatus === "locked").length);
+        }
+      })
+      .catch(() => { /* leave empty — network error, table stays blank */ })
+      .finally(() => setLoading(false));
+  }, []);
 
   const totalAccounts   = accounts.length;
   const passwordChanged = accounts.filter((a) => a.passwordStatus === "changed").length;
@@ -335,12 +351,18 @@ export default function PortalAccountsPage() {
       </div>
 
       {/* Accounts table */}
-      <PortalAccountsTable
-        accounts={filtered}
-        onResetPassword={(account) => setResetTarget(account)}
-        onUnlockAccount={(account) => setUnlockTarget(account)}
-        onViewDetails={(account) => setDrawerAccount(account)}
-      />
+      {loading ? (
+        <div className="flex items-center justify-center py-20 text-sm text-charcoal/45">
+          Loading accounts…
+        </div>
+      ) : (
+        <PortalAccountsTable
+          accounts={filtered}
+          onResetPassword={(account) => setResetTarget(account)}
+          onUnlockAccount={(account) => setUnlockTarget(account)}
+          onViewDetails={(account) => setDrawerAccount(account)}
+        />
+      )}
 
       {/* Account detail drawer */}
       {drawerAccount && (
