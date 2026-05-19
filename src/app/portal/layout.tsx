@@ -11,7 +11,7 @@ function TopBar() {
   if (!patient) return null;
 
   return (
-    <div className="relative z-10 border-b border-sand bg-white px-4 py-2 md:px-8 flex items-center justify-end">
+    <div className="relative z-10 border-b border-sand bg-white px-4 py-2 md:px-8 hidden lg:flex items-center justify-end">
       <AccountMenu />
     </div>
   );
