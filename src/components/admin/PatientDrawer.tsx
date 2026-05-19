@@ -824,7 +824,7 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName }: PatientDra
       setImportedLoading(true);
       setImportedError(null);
       try {
-        const res = await fetch(`/api/admin/patients?msid=${encodeURIComponent(selectedMsid)}`, { cache: "no-store" });
+        const res = await fetch(`/api/admin/patients?msid=${encodeURIComponent(selectedMsid)}`, { cache: "no-store", credentials: "include" });
         if (!res.ok) throw new Error("Unable to load patient");
         const detail = (await res.json()) as ImportedPatientDetail;
         if (!cancelled) setImportedPatient(makeImportedPatient(detail));
