@@ -1357,6 +1357,7 @@ export default function AdminImportPage() {
     try {
       const res = await fetch('/api/admin/import/preview', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ csv: csvText }),
       });
@@ -1392,6 +1393,7 @@ export default function AdminImportPage() {
     try {
       const res = await fetch('/api/admin/import/execute', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ csv: csvText, mode: 'execute' }),
       });
