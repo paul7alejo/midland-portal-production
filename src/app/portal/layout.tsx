@@ -43,13 +43,13 @@ function PortalInner({ children }: { children: React.ReactNode }) {
   if (!isAuthenticated) return null;
 
   return (
-    <div className="min-h-screen bg-cream">
-      <div className="hidden md:block">
+    <div className="min-h-screen bg-cream overflow-x-hidden">
+      <div className="hidden lg:block">
         <PortalSidebar />
       </div>
 
-      {/* Mobile header */}
-      <div className="md:hidden bg-navy px-4 py-3 flex items-center justify-between">
+      {/* Narrow/mobile header — visible below lg (1024px) */}
+      <div className="lg:hidden bg-navy px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="h-8 w-8 rounded-full bg-deep-teal flex items-center justify-center text-white font-display text-sm font-bold">
             M
@@ -65,7 +65,7 @@ function PortalInner({ children }: { children: React.ReactNode }) {
         )}
       </div>
 
-      <main className="relative md:ml-64 min-h-screen overflow-x-hidden">
+      <main className="relative lg:ml-64 min-h-screen overflow-x-hidden">
         <img
           src="/portal-assets/logo/midland-logo-mark-deep-teal.png"
           alt=""
