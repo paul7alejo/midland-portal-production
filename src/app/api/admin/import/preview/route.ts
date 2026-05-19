@@ -2,18 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminUser, isAuthorizedAdmin } from '@/lib/security';
 import { previewImport, detectDuplicates, type ParsedPatient } from '@/lib/csv-import/patient-import';
 import { getPatientByNhiHash, getDeviceBySerialNumber } from '@/lib/aws/dynamodb';
-import { hashNHIForSearch } from '@/lib/nhi';
+import { hashNHIForSearch, NhiSecretError, type NhiSecretErrorCode } from '@/lib/nhi';
 
 const ORG_ID = 'midland-sleep';
 
-type DiagDetail = 'nhi_hash' | 'duplicate_lookup' | 'unknown';
+type DiagDetail = NhiSecretErrorCode | 'duplicate_lookup' | 'unknown';
 
 function failPreview(detail: DiagDetail, err: unknown): NextResponse {
   const code = 'IMPORT_PREVIEW_BACKEND_ERROR';
   const name = err instanceof Error ? err.name : 'UnknownError';
-  const message = err instanceof Error ? err.message : String(err);
   const awsRequestId = (err as { $metadata?: { requestId?: string } })?.$metadata?.requestId;
-  console.error('[import-preview]', { code, detail, name, message, ...(awsRequestId ? { awsRequestId } : {}) });
+  console.error('[import-preview]', { code, detail, name, ...(awsRequestId ? { awsRequestId } : {}) });
   return NextResponse.json({ error: 'Import preview failed', code, detail }, { status: 500 });
 }
 
@@ -52,7 +51,7 @@ export async function POST(request: NextRequest) {
       try {
         nhiHash = await hashNHIForSearch(row.nhi.toUpperCase());
       } catch (err) {
-        return failPreview('nhi_hash', err);
+        return failPreview(err instanceof NhiSecretError ? err.code : 'nhi_hash_unknown', err);
       }
 
       let existingPatient: Awaited<ReturnType<typeof getPatientByNhiHash>>;
