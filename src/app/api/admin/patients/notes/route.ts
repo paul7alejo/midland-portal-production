@@ -239,11 +239,10 @@ export async function DELETE(req: NextRequest) {
   // Stage: soft delete
   try {
     await softDeletePatientNote({
-      msid,
-      noteSk: noteId,
+      notePk: note.pk,
+      noteSk: note.sk,
       adminSub: admin.sub,
       adminEmail: admin.email,
-      orgId: ORG_ID,
     })
   } catch (err: unknown) {
     const errorName = err instanceof Error ? err.name : 'UnknownError'
@@ -251,6 +250,8 @@ export async function DELETE(req: NextRequest) {
       stage: 'soft_delete_failed',
       errorName,
       noteId,
+      notePk: note.pk,
+      noteSk: note.sk,
       patientMsid: msid,
       adminEmail: admin.email,
     })

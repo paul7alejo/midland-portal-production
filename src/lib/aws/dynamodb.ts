@@ -797,18 +797,16 @@ export async function updatePatientNote(params: {
 }
 
 export async function softDeletePatientNote(params: {
-  msid: string
-  noteSk: string
+  notePk: string   // exact pk from the retrieved note record — no reconstruction
+  noteSk: string   // exact sk from the retrieved note record — no reconstruction
   adminSub: string
   adminEmail: string
-  orgId: string
 }): Promise<void> {
-  const msidNorm = params.msid.startsWith('MS-') ? params.msid : `MS-${params.msid}`
   const deleted_at = new Date().toISOString()
   await docClient.send(new UpdateCommand({
     TableName: TABLES.PATIENTS,
-    Key: { pk: `NOTE#${msidNorm}`, sk: params.noteSk },
-    ConditionExpression: 'attribute_exists(pk)',
+    Key: { pk: params.notePk, sk: params.noteSk },
+    ConditionExpression: 'attribute_exists(pk) AND attribute_exists(sk)',
     UpdateExpression: 'SET is_deleted = :is_deleted, deleted_at = :deleted_at, deleted_by = :deleted_by, deleted_by_email = :deleted_by_email',
     ExpressionAttributeValues: {
       ':is_deleted': true,
