@@ -178,35 +178,39 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: 'Confirmation text must be DELETE' }, { status: 400 })
   }
 
-  const note = await getPatientNote(msid, noteId, ORG_ID)
-  if (!note) {
-    return NextResponse.json({ error: 'Note not found' }, { status: 404 })
-  }
-  if (note.is_deleted) {
-    return NextResponse.json({ error: 'Note already deleted' }, { status: 409 })
-  }
-  if (note.created_by !== admin.sub) {
-    return NextResponse.json({ error: 'You can only delete notes you created' }, { status: 403 })
-  }
+  try {
+    const note = await getPatientNote(msid, noteId, ORG_ID)
+    if (!note) {
+      return NextResponse.json({ error: 'Note not found' }, { status: 404 })
+    }
+    if (note.is_deleted) {
+      return NextResponse.json({ error: 'Note already deleted' }, { status: 409 })
+    }
+    if (note.created_by !== admin.sub) {
+      return NextResponse.json({ error: 'You can only delete notes you created' }, { status: 403 })
+    }
 
-  const auditResult = await writeAdminAuditEvent({
-    action: 'NOTE_SOFT_DELETED',
-    adminSub: admin.sub,
-    adminEmail: admin.email,
-    patientMsid: msid,
-    noteId,
-  })
-  if (!auditResult.ok) {
-    return NextResponse.json({ error: 'Audit write failed — delete aborted' }, { status: 500 })
+    const auditResult = await writeAdminAuditEvent({
+      action: 'NOTE_SOFT_DELETED',
+      adminSub: admin.sub,
+      adminEmail: admin.email,
+      patientMsid: msid,
+      noteId,
+    })
+    if (!auditResult.ok) {
+      return NextResponse.json({ error: 'Audit write failed — delete aborted' }, { status: 500 })
+    }
+
+    await softDeletePatientNote({
+      msid,
+      noteSk: noteId,
+      adminSub: admin.sub,
+      adminEmail: admin.email,
+      orgId: ORG_ID,
+    })
+
+    return NextResponse.json({ ok: true, note_id: noteId })
+  } catch {
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-
-  await softDeletePatientNote({
-    msid,
-    noteSk: noteId,
-    adminSub: admin.sub,
-    adminEmail: admin.email,
-    orgId: ORG_ID,
-  })
-
-  return NextResponse.json({ ok: true })
 }

@@ -1213,12 +1213,17 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName }: PatientDra
         body: JSON.stringify({ msid: patient.msid, note_id: deletingNoteId, confirmation: "DELETE" }),
       });
       if (!res.ok) {
-        const err = (await res.json()) as Record<string, unknown>;
-        throw new Error(typeof err.error === "string" ? err.error : "Delete failed");
+        let message = "Delete failed";
+        try {
+          const err = (await res.json()) as Record<string, unknown>;
+          if (typeof err.error === "string") message = err.error;
+        } catch { /* empty or non-JSON error body */ }
+        throw new Error(message);
       }
-      setPersistedNotes((prev) => prev.filter((n) => n.note_id !== deletingNoteId));
+      const deletedId = deletingNoteId;
       setDeletingNoteId(null);
       setDeleteConfirm("");
+      setPersistedNotes((prev) => prev.filter((n) => n.note_id !== deletedId));
     } catch (err) {
       setNoteActionError(err instanceof Error ? err.message : "Delete failed");
     } finally {
