@@ -129,7 +129,7 @@ function PortalAccountDetailDrawer({
       .then((data: unknown) => {
         const payload = data as Record<string, unknown>;
         if (Array.isArray(payload.activity)) {
-          setActivity(payload.activity as ActivityEvent[]);
+          setActivity((payload.activity as ActivityEvent[]).slice(0, 20));
           setActivityState("loaded");
         } else {
           setActivityState("error");
@@ -309,24 +309,30 @@ function PortalAccountDetailDrawer({
             )}
 
             {activityState === "loaded" && activity.length > 0 && (
-              <ul className="divide-y divide-sand">
-                {activity.map((event, i) => (
-                  <li key={i} className="flex items-start justify-between gap-3 py-3 first:pt-0 last:pb-0">
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-charcoal">{event.label}</p>
-                      <p className="text-xs text-charcoal/50 mt-0.5">
-                        {formatActivityTime(event.timestamp)}
-                        {event.adminEmail ? ` · ${event.adminEmail}` : ""}
-                      </p>
-                    </div>
-                    {event.result && (
-                      <span className="shrink-0 mt-0.5 text-xs font-medium px-2 py-0.5 rounded-full bg-sand text-charcoal/55 border border-sand/80">
-                        {event.result}
-                      </span>
-                    )}
-                  </li>
-                ))}
-              </ul>
+              <div className="space-y-2">
+                <ul className="divide-y divide-sand max-h-72 overflow-y-auto">
+                  {activity.map((event, i) => (
+                    <li key={i} className="flex items-start justify-between gap-3 py-3 first:pt-0 last:pb-0">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-charcoal">{event.label}</p>
+                        <p className="text-xs text-charcoal/50 mt-0.5">
+                          {formatActivityTime(event.timestamp)}
+                          {event.adminEmail ? ` · ${event.adminEmail}` : ""}
+                        </p>
+                      </div>
+                      {event.result && (
+                        <span className="shrink-0 mt-0.5 text-xs font-medium px-2 py-0.5 rounded-full bg-sand text-charcoal/55 border border-sand/80">
+                          {event.result}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-xs text-charcoal/40">
+                  Showing latest 20 events · Full audit log available from{" "}
+                  <a href="/admin/audit" className="underline hover:text-charcoal/60 transition-colors">Audit Log</a>.
+                </p>
+              </div>
             )}
           </section>
 
