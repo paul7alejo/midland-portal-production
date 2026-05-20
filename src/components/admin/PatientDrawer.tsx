@@ -104,6 +104,9 @@ interface PersistedNote {
   body: string;
   created_at: string;
   created_by_email: string | null;
+  is_owner: boolean;
+  updated_at: string | null;
+  is_edited: boolean;
 }
 
 export interface PatientDrawerProps {
@@ -588,7 +591,21 @@ function NotesTab({
   notesLoading,
   notesError,
   noteSaving,
+  editingNoteId,
+  editText,
+  setEditText,
+  deletingNoteId,
+  deleteConfirm,
+  setDeleteConfirm,
+  noteActionLoading,
+  noteActionError,
   onAdd,
+  onStartEdit,
+  onCancelEdit,
+  onSaveEdit,
+  onStartDelete,
+  onCancelDelete,
+  onConfirmDelete,
 }: {
   noteText: string;
   setNoteText: (v: string) => void;
@@ -596,11 +613,26 @@ function NotesTab({
   notesLoading: boolean;
   notesError: string | null;
   noteSaving: boolean;
+  editingNoteId: string | null;
+  editText: string;
+  setEditText: (v: string) => void;
+  deletingNoteId: string | null;
+  deleteConfirm: string;
+  setDeleteConfirm: (v: string) => void;
+  noteActionLoading: boolean;
+  noteActionError: string | null;
   onAdd: () => void;
+  onStartEdit: (noteId: string, body: string) => void;
+  onCancelEdit: () => void;
+  onSaveEdit: () => void;
+  onStartDelete: (noteId: string) => void;
+  onCancelDelete: () => void;
+  onConfirmDelete: () => void;
 }) {
   const remaining = 1000 - noteText.length;
   return (
     <div className="space-y-5">
+      {/* Add note input */}
       <div className="space-y-2">
         <label className="block text-base font-medium text-gray-700">Add a note</label>
         <textarea
@@ -629,29 +661,141 @@ function NotesTab({
         </div>
       </div>
 
+      {/* Note list */}
       {notesLoading ? (
         <div className="rounded-xl border border-gray-200 bg-gray-50 px-5 py-4">
           <p className="text-sm text-gray-500">Loading notes…</p>
         </div>
-      ) : notesError ? (
+      ) : notesError && notes.length === 0 ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4">
-          <p className="text-sm text-amber-800">{notesError}</p>
+          <p className="text-sm text-amber-800">Notes temporarily unavailable.</p>
         </div>
       ) : notes.length === 0 ? (
         <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-5 py-4">
-          <p className="text-sm text-gray-500">No notes yet for this patient.</p>
+          <p className="text-sm text-gray-500">No admin notes yet.</p>
         </div>
       ) : (
         <div className="space-y-3">
           <h4 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Staff notes</h4>
-          {notes.map((note) => (
-            <div key={note.note_id} className="bg-gray-50 rounded-xl p-4 space-y-2">
-              <p className="text-base text-gray-800 whitespace-pre-wrap">{note.body}</p>
-              <p className="text-sm text-gray-500">
-                {note.created_by_email ?? "Staff"} · {formatNzDateTime(note.created_at)}
-              </p>
+
+          {noteActionError && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3">
+              <p className="text-sm text-red-700">{noteActionError}</p>
             </div>
-          ))}
+          )}
+
+          {notes.map((note) => {
+            const isEditing = editingNoteId === note.note_id;
+            const isDeleting = deletingNoteId === note.note_id;
+
+            return (
+              <div key={note.note_id} className="bg-gray-50 rounded-xl p-4 space-y-3">
+                {isEditing ? (
+                  /* ── Edit mode ── */
+                  <div className="space-y-2">
+                    <textarea
+                      value={editText}
+                      onChange={(e) => setEditText(e.target.value)}
+                      rows={4}
+                      maxLength={1000}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base text-gray-800
+                                 focus:outline-none focus:ring-2 focus:ring-[#0B5C6C] focus:border-transparent"
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={onSaveEdit}
+                        disabled={!editText.trim() || noteActionLoading}
+                        className="bg-[#0B5C6C] text-white text-sm font-medium px-4 py-2 rounded-lg min-h-[36px]
+                                   hover:bg-[#0B5C6C]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {noteActionLoading ? "Saving…" : "Save"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={onCancelEdit}
+                        disabled={noteActionLoading}
+                        className="text-sm font-medium text-gray-600 hover:text-gray-800 px-4 py-2 min-h-[36px] transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* ── Read / delete-confirm mode ── */
+                  <>
+                    <p className="text-base text-gray-800 whitespace-pre-wrap">{note.body}</p>
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-sm text-gray-500">
+                        {note.created_by_email ?? "Staff"} · {formatNzDateTime(note.created_at)}
+                        {note.is_edited && note.updated_at && (
+                          <span className="ml-1 text-gray-400">· Edited {formatNzDateTime(note.updated_at)}</span>
+                        )}
+                      </p>
+                      {note.is_owner && !isDeleting && (
+                        <div className="flex gap-3 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => onStartEdit(note.note_id, note.body)}
+                            className="text-sm font-medium text-[#0B5C6C] hover:text-[#0B5C6C]/80 transition-colors"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onStartDelete(note.note_id)}
+                            className="text-sm font-medium text-red-500 hover:text-red-700 transition-colors"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {isDeleting && (
+                      /* ── Delete confirmation panel ── */
+                      <div className="border border-red-200 bg-red-50 rounded-lg px-4 py-3 space-y-3">
+                        <p className="text-sm font-medium text-red-800">
+                          This note will be hidden from the Notes tab. It is not permanently removed.
+                        </p>
+                        <label className="block text-sm text-red-700">
+                          Type <span className="font-mono font-semibold">DELETE</span> to confirm:
+                        </label>
+                        <input
+                          type="text"
+                          value={deleteConfirm}
+                          onChange={(e) => setDeleteConfirm(e.target.value)}
+                          placeholder="DELETE"
+                          autoFocus
+                          className="w-full px-3 py-2 border border-red-300 rounded-lg text-sm text-gray-800
+                                     focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-transparent"
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={onConfirmDelete}
+                            disabled={deleteConfirm !== "DELETE" || noteActionLoading}
+                            className="bg-red-600 text-white text-sm font-medium px-4 py-2 rounded-lg min-h-[36px]
+                                       hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {noteActionLoading ? "Deleting…" : "Delete note"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={onCancelDelete}
+                            disabled={noteActionLoading}
+                            className="text-sm font-medium text-gray-600 hover:text-gray-800 px-4 py-2 min-h-[36px] transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -864,6 +1008,12 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName }: PatientDra
   const [notesLoading, setNotesLoading]     = useState(false);
   const [notesError, setNotesError]         = useState<string | null>(null);
   const [noteSaving, setNoteSaving]         = useState(false);
+  const [editingNoteId, setEditingNoteId]   = useState<string | null>(null);
+  const [editText, setEditText]             = useState("");
+  const [deletingNoteId, setDeletingNoteId] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm]   = useState("");
+  const [noteActionLoading, setNoteActionLoading] = useState(false);
+  const [noteActionError, setNoteActionError]     = useState<string | null>(null);
   const [importedPatient, setImportedPatient] = useState<DrawerPatient | null>(null);
   const [importedLoading, setImportedLoading] = useState(false);
   const [importedError, setImportedError] = useState<string | null>(null);
@@ -885,6 +1035,11 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName }: PatientDra
       setNhiVisible(false);
       setNhiReason("");
       setActiveTab("overview");
+      setEditingNoteId(null);
+      setEditText("");
+      setDeletingNoteId(null);
+      setDeleteConfirm("");
+      setNoteActionError(null);
       if (nhiTimerRef.current) clearTimeout(nhiTimerRef.current);
     }
   }, [isOpen]);
@@ -893,6 +1048,11 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName }: PatientDra
     setNoteText("");
     setPersistedNotes([]);
     setNotesError(null);
+    setEditingNoteId(null);
+    setEditText("");
+    setDeletingNoteId(null);
+    setDeleteConfirm("");
+    setNoteActionError(null);
     setImportedPatient(null);
     setImportedError(null);
   }, [msid]);
@@ -978,6 +1138,91 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName }: PatientDra
       setNotesError("Note could not be saved. Please try again.");
     } finally {
       setNoteSaving(false);
+    }
+  }
+
+  function handleStartEdit(noteId: string, body: string) {
+    setEditingNoteId(noteId);
+    setEditText(body);
+    setDeletingNoteId(null);
+    setDeleteConfirm("");
+    setNoteActionError(null);
+  }
+
+  function handleCancelEdit() {
+    setEditingNoteId(null);
+    setEditText("");
+    setNoteActionError(null);
+  }
+
+  async function handleSaveEdit() {
+    if (!patient || !editingNoteId || !editText.trim() || noteActionLoading) return;
+    setNoteActionLoading(true);
+    setNoteActionError(null);
+    try {
+      const res = await fetch("/api/admin/patients/notes", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ msid: patient.msid, note_id: editingNoteId, body: editText.trim() }),
+      });
+      if (!res.ok) {
+        const err = (await res.json()) as Record<string, unknown>;
+        throw new Error(typeof err.error === "string" ? err.error : "Save failed");
+      }
+      const now = new Date().toISOString();
+      setPersistedNotes((prev) =>
+        prev.map((n) =>
+          n.note_id === editingNoteId
+            ? { ...n, body: editText.trim(), is_edited: true, updated_at: now }
+            : n
+        )
+      );
+      setEditingNoteId(null);
+      setEditText("");
+    } catch (err) {
+      setNoteActionError(err instanceof Error ? err.message : "Save failed");
+    } finally {
+      setNoteActionLoading(false);
+    }
+  }
+
+  function handleStartDelete(noteId: string) {
+    setDeletingNoteId(noteId);
+    setDeleteConfirm("");
+    setEditingNoteId(null);
+    setEditText("");
+    setNoteActionError(null);
+  }
+
+  function handleCancelDelete() {
+    setDeletingNoteId(null);
+    setDeleteConfirm("");
+    setNoteActionError(null);
+  }
+
+  async function handleConfirmDelete() {
+    if (!patient || !deletingNoteId || deleteConfirm !== "DELETE" || noteActionLoading) return;
+    setNoteActionLoading(true);
+    setNoteActionError(null);
+    try {
+      const res = await fetch("/api/admin/patients/notes", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ msid: patient.msid, note_id: deletingNoteId, confirmation: "DELETE" }),
+      });
+      if (!res.ok) {
+        const err = (await res.json()) as Record<string, unknown>;
+        throw new Error(typeof err.error === "string" ? err.error : "Delete failed");
+      }
+      setPersistedNotes((prev) => prev.filter((n) => n.note_id !== deletingNoteId));
+      setDeletingNoteId(null);
+      setDeleteConfirm("");
+    } catch (err) {
+      setNoteActionError(err instanceof Error ? err.message : "Delete failed");
+    } finally {
+      setNoteActionLoading(false);
     }
   }
 
@@ -1091,7 +1336,21 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName }: PatientDra
                   notesLoading={notesLoading}
                   notesError={notesError}
                   noteSaving={noteSaving}
+                  editingNoteId={editingNoteId}
+                  editText={editText}
+                  setEditText={setEditText}
+                  deletingNoteId={deletingNoteId}
+                  deleteConfirm={deleteConfirm}
+                  setDeleteConfirm={setDeleteConfirm}
+                  noteActionLoading={noteActionLoading}
+                  noteActionError={noteActionError}
                   onAdd={handleAddNote}
+                  onStartEdit={handleStartEdit}
+                  onCancelEdit={handleCancelEdit}
+                  onSaveEdit={handleSaveEdit}
+                  onStartDelete={handleStartDelete}
+                  onCancelDelete={handleCancelDelete}
+                  onConfirmDelete={handleConfirmDelete}
                 />
               )}
               {activeTab === "nhi" && (

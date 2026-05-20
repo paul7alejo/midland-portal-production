@@ -6,6 +6,8 @@ const ORG_ID = 'midland-sleep'
 export type AdminAuditAction =
   | 'ADMIN_PASSWORD_RESET_ATTEMPT'
   | 'ADMIN_ACCOUNT_UNLOCK_ATTEMPT'
+  | 'NOTE_UPDATED'
+  | 'NOTE_SOFT_DELETED'
 
 export interface AdminAuditParams {
   action: AdminAuditAction
@@ -13,6 +15,7 @@ export interface AdminAuditParams {
   adminEmail: string
   patientMsid: string
   patientNhiMasked?: string   // omit when not available on the server path
+  noteId?: string             // note sk; omit full body — safe ID only
 }
 
 export type AuditWriteResult =
@@ -36,6 +39,7 @@ export async function writeAdminAuditEvent(
       ...(params.patientNhiMasked !== undefined && {
         patient_nhi_masked: params.patientNhiMasked,
       }),
+      ...(params.noteId !== undefined && { note_id: params.noteId }),
       org_id:             ORG_ID,
       timestamp:          new Date().toISOString(),
       result:             'attempted',

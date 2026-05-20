@@ -689,6 +689,16 @@ export interface PatientNoteRecord {
   created_by_email: string
   note_type: 'internal'
   visibility: 'admin_only'
+  // edit fields
+  updated_at?: string
+  updated_by?: string
+  updated_by_email?: string
+  is_edited?: boolean
+  // soft-delete fields
+  is_deleted?: boolean
+  deleted_at?: string
+  deleted_by?: string
+  deleted_by_email?: string
 }
 
 export async function putPatientNote(params: {
@@ -731,14 +741,81 @@ export async function listPatientNotes(
   const res = await docClient.send(new QueryCommand({
     TableName: TABLES.PATIENTS,
     KeyConditionExpression: 'pk = :pk AND begins_with(sk, :skPrefix)',
-    FilterExpression: 'org_id = :orgId',
+    FilterExpression: 'org_id = :orgId AND (attribute_not_exists(is_deleted) OR is_deleted = :notDeleted)',
     ExpressionAttributeValues: {
       ':pk': `NOTE#${msidNorm}`,
       ':skPrefix': 'NOTE#',
       ':orgId': orgId,
+      ':notDeleted': false,
     },
     ScanIndexForward: false,
     Limit: limit,
   }))
   return (res.Items ?? []) as PatientNoteRecord[]
+}
+
+export async function getPatientNote(
+  msid: string,
+  noteSk: string,
+  orgId: string
+): Promise<PatientNoteRecord | null> {
+  const msidNorm = msid.startsWith('MS-') ? msid : `MS-${msid}`
+  const res = await docClient.send(new GetCommand({
+    TableName: TABLES.PATIENTS,
+    Key: { pk: `NOTE#${msidNorm}`, sk: noteSk },
+  }))
+  const item = res.Item as PatientNoteRecord | undefined
+  if (!item || item.org_id !== orgId) return null
+  return item
+}
+
+export async function updatePatientNote(params: {
+  msid: string
+  noteSk: string
+  body: string
+  adminSub: string
+  adminEmail: string
+  orgId: string
+}): Promise<void> {
+  const msidNorm = params.msid.startsWith('MS-') ? params.msid : `MS-${params.msid}`
+  const updated_at = new Date().toISOString()
+  await docClient.send(new UpdateCommand({
+    TableName: TABLES.PATIENTS,
+    Key: { pk: `NOTE#${msidNorm}`, sk: params.noteSk },
+    ConditionExpression: 'org_id = :orgId AND attribute_not_exists(is_deleted)',
+    UpdateExpression: 'SET #body = :body, updated_at = :updated_at, updated_by = :updated_by, updated_by_email = :updated_by_email, is_edited = :is_edited',
+    ExpressionAttributeNames: { '#body': 'body' },
+    ExpressionAttributeValues: {
+      ':body': params.body,
+      ':updated_at': updated_at,
+      ':updated_by': params.adminSub,
+      ':updated_by_email': params.adminEmail,
+      ':is_edited': true,
+      ':orgId': params.orgId,
+    },
+  }))
+}
+
+export async function softDeletePatientNote(params: {
+  msid: string
+  noteSk: string
+  adminSub: string
+  adminEmail: string
+  orgId: string
+}): Promise<void> {
+  const msidNorm = params.msid.startsWith('MS-') ? params.msid : `MS-${params.msid}`
+  const deleted_at = new Date().toISOString()
+  await docClient.send(new UpdateCommand({
+    TableName: TABLES.PATIENTS,
+    Key: { pk: `NOTE#${msidNorm}`, sk: params.noteSk },
+    ConditionExpression: 'org_id = :orgId AND attribute_not_exists(is_deleted)',
+    UpdateExpression: 'SET is_deleted = :is_deleted, deleted_at = :deleted_at, deleted_by = :deleted_by, deleted_by_email = :deleted_by_email',
+    ExpressionAttributeValues: {
+      ':is_deleted': true,
+      ':deleted_at': deleted_at,
+      ':deleted_by': params.adminSub,
+      ':deleted_by_email': params.adminEmail,
+      ':orgId': params.orgId,
+    },
+  }))
 }
