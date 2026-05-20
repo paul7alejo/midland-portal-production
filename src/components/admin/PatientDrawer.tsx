@@ -1016,7 +1016,9 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName }: PatientDra
   const [noteActionError, setNoteActionError]     = useState<string | null>(null);
   const [importedPatient, setImportedPatient] = useState<DrawerPatient | null>(null);
   const [importedLoading, setImportedLoading] = useState(false);
-  const [importedError, setImportedError] = useState<string | null>(null);
+  const [importedError, setImportedError]     = useState<string | null>(null);
+  const [reviewLoading, setReviewLoading]     = useState(false);
+  const [reviewError, setReviewError]         = useState<string | null>(null);
   const nhiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const demoData = msid ? (DEMO_DATA[msid] ?? null) : null;
@@ -1040,6 +1042,8 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName }: PatientDra
       setDeletingNoteId(null);
       setDeleteConfirm("");
       setNoteActionError(null);
+      setReviewError(null);
+      setReviewLoading(false);
       if (nhiTimerRef.current) clearTimeout(nhiTimerRef.current);
     }
   }, [isOpen]);
@@ -1055,6 +1059,8 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName }: PatientDra
     setNoteActionError(null);
     setImportedPatient(null);
     setImportedError(null);
+    setReviewError(null);
+    setReviewLoading(false);
   }, [msid]);
 
   useEffect(() => {
@@ -1231,6 +1237,35 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName }: PatientDra
     }
   }
 
+  async function handleSetReviewStatus(status: string) {
+    if (!patient || reviewLoading) return;
+    setReviewLoading(true);
+    setReviewError(null);
+    try {
+      const res = await fetch("/api/admin/patients/review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ msid: patient.msid, review_status: status }),
+      });
+      if (!res.ok) {
+        let message = "Update failed";
+        try {
+          const err = (await res.json()) as Record<string, unknown>;
+          if (typeof err.error === "string") message = err.error;
+        } catch { /* non-JSON error body */ }
+        throw new Error(message);
+      }
+      setImportedPatient((prev) =>
+        prev ? { ...prev, reviewStatus: humanizeLabel(status) } : prev
+      );
+    } catch (err) {
+      setReviewError(err instanceof Error ? err.message : "Update failed");
+    } finally {
+      setReviewLoading(false);
+    }
+  }
+
   return (
     <>
       {/* Backdrop */}
@@ -1330,6 +1365,43 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName }: PatientDra
           ) : patient ? (
             <>
               {activeTab === "overview"    && <OverviewTab patient={patient} />}
+              {activeTab === "overview" && patient.imported && (
+                <section className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Review action</p>
+                  <div className="flex items-center gap-2">
+                    <span className={cn(
+                      "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium",
+                      patient.reviewStatus === "Reviewed"
+                        ? "border border-green-200 bg-green-50 text-green-800"
+                        : "border border-amber-200 bg-amber-50 text-amber-800"
+                    )}>
+                      {patient.reviewStatus || "Pending review"}
+                    </span>
+                  </div>
+                  {patient.reviewStatus !== "Reviewed" ? (
+                    <button
+                      type="button"
+                      disabled={reviewLoading}
+                      onClick={() => { void handleSetReviewStatus("reviewed"); }}
+                      className="inline-flex items-center rounded-lg bg-[#0B5C6C] px-4 py-2 text-sm font-medium text-white hover:bg-[#0B4A57] disabled:opacity-50 transition-colors"
+                    >
+                      {reviewLoading ? "Saving…" : "Mark as reviewed"}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={reviewLoading}
+                      onClick={() => { void handleSetReviewStatus("pending_review"); }}
+                      className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                    >
+                      {reviewLoading ? "Saving…" : "Set back to pending review"}
+                    </button>
+                  )}
+                  {reviewError && (
+                    <p className="text-sm text-red-600">{reviewError}</p>
+                  )}
+                </section>
+              )}
               {activeTab === "equipment"   && <EquipmentTab patient={patient} />}
               {activeTab === "entitlement" && <EntitlementTab patient={patient} />}
               {activeTab === "orders"      && <OrdersTab patient={patient} />}

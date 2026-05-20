@@ -48,7 +48,13 @@ export interface PatientRecord {
   import_row_number?: number
   import_source?: 'admin_csv'
   import_status?: 'imported'
-  review_status?: 'pending_review'
+  review_status?: 'pending_review' | 'reviewed'
+  reviewed_at?: string
+  reviewed_by?: string
+  reviewed_by_email?: string
+  updated_at?: string
+  updated_by?: string
+  updated_by_email?: string
   created_at?: string
   created_by?: string
 }
@@ -520,6 +526,31 @@ export async function updatePatientProfile(
     UpdateExpression: `SET ${setClauses.join(', ')}`,
     ExpressionAttributeNames,
     ExpressionAttributeValues,
+  }))
+}
+
+export async function setPatientReviewStatus(params: {
+  pk: string
+  reviewStatus: 'pending_review' | 'reviewed'
+  adminSub: string
+  adminEmail: string
+}): Promise<void> {
+  const now = new Date().toISOString()
+  const isReviewed = params.reviewStatus === 'reviewed'
+  const UpdateExpression = isReviewed
+    ? 'SET review_status = :status, reviewed_at = :now, reviewed_by = :sub, reviewed_by_email = :email, updated_at = :now, updated_by = :sub, updated_by_email = :email'
+    : 'SET review_status = :status, updated_at = :now, updated_by = :sub, updated_by_email = :email'
+  await docClient.send(new UpdateCommand({
+    TableName: TABLES.PATIENTS,
+    Key: { pk: params.pk, sk: 'PROFILE' },
+    ConditionExpression: 'attribute_exists(pk)',
+    UpdateExpression,
+    ExpressionAttributeValues: {
+      ':status': params.reviewStatus,
+      ':now':    now,
+      ':sub':    params.adminSub,
+      ':email':  params.adminEmail,
+    },
   }))
 }
 

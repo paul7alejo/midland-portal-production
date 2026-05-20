@@ -8,6 +8,7 @@ export type AdminAuditAction =
   | 'ADMIN_ACCOUNT_UNLOCK_ATTEMPT'
   | 'NOTE_UPDATED'
   | 'NOTE_DELETE_ATTEMPT'
+  | 'PATIENT_REVIEW_STATUS_UPDATED'
 
 export interface AdminAuditParams {
   action: AdminAuditAction
