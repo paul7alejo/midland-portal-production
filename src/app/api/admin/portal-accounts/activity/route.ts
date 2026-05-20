@@ -11,6 +11,9 @@ const ACTION_LABELS: Record<string, string> = {
   PATIENT_LOGIN:                'Patient login',
   PATIENT_PASSWORD_CHANGED:     'Patient password changed',
   ACCOUNT_ENABLED:              'Account enabled',
+  NOTE_DELETE_ATTEMPT:          'Note deletion requested',
+  NOTE_SOFT_DELETED:            'Note deleted',
+  NOTE_UPDATED:                 'Note edited',
 }
 
 function labelForAction(action: string): string {

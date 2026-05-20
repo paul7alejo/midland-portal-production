@@ -205,10 +205,7 @@ export async function DELETE(req: NextRequest) {
     )
   }
   if (note.is_deleted) {
-    return NextResponse.json(
-      { error: 'Note already deleted.', stage: 'note_not_found' },
-      { status: 409 }
-    )
+    return NextResponse.json({ ok: true, note_id: noteId, deleted: true, already_deleted: true })
   }
   if (note.created_by !== admin.sub) {
     return NextResponse.json(
@@ -219,7 +216,7 @@ export async function DELETE(req: NextRequest) {
 
   // Stage: audit write — must succeed before mutation
   const auditResult = await writeAdminAuditEvent({
-    action: 'NOTE_SOFT_DELETED',
+    action: 'NOTE_DELETE_ATTEMPT',
     adminSub: admin.sub,
     adminEmail: admin.email,
     patientMsid: msid,
@@ -263,5 +260,5 @@ export async function DELETE(req: NextRequest) {
     )
   }
 
-  return NextResponse.json({ ok: true, note_id: noteId })
+  return NextResponse.json({ ok: true, note_id: noteId, deleted: true })
 }

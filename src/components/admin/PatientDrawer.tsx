@@ -756,7 +756,7 @@ function NotesTab({
                       /* ── Delete confirmation panel ── */
                       <div className="border border-red-200 bg-red-50 rounded-lg px-4 py-3 space-y-3">
                         <p className="text-sm font-medium text-red-800">
-                          This note will be hidden from the Notes tab. It is not permanently removed.
+                          This note will be removed from the Notes tab. A deletion record is retained for audit/history.
                         </p>
                         <label className="block text-sm text-red-700">
                           Type <span className="font-mono font-semibold">DELETE</span> to confirm:

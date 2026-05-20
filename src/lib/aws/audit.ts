@@ -7,7 +7,7 @@ export type AdminAuditAction =
   | 'ADMIN_PASSWORD_RESET_ATTEMPT'
   | 'ADMIN_ACCOUNT_UNLOCK_ATTEMPT'
   | 'NOTE_UPDATED'
-  | 'NOTE_SOFT_DELETED'
+  | 'NOTE_DELETE_ATTEMPT'
 
 export interface AdminAuditParams {
   action: AdminAuditAction
