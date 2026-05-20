@@ -109,6 +109,14 @@ interface PersistedNote {
   is_edited: boolean;
 }
 
+interface PatientActivityEvent {
+  timestamp: string;
+  label: string;
+  action: string;
+  adminEmail: string | null;
+  result: string | null;
+}
+
 export interface PatientDrawerProps {
   isOpen: boolean;
   onClose: () => void;
@@ -316,31 +324,68 @@ function getReviewCues(patient: DrawerPatient): string[] {
   return cues;
 }
 
-function ReviewCues({ patient }: { patient: DrawerPatient }) {
+function OverviewTab({
+  patient,
+  reviewLoading,
+  reviewError,
+  onSetReviewStatus,
+  patientActivity,
+  patientActivityState,
+}: {
+  patient: DrawerPatient;
+  reviewLoading: boolean;
+  reviewError: string | null;
+  onSetReviewStatus: (status: string) => void;
+  patientActivity: PatientActivityEvent[];
+  patientActivityState: "idle" | "loading" | "loaded" | "error";
+}) {
   const cues = getReviewCues(patient);
   return (
-    <section className="rounded-xl border border-sky-200 bg-sky-50 p-4">
-      <h3 className="mb-3 text-sm font-semibold text-sky-900 uppercase tracking-wide">Review cues</h3>
-      {cues.length > 0 ? (
-        <ul className="space-y-2">
-          {cues.map((cue) => (
-            <li key={cue} className="flex gap-2 text-sm leading-6 text-sky-900">
-              <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500" />
-              <span>{cue}</span>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="text-sm leading-6 text-sky-900">No immediate review cues are shown for this record.</p>
-      )}
-    </section>
-  );
-}
-
-function OverviewTab({ patient }: { patient: DrawerPatient }) {
-  return (
     <div className="space-y-5">
-      <ReviewCues patient={patient} />
+      {/* Review cues + action */}
+      <section className="rounded-xl border border-sky-200 bg-sky-50 p-4 space-y-3">
+        <h3 className="text-sm font-semibold text-sky-900 uppercase tracking-wide">Review cues</h3>
+        {cues.length > 0 ? (
+          <ul className="space-y-2">
+            {cues.map((cue) => (
+              <li key={cue} className="flex gap-2 text-sm leading-6 text-sky-900">
+                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500" />
+                <span>{cue}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm leading-6 text-sky-900">No immediate review cues are shown for this record.</p>
+        )}
+        {patient.imported && (
+          <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-sky-200">
+            <span className={cn(
+              "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium",
+              patient.reviewStatus === "Reviewed"
+                ? "border border-green-200 bg-green-50 text-green-800"
+                : "border border-amber-200 bg-amber-50 text-amber-800"
+            )}>
+              {patient.reviewStatus || "Pending review"}
+            </span>
+            <button
+              type="button"
+              disabled={reviewLoading}
+              onClick={() => { onSetReviewStatus(patient.reviewStatus !== "Reviewed" ? "reviewed" : "pending_review"); }}
+              className={cn(
+                "rounded-lg px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-50",
+                patient.reviewStatus !== "Reviewed"
+                  ? "bg-[#0B5C6C] text-white hover:bg-[#0B4A57]"
+                  : "border border-sky-300 bg-sky-50 text-sky-900 hover:bg-sky-100"
+              )}
+            >
+              {reviewLoading ? "Saving…" : patient.reviewStatus !== "Reviewed" ? "Mark as reviewed" : "Set back to pending review"}
+            </button>
+            {reviewError && (
+              <p className="w-full text-sm text-red-600">{reviewError}</p>
+            )}
+          </div>
+        )}
+      </section>
 
       <section className="rounded-xl border border-gray-200 bg-gray-50 p-4">
         <dl className="grid gap-5 sm:grid-cols-2">
@@ -389,6 +434,46 @@ function OverviewTab({ patient }: { patient: DrawerPatient }) {
             </>
           )}
         </dl>
+      </section>
+
+      {/* Recent patient activity */}
+      <section className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Recent patient activity</p>
+        {(patientActivityState === "idle" || patientActivityState === "loading") && (
+          <p className="text-sm text-gray-400">Loading activity…</p>
+        )}
+        {patientActivityState === "error" && (
+          <p className="text-sm text-gray-400">Activity temporarily unavailable.</p>
+        )}
+        {patientActivityState === "loaded" && patientActivity.length === 0 && (
+          <p className="text-sm text-gray-400">No recent activity found for this patient.</p>
+        )}
+        {patientActivityState === "loaded" && patientActivity.length > 0 && (
+          <div className="space-y-2">
+            <ul className="divide-y divide-gray-100 max-h-56 overflow-y-auto">
+              {patientActivity.map((event, i) => (
+                <li key={i} className="flex items-start justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-800">{event.label}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {formatNzDateTime(event.timestamp)}
+                      {event.adminEmail ? ` · ${event.adminEmail}` : ""}
+                    </p>
+                  </div>
+                  {event.result && (
+                    <span className="shrink-0 mt-0.5 text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200">
+                      {event.result}
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+            <p className="text-xs text-gray-400">
+              Showing latest 20 events · Full audit log available from{" "}
+              <a href="/admin/audit" className="underline hover:text-gray-600 transition-colors">Audit Log</a>.
+            </p>
+          </div>
+        )}
       </section>
     </div>
   );
@@ -1019,7 +1104,10 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName }: PatientDra
   const [importedError, setImportedError]     = useState<string | null>(null);
   const [reviewLoading, setReviewLoading]     = useState(false);
   const [reviewError, setReviewError]         = useState<string | null>(null);
-  const nhiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [patientActivity, setPatientActivity]           = useState<PatientActivityEvent[]>([]);
+  const [patientActivityState, setPatientActivityState] = useState<"idle" | "loading" | "loaded" | "error">("idle");
+  const nhiTimerRef              = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activityFetchedRef       = useRef(false);
 
   const demoData = msid ? (DEMO_DATA[msid] ?? null) : null;
   const patient: DrawerPatient | null = msid
@@ -1061,6 +1149,9 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName }: PatientDra
     setImportedError(null);
     setReviewError(null);
     setReviewLoading(false);
+    setPatientActivity([]);
+    setPatientActivityState("idle");
+    activityFetchedRef.current = false;
   }, [msid]);
 
   useEffect(() => {
@@ -1095,6 +1186,28 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName }: PatientDra
   useEffect(() => {
     return () => { if (nhiTimerRef.current) clearTimeout(nhiTimerRef.current); };
   }, []);
+
+  useEffect(() => {
+    if (!isOpen || !msid || activeTab !== "overview") return;
+    if (activityFetchedRef.current) return;
+    activityFetchedRef.current = true;
+    let cancelled = false;
+    setPatientActivityState("loading");
+    fetch(`/api/admin/patients/activity?msid=${encodeURIComponent(msid)}`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((data: unknown) => {
+        if (cancelled) return;
+        const payload = data as Record<string, unknown>;
+        if (Array.isArray(payload.activity)) {
+          setPatientActivity(payload.activity as PatientActivityEvent[]);
+          setPatientActivityState("loaded");
+        } else {
+          setPatientActivityState("error");
+        }
+      })
+      .catch(() => { if (!cancelled) setPatientActivityState("error"); });
+    return () => { cancelled = true; };
+  }, [isOpen, msid, activeTab]);
 
   useEffect(() => {
     if (!isOpen || !msid || activeTab !== "notes") return;
@@ -1364,43 +1477,15 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName }: PatientDra
             </div>
           ) : patient ? (
             <>
-              {activeTab === "overview"    && <OverviewTab patient={patient} />}
-              {activeTab === "overview" && patient.imported && (
-                <section className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Review action</p>
-                  <div className="flex items-center gap-2">
-                    <span className={cn(
-                      "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium",
-                      patient.reviewStatus === "Reviewed"
-                        ? "border border-green-200 bg-green-50 text-green-800"
-                        : "border border-amber-200 bg-amber-50 text-amber-800"
-                    )}>
-                      {patient.reviewStatus || "Pending review"}
-                    </span>
-                  </div>
-                  {patient.reviewStatus !== "Reviewed" ? (
-                    <button
-                      type="button"
-                      disabled={reviewLoading}
-                      onClick={() => { void handleSetReviewStatus("reviewed"); }}
-                      className="inline-flex items-center rounded-lg bg-[#0B5C6C] px-4 py-2 text-sm font-medium text-white hover:bg-[#0B4A57] disabled:opacity-50 transition-colors"
-                    >
-                      {reviewLoading ? "Saving…" : "Mark as reviewed"}
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      disabled={reviewLoading}
-                      onClick={() => { void handleSetReviewStatus("pending_review"); }}
-                      className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
-                    >
-                      {reviewLoading ? "Saving…" : "Set back to pending review"}
-                    </button>
-                  )}
-                  {reviewError && (
-                    <p className="text-sm text-red-600">{reviewError}</p>
-                  )}
-                </section>
+              {activeTab === "overview" && (
+                <OverviewTab
+                  patient={patient}
+                  reviewLoading={reviewLoading}
+                  reviewError={reviewError}
+                  onSetReviewStatus={handleSetReviewStatus}
+                  patientActivity={patientActivity}
+                  patientActivityState={patientActivityState}
+                />
               )}
               {activeTab === "equipment"   && <EquipmentTab patient={patient} />}
               {activeTab === "entitlement" && <EntitlementTab patient={patient} />}
