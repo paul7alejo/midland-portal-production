@@ -808,14 +808,16 @@ export async function softDeletePatientNote(params: {
   await docClient.send(new UpdateCommand({
     TableName: TABLES.PATIENTS,
     Key: { pk: `NOTE#${msidNorm}`, sk: params.noteSk },
-    ConditionExpression: 'org_id = :orgId AND attribute_not_exists(is_deleted)',
+    // Accept notes where is_deleted is absent OR explicitly false.
+    // attribute_not_exists alone would reject a note where is_deleted was stored as false.
+    ConditionExpression: 'attribute_not_exists(is_deleted) OR is_deleted = :notDeleted',
     UpdateExpression: 'SET is_deleted = :is_deleted, deleted_at = :deleted_at, deleted_by = :deleted_by, deleted_by_email = :deleted_by_email',
     ExpressionAttributeValues: {
       ':is_deleted': true,
+      ':notDeleted': false,
       ':deleted_at': deleted_at,
       ':deleted_by': params.adminSub,
       ':deleted_by_email': params.adminEmail,
-      ':orgId': params.orgId,
     },
   }))
 }

@@ -7,6 +7,7 @@ import {
   getPatientNote,
   updatePatientNote,
   softDeletePatientNote,
+  type PatientNoteRecord,
 } from '@/lib/aws/dynamodb'
 import { writeAdminAuditEvent } from '@/lib/aws/audit'
 
@@ -178,29 +179,68 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: 'Confirmation text must be DELETE' }, { status: 400 })
   }
 
+  // Stage: note lookup
+  let note: PatientNoteRecord | null
   try {
-    const note = await getPatientNote(msid, noteId, ORG_ID)
-    if (!note) {
-      return NextResponse.json({ error: 'Note not found' }, { status: 404 })
-    }
-    if (note.is_deleted) {
-      return NextResponse.json({ error: 'Note already deleted' }, { status: 409 })
-    }
-    if (note.created_by !== admin.sub) {
-      return NextResponse.json({ error: 'You can only delete notes you created' }, { status: 403 })
-    }
-
-    const auditResult = await writeAdminAuditEvent({
-      action: 'NOTE_SOFT_DELETED',
-      adminSub: admin.sub,
-      adminEmail: admin.email,
-      patientMsid: msid,
+    note = await getPatientNote(msid, noteId, ORG_ID)
+  } catch (err: unknown) {
+    const errorName = err instanceof Error ? err.name : 'UnknownError'
+    console.error('[admin-notes] soft delete failed', {
+      stage: 'note_lookup_failed',
+      errorName,
       noteId,
+      patientMsid: msid,
+      adminEmail: admin.email,
     })
-    if (!auditResult.ok) {
-      return NextResponse.json({ error: 'Audit write failed — delete aborted' }, { status: 500 })
-    }
+    return NextResponse.json(
+      { error: 'Note could not be retrieved.', stage: 'note_lookup_failed' },
+      { status: 500 }
+    )
+  }
 
+  if (!note) {
+    return NextResponse.json(
+      { error: 'Note not found.', stage: 'note_not_found' },
+      { status: 404 }
+    )
+  }
+  if (note.is_deleted) {
+    return NextResponse.json(
+      { error: 'Note already deleted.', stage: 'note_not_found' },
+      { status: 409 }
+    )
+  }
+  if (note.created_by !== admin.sub) {
+    return NextResponse.json(
+      { error: 'You can only delete notes you created.', stage: 'not_note_owner' },
+      { status: 403 }
+    )
+  }
+
+  // Stage: audit write — must succeed before mutation
+  const auditResult = await writeAdminAuditEvent({
+    action: 'NOTE_SOFT_DELETED',
+    adminSub: admin.sub,
+    adminEmail: admin.email,
+    patientMsid: msid,
+    noteId,
+  })
+  if (!auditResult.ok) {
+    console.error('[admin-notes] soft delete failed', {
+      stage: 'audit_write_failed',
+      errorName: auditResult.errorName,
+      noteId,
+      patientMsid: msid,
+      adminEmail: admin.email,
+    })
+    return NextResponse.json(
+      { error: 'Audit unavailable. Note was not deleted.', stage: 'audit_write_failed' },
+      { status: 500 }
+    )
+  }
+
+  // Stage: soft delete
+  try {
     await softDeletePatientNote({
       msid,
       noteSk: noteId,
@@ -208,9 +248,20 @@ export async function DELETE(req: NextRequest) {
       adminEmail: admin.email,
       orgId: ORG_ID,
     })
-
-    return NextResponse.json({ ok: true, note_id: noteId })
-  } catch {
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  } catch (err: unknown) {
+    const errorName = err instanceof Error ? err.name : 'UnknownError'
+    console.error('[admin-notes] soft delete failed', {
+      stage: 'soft_delete_failed',
+      errorName,
+      noteId,
+      patientMsid: msid,
+      adminEmail: admin.email,
+    })
+    return NextResponse.json(
+      { error: 'Note could not be deleted.', stage: 'soft_delete_failed' },
+      { status: 500 }
+    )
   }
+
+  return NextResponse.json({ ok: true, note_id: noteId })
 }
