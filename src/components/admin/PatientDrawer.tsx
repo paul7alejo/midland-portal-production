@@ -122,6 +122,7 @@ export interface PatientDrawerProps {
   onClose: () => void;
   msid: string | null;
   patientName?: string;
+  onReviewStatusChange?: (msid: string, reviewStatus: string) => void;
 }
 
 const DEMO_DATA: Record<string, DrawerPatient> = {
@@ -1084,7 +1085,7 @@ function AccountTab({ msid }: { msid: string }) {
   );
 }
 
-export function PatientDrawer({ isOpen, onClose, msid, patientName }: PatientDrawerProps) {
+export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStatusChange }: PatientDrawerProps) {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [nhiVisible, setNhiVisible]   = useState(false);
   const [nhiReason, setNhiReason]     = useState("");
@@ -1369,9 +1370,11 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName }: PatientDra
         } catch { /* non-JSON error body */ }
         throw new Error(message);
       }
+      const updatedMsid = patient.msid;
       setImportedPatient((prev) =>
         prev ? { ...prev, reviewStatus: humanizeLabel(status) } : prev
       );
+      onReviewStatusChange?.(updatedMsid, status);
     } catch (err) {
       setReviewError(err instanceof Error ? err.message : "Update failed");
     } finally {

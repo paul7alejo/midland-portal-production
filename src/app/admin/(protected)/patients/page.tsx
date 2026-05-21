@@ -6,7 +6,7 @@ import { PatientDrawer } from "@/components/admin/PatientDrawer";
 import { cn } from "@/lib/utils";
 
 type FundingType       = "ACC" | "Private" | "Health NZ";
-type PatientStatus     = "eligible" | "not_eligible" | "overdue" | "needs_outreach" | "safety_check_due" | "pending_review";
+type PatientStatus     = "eligible" | "not_eligible" | "overdue" | "needs_outreach" | "safety_check_due" | "pending_review" | "reviewed";
 type RemainingRange    = "critical" | "mid" | "healthy";
 type NextEligibleRange = "now" | "30days" | "90days" | "later";
 type SortOption        =
@@ -263,6 +263,7 @@ const STATUS_CONFIG: Record<PatientStatus, { label: string; classes: string }> =
   needs_outreach:   { label: "Needs outreach",   classes: "bg-orange-100 text-orange-800 border border-orange-200" },
   safety_check_due: { label: "Safety check due", classes: "bg-amber-100 text-amber-800 border border-amber-200" },
   pending_review:   { label: "Pending review",   classes: "bg-sky-100 text-sky-800 border border-sky-200" },
+  reviewed:         { label: "Reviewed",         classes: "bg-green-100 text-green-800 border border-green-200" },
 };
 
 const ACTION_CONFIG: Record<PatientStatus, { label: string; disabled: boolean }> = {
@@ -272,6 +273,7 @@ const ACTION_CONFIG: Record<PatientStatus, { label: string; disabled: boolean }>
   needs_outreach:   { label: "Open review",    disabled: false },
   safety_check_due: { label: "Open review",    disabled: false },
   pending_review:   { label: "Open review",    disabled: false },
+  reviewed:         { label: "View patient",   disabled: false },
 };
 
 const MONTH_NUM: Record<string, number> = {
@@ -373,7 +375,7 @@ function mapPatient(patient: PatientSummary): Patient {
     funding: mapFunding(patient.funded_by),
     lastOrder: "—",
     nextEligible: "Review required",
-    status: "pending_review",
+    status: patient.review_status === "reviewed" ? "reviewed" : "pending_review",
     annualAllowance: 0,
     usedAmount: 0,
     remainingAmount: 0,
@@ -418,7 +420,9 @@ function FundingBadge({ amount }: { amount: number }) {
 }
 
 function getOperationalCue(patient: Patient): string {
+  if (patient.source === "admin_csv" && patient.status === "reviewed") return "Imported record — reviewed";
   if (patient.source === "admin_csv") return "Imported record needs staff review";
+  if (patient.source === "dynamodb/manual" && patient.status === "reviewed") return "DynamoDB record — reviewed";
   if (patient.source === "dynamodb/manual") return "DynamoDB patient record";
   if (patient.status === "safety_check_due") return "Safety-check visibility cue";
   if (patient.status === "needs_outreach" || patient.status === "overdue") return "Outreach visibility cue";
@@ -427,6 +431,7 @@ function getOperationalCue(patient: Patient): string {
 }
 
 function getActionLabel(patient: Patient): string {
+  if (patient.status === "reviewed") return "View patient";
   if (
     patient.status === "pending_review" ||
     patient.status === "needs_outreach" ||
@@ -444,6 +449,7 @@ function getActionLabel(patient: Patient): string {
 
 const STATUS_OPTIONS: { value: PatientStatus; label: string }[] = [
   { value: "pending_review",   label: "Pending review" },
+  { value: "reviewed",         label: "Reviewed" },
   { value: "eligible",         label: "Eligible" },
   { value: "needs_outreach",   label: "Needs outreach" },
   { value: "safety_check_due", label: "Safety check due" },
@@ -664,6 +670,7 @@ export default function AdminPatientsPage() {
   const [dynamoPatients,   setDynamoPatients]   = useState<Patient[]>([]);
   const [importLoading,    setImportLoading]    = useState(true);
   const [importError,      setImportError]      = useState<string | null>(null);
+  const [reviewFilter,     setReviewFilter]     = useState<"pending" | "reviewed" | "all">("pending");
   const [statusFilters,    setStatusFilters]    = useState<Set<PatientStatus>>(new Set());
   const [fundingFilters,   setFundingFilters]   = useState<Set<FundingType>>(new Set());
   const [remainingRange,   setRemainingRange]   = useState<RemainingRange | null>(null);
@@ -691,6 +698,16 @@ export default function AdminPatientsPage() {
     setDrawerMsid(msid);
     setDrawerName(name);
     setDrawerOpen(true);
+  }
+
+  function handleReviewStatusChange(changedMsid: string, reviewStatus: string) {
+    setDynamoPatients((prev) =>
+      prev.map((p) =>
+        p.msid === changedMsid
+          ? { ...p, status: reviewStatus === "reviewed" ? "reviewed" : "pending_review", reviewStatus: humanizeLabel(reviewStatus) }
+          : p
+      )
+    );
   }
 
   // Auto-open drawer when ?msid= is present in the URL (e.g. navigating from portal account drawer)
@@ -740,13 +757,18 @@ export default function AdminPatientsPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, statusFilters, fundingFilters, remainingRange, nextEligRange, activeSortOption, tableSortKey, tableSortDir, pageSize]);
+  }, [search, reviewFilter, statusFilters, fundingFilters, remainingRange, nextEligRange, activeSortOption, tableSortKey, tableSortDir, pageSize]);
 
   const allPatients = useMemo(() => combinePatients(dynamoPatients), [dynamoPatients]);
 
   const displayedPatients = useMemo(() => {
     let result = [...allPatients];
 
+    if (reviewFilter === "pending") {
+      result = result.filter((p) => p.status === "pending_review");
+    } else if (reviewFilter === "reviewed") {
+      result = result.filter((p) => p.status === "reviewed");
+    }
     if (search.trim()) {
       const q = search.toLowerCase();
       result = result.filter(
@@ -803,11 +825,12 @@ export default function AdminPatientsPage() {
       });
     }
     return result;
-  }, [search, statusFilters, fundingFilters, remainingRange, nextEligRange, activeSortOption, tableSortKey, tableSortDir, allPatients]);
+  }, [search, reviewFilter, statusFilters, fundingFilters, remainingRange, nextEligRange, activeSortOption, tableSortKey, tableSortDir, allPatients]);
 
   const totalPatients = allPatients.length;
   const eligibleNow = allPatients.filter((p) => p.status === "eligible").length;
-  const pendingReview = allPatients.filter((p) => p.status === "pending_review" || p.source === "admin_csv" || p.source === "dynamodb/manual").length;
+  const pendingReview = allPatients.filter((p) => p.status === "pending_review").length;
+  const reviewedCount = allPatients.filter((p) => p.status === "reviewed").length;
   const needsOutreach = allPatients.filter((p) => p.status === "needs_outreach" || p.status === "overdue").length;
   const safetyChecksDue = allPatients.filter((p) => p.status === "safety_check_due").length;
 
@@ -972,6 +995,35 @@ export default function AdminPatientsPage() {
           </button>
         </div>
       )}
+
+      {/* Review worklist filter */}
+      <div className="flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 p-1 self-start w-full sm:w-auto">
+        {([
+          { value: "pending"  as const, label: "Pending review", count: pendingReview },
+          { value: "reviewed" as const, label: "Reviewed",        count: reviewedCount },
+          { value: "all"      as const, label: "All",             count: totalPatients },
+        ] as const).map(({ value, label, count }) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => setReviewFilter(value)}
+            className={cn(
+              "flex-1 sm:flex-none rounded-md px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap min-h-[38px]",
+              reviewFilter === value
+                ? "bg-white text-[#0B5C6C] shadow-sm border border-gray-200"
+                : "text-gray-600 hover:text-gray-800"
+            )}
+          >
+            {label}
+            <span className={cn(
+              "ml-1.5 tabular-nums text-xs font-semibold px-1.5 py-0.5 rounded-full",
+              reviewFilter === value ? "bg-[#0B5C6C]/10 text-[#0B5C6C]" : "text-gray-400"
+            )}>
+              {count}
+            </span>
+          </button>
+        ))}
+      </div>
 
       {/* Table */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
@@ -1189,6 +1241,7 @@ export default function AdminPatientsPage() {
         onClose={() => setDrawerOpen(false)}
         msid={drawerMsid}
         patientName={drawerName}
+        onReviewStatusChange={handleReviewStatusChange}
       />
     </div>
   );
