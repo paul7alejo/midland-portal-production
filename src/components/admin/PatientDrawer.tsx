@@ -39,6 +39,7 @@ interface DrawerPatient {
   imported?: boolean;
   importBatchId?: string;
   reviewStatus?: string;
+  needsOutreach?: boolean;
   fundedBy?: string;
 }
 
@@ -54,6 +55,7 @@ interface ImportedPatientDetail {
     funded_by?: string;
     import_batch_id?: string;
     review_status?: string;
+    needs_outreach?: boolean;
     created_at?: string;
   };
   devices: Array<{
@@ -123,6 +125,7 @@ export interface PatientDrawerProps {
   msid: string | null;
   patientName?: string;
   onReviewStatusChange?: (msid: string, reviewStatus: string) => void;
+  onOutreachChange?: (msid: string, needsOutreach: boolean) => void;
 }
 
 const DEMO_DATA: Record<string, DrawerPatient> = {
@@ -281,6 +284,7 @@ function makeImportedPatient(detail: ImportedPatientDetail): DrawerPatient {
     imported: true,
     importBatchId: imported.import_batch_id,
     reviewStatus: humanizeLabel(imported.review_status),
+    needsOutreach: imported.needs_outreach ?? false,
     fundedBy: imported.funded_by,
   };
 }
@@ -330,6 +334,9 @@ function OverviewTab({
   reviewLoading,
   reviewError,
   onSetReviewStatus,
+  outreachLoading,
+  outreachError,
+  onSetOutreachStatus,
   patientActivity,
   patientActivityState,
 }: {
@@ -337,6 +344,9 @@ function OverviewTab({
   reviewLoading: boolean;
   reviewError: string | null;
   onSetReviewStatus: (status: string) => void;
+  outreachLoading: boolean;
+  outreachError: string | null;
+  onSetOutreachStatus: (needsOutreach: boolean) => void;
   patientActivity: PatientActivityEvent[];
   patientActivityState: "idle" | "loading" | "loaded" | "error";
 }) {
@@ -387,6 +397,39 @@ function OverviewTab({
           </div>
         )}
       </section>
+
+      {/* Outreach flag */}
+      {patient.imported && (
+        <section className="rounded-xl border border-orange-200 bg-orange-50 p-4 space-y-3">
+          <h3 className="text-sm font-semibold text-orange-900 uppercase tracking-wide">Outreach</h3>
+          <div className="flex flex-wrap items-center gap-3">
+            <span className={cn(
+              "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium",
+              patient.needsOutreach
+                ? "border border-orange-300 bg-orange-100 text-orange-900"
+                : "border border-gray-200 bg-gray-100 text-gray-600"
+            )}>
+              {patient.needsOutreach ? "Needs outreach" : "No outreach needed"}
+            </span>
+            <button
+              type="button"
+              disabled={outreachLoading}
+              onClick={() => onSetOutreachStatus(!patient.needsOutreach)}
+              className={cn(
+                "rounded-lg px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-50",
+                patient.needsOutreach
+                  ? "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                  : "bg-[#0B5C6C] text-white hover:bg-[#0B4A57]"
+              )}
+            >
+              {outreachLoading ? "Saving…" : patient.needsOutreach ? "Clear outreach flag" : "Mark needs outreach"}
+            </button>
+            {outreachError && (
+              <p className="w-full text-sm text-red-600">{outreachError}</p>
+            )}
+          </div>
+        </section>
+      )}
 
       <section className="rounded-xl border border-gray-200 bg-gray-50 p-4">
         <dl className="grid gap-5 sm:grid-cols-2">
@@ -1094,7 +1137,7 @@ function AccountTab({ msid }: { msid: string }) {
   );
 }
 
-export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStatusChange }: PatientDrawerProps) {
+export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStatusChange, onOutreachChange }: PatientDrawerProps) {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [nhiVisible, setNhiVisible]   = useState(false);
   const [nhiReason, setNhiReason]     = useState("");
@@ -1114,6 +1157,8 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
   const [importedError, setImportedError]     = useState<string | null>(null);
   const [reviewLoading, setReviewLoading]     = useState(false);
   const [reviewError, setReviewError]         = useState<string | null>(null);
+  const [outreachLoading, setOutreachLoading] = useState(false);
+  const [outreachError, setOutreachError]     = useState<string | null>(null);
   const [patientActivity, setPatientActivity]           = useState<PatientActivityEvent[]>([]);
   const [patientActivityState, setPatientActivityState] = useState<"idle" | "loading" | "loaded" | "error">("idle");
   const nhiTimerRef              = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1142,6 +1187,8 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
       setNoteActionError(null);
       setReviewError(null);
       setReviewLoading(false);
+      setOutreachError(null);
+      setOutreachLoading(false);
       if (nhiTimerRef.current) clearTimeout(nhiTimerRef.current);
     }
   }, [isOpen]);
@@ -1159,6 +1206,8 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
     setImportedError(null);
     setReviewError(null);
     setReviewLoading(false);
+    setOutreachError(null);
+    setOutreachLoading(false);
     setPatientActivity([]);
     setPatientActivityState("idle");
     activityFetchedRef.current = false;
@@ -1391,6 +1440,37 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
     }
   }
 
+  async function handleSetOutreachStatus(needsOutreach: boolean) {
+    if (!patient || outreachLoading) return;
+    setOutreachLoading(true);
+    setOutreachError(null);
+    try {
+      const res = await fetch("/api/admin/patients/outreach", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ msid: patient.msid, needs_outreach: needsOutreach }),
+      });
+      if (!res.ok) {
+        let message = "Update failed";
+        try {
+          const err = (await res.json()) as Record<string, unknown>;
+          if (typeof err.error === "string") message = err.error;
+        } catch { /* non-JSON error body */ }
+        throw new Error(message);
+      }
+      const updatedMsid = patient.msid;
+      setImportedPatient((prev) =>
+        prev ? { ...prev, needsOutreach } : prev
+      );
+      onOutreachChange?.(updatedMsid, needsOutreach);
+    } catch (err) {
+      setOutreachError(err instanceof Error ? err.message : "Update failed");
+    } finally {
+      setOutreachLoading(false);
+    }
+  }
+
   return (
     <>
       {/* Backdrop */}
@@ -1495,6 +1575,9 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
                   reviewLoading={reviewLoading}
                   reviewError={reviewError}
                   onSetReviewStatus={handleSetReviewStatus}
+                  outreachLoading={outreachLoading}
+                  outreachError={outreachError}
+                  onSetOutreachStatus={handleSetOutreachStatus}
                   patientActivity={patientActivity}
                   patientActivityState={patientActivityState}
                 />

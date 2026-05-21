@@ -9,6 +9,7 @@ export type AdminAuditAction =
   | 'NOTE_UPDATED'
   | 'NOTE_DELETE_ATTEMPT'
   | 'PATIENT_REVIEW_STATUS_UPDATED'
+  | 'PATIENT_OUTREACH_STATUS_UPDATED'
 
 export interface AdminAuditParams {
   action: AdminAuditAction

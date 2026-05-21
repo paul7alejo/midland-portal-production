@@ -52,6 +52,11 @@ export interface PatientRecord {
   reviewed_at?: string
   reviewed_by?: string
   reviewed_by_email?: string
+  needs_outreach?: boolean
+  outreach_status?: 'needed' | 'not_needed'
+  outreach_updated_at?: string
+  outreach_updated_by?: string
+  outreach_updated_by_email?: string
   updated_at?: string
   updated_by?: string
   updated_by_email?: string
@@ -154,6 +159,7 @@ export type ImportedPatientSummary = Pick<
   | 'import_row_number'
   | 'import_status'
   | 'review_status'
+  | 'needs_outreach'
   | 'created_at'
   | 'created_by'
 >
@@ -200,6 +206,7 @@ export async function listImportedPatients(orgId: string): Promise<ImportedPatie
         '#importRowNumber',
         '#importStatus',
         '#reviewStatus',
+        '#needsOutreach',
         '#createdAt',
         '#createdBy',
       ].join(', '),
@@ -217,6 +224,7 @@ export async function listImportedPatients(orgId: string): Promise<ImportedPatie
         '#importRowNumber': 'import_row_number',
         '#importStatus': 'import_status',
         '#reviewStatus': 'review_status',
+        '#needsOutreach': 'needs_outreach',
         '#createdAt': 'created_at',
         '#createdBy': 'created_by',
       },
@@ -258,6 +266,7 @@ export async function listPatients(orgId: string): Promise<PatientSummary[]> {
         '#importRowNumber',
         '#importStatus',
         '#reviewStatus',
+        '#needsOutreach',
         '#createdAt',
         '#createdBy',
       ].join(', '),
@@ -276,6 +285,7 @@ export async function listPatients(orgId: string): Promise<PatientSummary[]> {
         '#importRowNumber': 'import_row_number',
         '#importStatus': 'import_status',
         '#reviewStatus': 'review_status',
+        '#needsOutreach': 'needs_outreach',
         '#createdAt': 'created_at',
         '#createdBy': 'created_by',
       },
@@ -550,6 +560,31 @@ export async function setPatientReviewStatus(params: {
       ':now':    now,
       ':sub':    params.adminSub,
       ':email':  params.adminEmail,
+    },
+  }))
+}
+
+export async function setPatientOutreachStatus(params: {
+  pk: string
+  needsOutreach: boolean
+  adminSub: string
+  adminEmail: string
+}): Promise<void> {
+  const now = new Date().toISOString()
+  await docClient.send(new UpdateCommand({
+    TableName: TABLES.PATIENTS,
+    Key: { pk: params.pk, sk: 'PROFILE' },
+    ConditionExpression: 'attribute_exists(pk)',
+    UpdateExpression:
+      'SET needs_outreach = :flag, outreach_status = :ostatus,' +
+      ' outreach_updated_at = :now, outreach_updated_by = :sub, outreach_updated_by_email = :email,' +
+      ' updated_at = :now, updated_by = :sub, updated_by_email = :email',
+    ExpressionAttributeValues: {
+      ':flag':    params.needsOutreach,
+      ':ostatus': params.needsOutreach ? 'needed' : 'not_needed',
+      ':now':     now,
+      ':sub':     params.adminSub,
+      ':email':   params.adminEmail,
     },
   }))
 }

@@ -33,6 +33,7 @@ interface Patient {
   source?: "demo" | "admin_csv" | "dynamodb/manual" | "unknown";
   importBatchId?: string;
   reviewStatus?: string;
+  needsOutreach?: boolean;
   importedAt?: string;
 }
 
@@ -51,6 +52,7 @@ interface PatientSummary {
   import_row_number?: number;
   import_status?: string;
   review_status?: string;
+  needs_outreach?: boolean;
   created_at?: string;
   created_by?: string;
 }
@@ -385,6 +387,7 @@ function mapPatient(patient: PatientSummary): Patient {
     source,
     importBatchId: patient.import_batch_id,
     reviewStatus: humanizeLabel(patient.review_status),
+    needsOutreach: patient.needs_outreach ?? false,
     importedAt: formatNzDateTime(patient.created_at),
   };
 }
@@ -709,6 +712,12 @@ export default function AdminPatientsPage() {
     );
   }
 
+  function handleOutreachChange(changedMsid: string, needsOutreach: boolean) {
+    setDynamoPatients((prev) =>
+      prev.map((p) => p.msid === changedMsid ? { ...p, needsOutreach } : p)
+    );
+  }
+
   // Auto-open drawer when ?msid= is present in the URL (e.g. navigating from portal account drawer)
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -824,7 +833,7 @@ export default function AdminPatientsPage() {
   const totalPatients = allPatients.length;
   const eligibleNow = allPatients.filter((p) => p.status === "eligible").length;
   const pendingReview = allPatients.filter((p) => p.status === "pending_review").length;
-  const needsOutreach = allPatients.filter((p) => p.status === "needs_outreach" || p.status === "overdue").length;
+  const needsOutreach = allPatients.filter((p) => p.status === "needs_outreach" || p.status === "overdue" || p.needsOutreach === true).length;
   const safetyChecksDue = allPatients.filter((p) => p.status === "safety_check_due").length;
 
   const activeFilterCount =
@@ -1083,6 +1092,11 @@ export default function AdminPatientsPage() {
                               DynamoDB
                             </span>
                           )}
+                          {patient.needsOutreach && (
+                            <span className="inline-flex items-center rounded-full border border-orange-200 bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-700">
+                              Needs outreach
+                            </span>
+                          )}
                         </div>
                         {patient.source === "admin_csv" && patient.importedAt && patient.importedAt !== "—" && (
                           <span className="mt-1 block text-xs text-gray-500">Imported {patient.importedAt}</span>
@@ -1206,6 +1220,7 @@ export default function AdminPatientsPage() {
         msid={drawerMsid}
         patientName={drawerName}
         onReviewStatusChange={handleReviewStatusChange}
+        onOutreachChange={handleOutreachChange}
       />
     </div>
   );
