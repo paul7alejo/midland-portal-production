@@ -670,7 +670,6 @@ export default function AdminPatientsPage() {
   const [dynamoPatients,   setDynamoPatients]   = useState<Patient[]>([]);
   const [importLoading,    setImportLoading]    = useState(true);
   const [importError,      setImportError]      = useState<string | null>(null);
-  const [reviewFilter,     setReviewFilter]     = useState<"pending" | "reviewed" | "all">("pending");
   const [statusFilters,    setStatusFilters]    = useState<Set<PatientStatus>>(new Set());
   const [fundingFilters,   setFundingFilters]   = useState<Set<FundingType>>(new Set());
   const [remainingRange,   setRemainingRange]   = useState<RemainingRange | null>(null);
@@ -757,18 +756,13 @@ export default function AdminPatientsPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, reviewFilter, statusFilters, fundingFilters, remainingRange, nextEligRange, activeSortOption, tableSortKey, tableSortDir, pageSize]);
+  }, [search, statusFilters, fundingFilters, remainingRange, nextEligRange, activeSortOption, tableSortKey, tableSortDir, pageSize]);
 
   const allPatients = useMemo(() => combinePatients(dynamoPatients), [dynamoPatients]);
 
   const displayedPatients = useMemo(() => {
-    let result = [...allPatients];
+    let result = allPatients.filter((p) => p.status === "pending_review");
 
-    if (reviewFilter === "pending") {
-      result = result.filter((p) => p.status === "pending_review");
-    } else if (reviewFilter === "reviewed") {
-      result = result.filter((p) => p.status === "reviewed");
-    }
     if (search.trim()) {
       const q = search.toLowerCase();
       result = result.filter(
@@ -825,12 +819,11 @@ export default function AdminPatientsPage() {
       });
     }
     return result;
-  }, [search, reviewFilter, statusFilters, fundingFilters, remainingRange, nextEligRange, activeSortOption, tableSortKey, tableSortDir, allPatients]);
+  }, [search, statusFilters, fundingFilters, remainingRange, nextEligRange, activeSortOption, tableSortKey, tableSortDir, allPatients]);
 
   const totalPatients = allPatients.length;
   const eligibleNow = allPatients.filter((p) => p.status === "eligible").length;
   const pendingReview = allPatients.filter((p) => p.status === "pending_review").length;
-  const reviewedCount = allPatients.filter((p) => p.status === "reviewed").length;
   const needsOutreach = allPatients.filter((p) => p.status === "needs_outreach" || p.status === "overdue").length;
   const safetyChecksDue = allPatients.filter((p) => p.status === "safety_check_due").length;
 
@@ -995,35 +988,6 @@ export default function AdminPatientsPage() {
           </button>
         </div>
       )}
-
-      {/* Review worklist filter */}
-      <div className="flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 p-1 self-start w-full sm:w-auto">
-        {([
-          { value: "pending"  as const, label: "Pending review", count: pendingReview },
-          { value: "reviewed" as const, label: "Reviewed",        count: reviewedCount },
-          { value: "all"      as const, label: "All",             count: totalPatients },
-        ] as const).map(({ value, label, count }) => (
-          <button
-            key={value}
-            type="button"
-            onClick={() => setReviewFilter(value)}
-            className={cn(
-              "flex-1 sm:flex-none rounded-md px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap min-h-[38px]",
-              reviewFilter === value
-                ? "bg-white text-[#0B5C6C] shadow-sm border border-gray-200"
-                : "text-gray-600 hover:text-gray-800"
-            )}
-          >
-            {label}
-            <span className={cn(
-              "ml-1.5 tabular-nums text-xs font-semibold px-1.5 py-0.5 rounded-full",
-              reviewFilter === value ? "bg-[#0B5C6C]/10 text-[#0B5C6C]" : "text-gray-400"
-            )}>
-              {count}
-            </span>
-          </button>
-        ))}
-      </div>
 
       {/* Table */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">

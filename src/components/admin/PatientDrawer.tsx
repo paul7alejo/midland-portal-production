@@ -724,6 +724,12 @@ function NotesTab({
         <textarea
           value={noteText}
           onChange={(e) => setNoteText(e.target.value)}
+          onKeyDown={(e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+              e.preventDefault();
+              if (noteText.trim() && !noteSaving) onAdd();
+            }
+          }}
           placeholder="Enter a staff note…"
           rows={4}
           maxLength={1000}
@@ -732,9 +738,12 @@ function NotesTab({
                      placeholder:text-gray-400 min-h-[100px]"
         />
         <div className="flex items-center justify-between">
-          <span className={cn("text-xs", remaining < 100 ? "text-amber-600" : "text-gray-400")}>
-            {remaining} characters remaining
-          </span>
+          <div className="space-y-0.5">
+            <span className={cn("block text-xs", remaining < 100 ? "text-amber-600" : "text-gray-400")}>
+              {remaining} characters remaining
+            </span>
+            <span className="block text-xs text-gray-400">Press Cmd/Ctrl + Enter to add.</span>
+          </div>
           <button
             type="button"
             onClick={onAdd}
