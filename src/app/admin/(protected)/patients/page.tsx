@@ -688,7 +688,7 @@ export default function AdminPatientsPage() {
   const [dynamoPatients,   setDynamoPatients]   = useState<Patient[]>([]);
   const [importLoading,    setImportLoading]    = useState(true);
   const [importError,      setImportError]      = useState<string | null>(null);
-  const [worklistMode,     setWorklistMode]     = useState<"pending_review" | "needs_outreach">("pending_review");
+  const [worklistMode,     setWorklistMode]     = useState<"all" | "pending_review" | "needs_outreach">("pending_review");
   const [statusFilters,    setStatusFilters]    = useState<Set<PatientStatus>>(new Set());
   const [fundingFilters,   setFundingFilters]   = useState<Set<FundingType>>(new Set());
   const [remainingRange,   setRemainingRange]   = useState<RemainingRange | null>(null);
@@ -788,7 +788,9 @@ export default function AdminPatientsPage() {
   const displayedPatients = useMemo(() => {
     let result = worklistMode === "needs_outreach"
       ? allPatients.filter((p) => p.needsOutreach === true)
-      : allPatients.filter((p) => p.status === "pending_review");
+      : worklistMode === "all"
+        ? [...allPatients]
+        : allPatients.filter((p) => p.status === "pending_review");
 
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -921,7 +923,9 @@ export default function AdminPatientsPage() {
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-        <SummaryCard label="Total patients"      value={totalPatients} />
+        <SummaryCard label="Total patients"      value={totalPatients}
+          onClick={() => setWorklistMode("all")}
+          active={worklistMode === "all"} />
         <SummaryCard label="Pending review"      value={pendingReview}   accent="text-sky-700"
           onClick={() => setWorklistMode("pending_review")}
           active={worklistMode === "pending_review"} />
@@ -1024,12 +1028,16 @@ export default function AdminPatientsPage() {
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
         <div className="border-b border-gray-200 bg-white px-5 py-4">
           <h2 className="text-base font-semibold text-gray-800">
-            {worklistMode === "needs_outreach" ? "Needs outreach worklist" : "Patient review worklist"}
+            {worklistMode === "needs_outreach" ? "Needs outreach worklist"
+              : worklistMode === "all" ? "All patients"
+              : "Patient review worklist"}
           </h2>
           <p className="mt-1 text-sm text-gray-500">
             {worklistMode === "needs_outreach"
               ? "Patients flagged for staff follow-up."
-              : "Real DynamoDB patient records, imported records, outreach cues, and safety-check cues are marked for staff review."}
+              : worklistMode === "all"
+                ? "All DynamoDB patient records available to admin staff."
+                : "Real DynamoDB patient records, imported records, outreach cues, and safety-check cues are marked for staff review."}
           </p>
         </div>
         <div className="overflow-x-auto">
