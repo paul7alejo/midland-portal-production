@@ -34,6 +34,7 @@ interface Patient {
   importBatchId?: string;
   reviewStatus?: string;
   needsOutreach?: boolean;
+  safetyCheckRequired?: boolean;
   importedAt?: string;
 }
 
@@ -53,6 +54,7 @@ interface PatientSummary {
   import_status?: string;
   review_status?: string;
   needs_outreach?: boolean;
+  safety_check_required?: boolean;
   created_at?: string;
   created_by?: string;
 }
@@ -388,6 +390,7 @@ function mapPatient(patient: PatientSummary): Patient {
     importBatchId: patient.import_batch_id,
     reviewStatus: humanizeLabel(patient.review_status),
     needsOutreach: patient.needs_outreach ?? false,
+    safetyCheckRequired: patient.safety_check_required ?? false,
     importedAt: formatNzDateTime(patient.created_at),
   };
 }
@@ -688,7 +691,7 @@ export default function AdminPatientsPage() {
   const [dynamoPatients,   setDynamoPatients]   = useState<Patient[]>([]);
   const [importLoading,    setImportLoading]    = useState(true);
   const [importError,      setImportError]      = useState<string | null>(null);
-  const [worklistMode,     setWorklistMode]     = useState<"all" | "pending_review" | "needs_outreach">("pending_review");
+  const [worklistMode,     setWorklistMode]     = useState<"all" | "pending_review" | "needs_outreach" | "safety_checks">("pending_review");
   const [statusFilters,    setStatusFilters]    = useState<Set<PatientStatus>>(new Set());
   const [fundingFilters,   setFundingFilters]   = useState<Set<FundingType>>(new Set());
   const [remainingRange,   setRemainingRange]   = useState<RemainingRange | null>(null);
@@ -731,6 +734,12 @@ export default function AdminPatientsPage() {
   function handleOutreachChange(changedMsid: string, needsOutreach: boolean) {
     setDynamoPatients((prev) =>
       prev.map((p) => p.msid === changedMsid ? { ...p, needsOutreach } : p)
+    );
+  }
+
+  function handleSafetyChange(changedMsid: string, safetyCheckRequired: boolean) {
+    setDynamoPatients((prev) =>
+      prev.map((p) => p.msid === changedMsid ? { ...p, safetyCheckRequired } : p)
     );
   }
 
@@ -788,9 +797,11 @@ export default function AdminPatientsPage() {
   const displayedPatients = useMemo(() => {
     let result = worklistMode === "needs_outreach"
       ? allPatients.filter((p) => p.needsOutreach === true)
-      : worklistMode === "all"
-        ? [...allPatients]
-        : allPatients.filter((p) => p.status === "pending_review");
+      : worklistMode === "safety_checks"
+        ? allPatients.filter((p) => p.safetyCheckRequired === true)
+        : worklistMode === "all"
+          ? [...allPatients]
+          : allPatients.filter((p) => p.status === "pending_review");
 
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -854,7 +865,7 @@ export default function AdminPatientsPage() {
   const eligibleNow = allPatients.filter((p) => p.status === "eligible").length;
   const pendingReview = allPatients.filter((p) => p.status === "pending_review").length;
   const needsOutreach = allPatients.filter((p) => p.status === "needs_outreach" || p.status === "overdue" || p.needsOutreach === true).length;
-  const safetyChecksDue = allPatients.filter((p) => p.status === "safety_check_due").length;
+  const safetyChecksDue = allPatients.filter((p) => p.status === "safety_check_due" || p.safetyCheckRequired === true).length;
 
   const activeFilterCount =
     statusFilters.size +
@@ -932,7 +943,9 @@ export default function AdminPatientsPage() {
         <SummaryCard label="Needs outreach"      value={needsOutreach}   accent="text-amber-700"
           onClick={() => setWorklistMode("needs_outreach")}
           active={worklistMode === "needs_outreach"} />
-        <SummaryCard label="Safety checks due"   value={safetyChecksDue} accent="text-amber-700"   href="/admin/patients?filter=safety-due" />
+        <SummaryCard label="Safety checks due"   value={safetyChecksDue} accent="text-amber-700"
+          onClick={() => setWorklistMode("safety_checks")}
+          active={worklistMode === "safety_checks"} />
         <SummaryCard label="Eligible now"        value={eligibleNow}     accent="text-emerald-700" href="/admin/patients?filter=eligible" />
       </div>
 
@@ -1029,15 +1042,18 @@ export default function AdminPatientsPage() {
         <div className="border-b border-gray-200 bg-white px-5 py-4">
           <h2 className="text-base font-semibold text-gray-800">
             {worklistMode === "needs_outreach" ? "Needs outreach worklist"
+              : worklistMode === "safety_checks" ? "Safety checks worklist"
               : worklistMode === "all" ? "All patients"
               : "Patient review worklist"}
           </h2>
           <p className="mt-1 text-sm text-gray-500">
             {worklistMode === "needs_outreach"
               ? "Patients flagged for staff follow-up."
-              : worklistMode === "all"
-                ? "All DynamoDB patient records available to admin staff."
-                : "Real DynamoDB patient records, imported records, outreach cues, and safety-check cues are marked for staff review."}
+              : worklistMode === "safety_checks"
+                ? "Patient records flagged for admin caution before next action."
+                : worklistMode === "all"
+                  ? "All DynamoDB patient records available to admin staff."
+                  : "Real DynamoDB patient records, imported records, outreach cues, and safety-check cues are marked for staff review."}
           </p>
         </div>
         <div className="overflow-x-auto">
@@ -1129,6 +1145,11 @@ export default function AdminPatientsPage() {
                           {patient.needsOutreach && (
                             <span className="inline-flex items-center rounded-full border border-orange-200 bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-700">
                               Needs outreach
+                            </span>
+                          )}
+                          {patient.safetyCheckRequired && (
+                            <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+                              Safety check
                             </span>
                           )}
                         </div>
@@ -1255,6 +1276,7 @@ export default function AdminPatientsPage() {
         patientName={drawerName}
         onReviewStatusChange={handleReviewStatusChange}
         onOutreachChange={handleOutreachChange}
+        onSafetyChange={handleSafetyChange}
       />
     </div>
   );

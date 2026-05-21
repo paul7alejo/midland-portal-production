@@ -57,6 +57,11 @@ export interface PatientRecord {
   outreach_updated_at?: string
   outreach_updated_by?: string
   outreach_updated_by_email?: string
+  safety_check_required?: boolean
+  safety_status?: 'required' | 'cleared'
+  safety_updated_at?: string
+  safety_updated_by?: string
+  safety_updated_by_email?: string
   updated_at?: string
   updated_by?: string
   updated_by_email?: string
@@ -160,6 +165,7 @@ export type ImportedPatientSummary = Pick<
   | 'import_status'
   | 'review_status'
   | 'needs_outreach'
+  | 'safety_check_required'
   | 'created_at'
   | 'created_by'
 >
@@ -207,6 +213,7 @@ export async function listImportedPatients(orgId: string): Promise<ImportedPatie
         '#importStatus',
         '#reviewStatus',
         '#needsOutreach',
+        '#safetyCheckRequired',
         '#createdAt',
         '#createdBy',
       ].join(', '),
@@ -225,6 +232,7 @@ export async function listImportedPatients(orgId: string): Promise<ImportedPatie
         '#importStatus': 'import_status',
         '#reviewStatus': 'review_status',
         '#needsOutreach': 'needs_outreach',
+        '#safetyCheckRequired': 'safety_check_required',
         '#createdAt': 'created_at',
         '#createdBy': 'created_by',
       },
@@ -267,6 +275,7 @@ export async function listPatients(orgId: string): Promise<PatientSummary[]> {
         '#importStatus',
         '#reviewStatus',
         '#needsOutreach',
+        '#safetyCheckRequired',
         '#createdAt',
         '#createdBy',
       ].join(', '),
@@ -286,6 +295,7 @@ export async function listPatients(orgId: string): Promise<PatientSummary[]> {
         '#importStatus': 'import_status',
         '#reviewStatus': 'review_status',
         '#needsOutreach': 'needs_outreach',
+        '#safetyCheckRequired': 'safety_check_required',
         '#createdAt': 'created_at',
         '#createdBy': 'created_by',
       },
@@ -582,6 +592,31 @@ export async function setPatientOutreachStatus(params: {
     ExpressionAttributeValues: {
       ':flag':    params.needsOutreach,
       ':ostatus': params.needsOutreach ? 'needed' : 'not_needed',
+      ':now':     now,
+      ':sub':     params.adminSub,
+      ':email':   params.adminEmail,
+    },
+  }))
+}
+
+export async function setPatientSafetyStatus(params: {
+  pk: string
+  safetyCheckRequired: boolean
+  adminSub: string
+  adminEmail: string
+}): Promise<void> {
+  const now = new Date().toISOString()
+  await docClient.send(new UpdateCommand({
+    TableName: TABLES.PATIENTS,
+    Key: { pk: params.pk, sk: 'PROFILE' },
+    ConditionExpression: 'attribute_exists(pk)',
+    UpdateExpression:
+      'SET safety_check_required = :flag, safety_status = :sstatus,' +
+      ' safety_updated_at = :now, safety_updated_by = :sub, safety_updated_by_email = :email,' +
+      ' updated_at = :now, updated_by = :sub, updated_by_email = :email',
+    ExpressionAttributeValues: {
+      ':flag':    params.safetyCheckRequired,
+      ':sstatus': params.safetyCheckRequired ? 'required' : 'cleared',
       ':now':     now,
       ':sub':     params.adminSub,
       ':email':   params.adminEmail,

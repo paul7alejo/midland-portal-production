@@ -40,6 +40,7 @@ interface DrawerPatient {
   importBatchId?: string;
   reviewStatus?: string;
   needsOutreach?: boolean;
+  safetyCheckRequired?: boolean;
   fundedBy?: string;
 }
 
@@ -56,6 +57,7 @@ interface ImportedPatientDetail {
     import_batch_id?: string;
     review_status?: string;
     needs_outreach?: boolean;
+    safety_check_required?: boolean;
     created_at?: string;
   };
   devices: Array<{
@@ -126,6 +128,7 @@ export interface PatientDrawerProps {
   patientName?: string;
   onReviewStatusChange?: (msid: string, reviewStatus: string) => void;
   onOutreachChange?: (msid: string, needsOutreach: boolean) => void;
+  onSafetyChange?: (msid: string, safetyCheckRequired: boolean) => void;
 }
 
 const DEMO_DATA: Record<string, DrawerPatient> = {
@@ -285,6 +288,7 @@ function makeImportedPatient(detail: ImportedPatientDetail): DrawerPatient {
     importBatchId: imported.import_batch_id,
     reviewStatus: humanizeLabel(imported.review_status),
     needsOutreach: imported.needs_outreach ?? false,
+    safetyCheckRequired: imported.safety_check_required ?? false,
     fundedBy: imported.funded_by,
   };
 }
@@ -337,6 +341,9 @@ function OverviewTab({
   outreachLoading,
   outreachError,
   onSetOutreachStatus,
+  safetyLoading,
+  safetyError,
+  onSetSafetyStatus,
   patientActivity,
   patientActivityState,
 }: {
@@ -347,6 +354,9 @@ function OverviewTab({
   outreachLoading: boolean;
   outreachError: string | null;
   onSetOutreachStatus: (needsOutreach: boolean) => void;
+  safetyLoading: boolean;
+  safetyError: string | null;
+  onSetSafetyStatus: (safetyCheckRequired: boolean) => void;
   patientActivity: PatientActivityEvent[];
   patientActivityState: "idle" | "loading" | "loaded" | "error";
 }) {
@@ -426,6 +436,39 @@ function OverviewTab({
             </button>
             {outreachError && (
               <p className="w-full text-sm text-red-600">{outreachError}</p>
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* Admin caution / safety check */}
+      {patient.imported && (
+        <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-3">
+          <h3 className="text-sm font-semibold text-amber-900 uppercase tracking-wide">Admin caution</h3>
+          <div className="flex flex-wrap items-center gap-3">
+            <span className={cn(
+              "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium",
+              patient.safetyCheckRequired
+                ? "border border-amber-400 bg-amber-100 text-amber-900"
+                : "border border-gray-200 bg-gray-100 text-gray-600"
+            )}>
+              {patient.safetyCheckRequired ? "Safety check required" : "No safety check required"}
+            </span>
+            <button
+              type="button"
+              disabled={safetyLoading}
+              onClick={() => onSetSafetyStatus(!patient.safetyCheckRequired)}
+              className={cn(
+                "rounded-lg px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-50",
+                patient.safetyCheckRequired
+                  ? "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                  : "bg-[#0B5C6C] text-white hover:bg-[#0B4A57]"
+              )}
+            >
+              {safetyLoading ? "Saving…" : patient.safetyCheckRequired ? "Clear safety check" : "Mark safety check required"}
+            </button>
+            {safetyError && (
+              <p className="w-full text-sm text-red-600">{safetyError}</p>
             )}
           </div>
         </section>
@@ -1137,7 +1180,7 @@ function AccountTab({ msid }: { msid: string }) {
   );
 }
 
-export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStatusChange, onOutreachChange }: PatientDrawerProps) {
+export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStatusChange, onOutreachChange, onSafetyChange }: PatientDrawerProps) {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [nhiVisible, setNhiVisible]   = useState(false);
   const [nhiReason, setNhiReason]     = useState("");
@@ -1159,6 +1202,8 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
   const [reviewError, setReviewError]         = useState<string | null>(null);
   const [outreachLoading, setOutreachLoading] = useState(false);
   const [outreachError, setOutreachError]     = useState<string | null>(null);
+  const [safetyLoading, setSafetyLoading]     = useState(false);
+  const [safetyError, setSafetyError]         = useState<string | null>(null);
   const [patientActivity, setPatientActivity]           = useState<PatientActivityEvent[]>([]);
   const [patientActivityState, setPatientActivityState] = useState<"idle" | "loading" | "loaded" | "error">("idle");
   const nhiTimerRef              = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1189,6 +1234,8 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
       setReviewLoading(false);
       setOutreachError(null);
       setOutreachLoading(false);
+      setSafetyError(null);
+      setSafetyLoading(false);
       if (nhiTimerRef.current) clearTimeout(nhiTimerRef.current);
     }
   }, [isOpen]);
@@ -1208,6 +1255,8 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
     setReviewLoading(false);
     setOutreachError(null);
     setOutreachLoading(false);
+    setSafetyError(null);
+    setSafetyLoading(false);
     setPatientActivity([]);
     setPatientActivityState("idle");
     activityFetchedRef.current = false;
@@ -1471,6 +1520,37 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
     }
   }
 
+  async function handleSetSafetyStatus(safetyCheckRequired: boolean) {
+    if (!patient || safetyLoading) return;
+    setSafetyLoading(true);
+    setSafetyError(null);
+    try {
+      const res = await fetch("/api/admin/patients/safety", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ msid: patient.msid, safety_check_required: safetyCheckRequired }),
+      });
+      if (!res.ok) {
+        let message = "Update failed";
+        try {
+          const err = (await res.json()) as Record<string, unknown>;
+          if (typeof err.error === "string") message = err.error;
+        } catch { /* non-JSON error body */ }
+        throw new Error(message);
+      }
+      const updatedMsid = patient.msid;
+      setImportedPatient((prev) =>
+        prev ? { ...prev, safetyCheckRequired } : prev
+      );
+      onSafetyChange?.(updatedMsid, safetyCheckRequired);
+    } catch (err) {
+      setSafetyError(err instanceof Error ? err.message : "Update failed");
+    } finally {
+      setSafetyLoading(false);
+    }
+  }
+
   return (
     <>
       {/* Backdrop */}
@@ -1578,6 +1658,9 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
                   outreachLoading={outreachLoading}
                   outreachError={outreachError}
                   onSetOutreachStatus={handleSetOutreachStatus}
+                  safetyLoading={safetyLoading}
+                  safetyError={safetyError}
+                  onSetSafetyStatus={handleSetSafetyStatus}
                   patientActivity={patientActivity}
                   patientActivityState={patientActivityState}
                 />

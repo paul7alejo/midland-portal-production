@@ -46,6 +46,7 @@ function sanitizeImportedPatient(patient: PatientRecord): ImportedPatientSummary
     import_status: patient.import_status,
     review_status: patient.review_status,
     needs_outreach: patient.needs_outreach,
+    safety_check_required: patient.safety_check_required,
     created_at: patient.created_at,
     created_by: patient.created_by,
   };
