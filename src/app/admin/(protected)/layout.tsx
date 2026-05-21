@@ -24,6 +24,13 @@ export default async function AdminLayout({
         Admin View — Staff Only | Midland Sleep
       </div>
 
+      {/* Staging banner — shown only when NEXT_PUBLIC_APP_ENV=staging */}
+      {process.env.NEXT_PUBLIC_APP_ENV === 'staging' && (
+        <div className="bg-purple-700 text-white font-semibold py-1.5 px-4 text-sm text-center lg:ml-64">
+          STAGING — Demo data only · Not connected to production
+        </div>
+      )}
+
       {/* Main content */}
       <main className="min-h-screen lg:ml-64">
         <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
