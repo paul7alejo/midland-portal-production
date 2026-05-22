@@ -59,6 +59,11 @@ export interface PatientRecord {
   outreach_updated_by_email?: string
   safety_check_required?: boolean
   safety_status?: 'required' | 'cleared'
+  safety_caution_reason?: string
+  safety_severity?: 'low' | 'medium' | 'high'
+  safety_due_date?: string
+  safety_assigned_to?: string
+  safety_resolved_note?: string
   safety_updated_at?: string
   safety_updated_by?: string
   safety_updated_by_email?: string
@@ -166,6 +171,11 @@ export type ImportedPatientSummary = Pick<
   | 'review_status'
   | 'needs_outreach'
   | 'safety_check_required'
+  | 'safety_caution_reason'
+  | 'safety_severity'
+  | 'safety_due_date'
+  | 'safety_assigned_to'
+  | 'safety_resolved_note'
   | 'created_at'
   | 'created_by'
 >
@@ -214,6 +224,11 @@ export async function listImportedPatients(orgId: string): Promise<ImportedPatie
         '#reviewStatus',
         '#needsOutreach',
         '#safetyCheckRequired',
+        '#safetyCautionReason',
+        '#safetySeverity',
+        '#safetyDueDate',
+        '#safetyAssignedTo',
+        '#safetyResolvedNote',
         '#createdAt',
         '#createdBy',
       ].join(', '),
@@ -233,6 +248,11 @@ export async function listImportedPatients(orgId: string): Promise<ImportedPatie
         '#reviewStatus': 'review_status',
         '#needsOutreach': 'needs_outreach',
         '#safetyCheckRequired': 'safety_check_required',
+        '#safetyCautionReason': 'safety_caution_reason',
+        '#safetySeverity': 'safety_severity',
+        '#safetyDueDate': 'safety_due_date',
+        '#safetyAssignedTo': 'safety_assigned_to',
+        '#safetyResolvedNote': 'safety_resolved_note',
         '#createdAt': 'created_at',
         '#createdBy': 'created_by',
       },
@@ -276,6 +296,11 @@ export async function listPatients(orgId: string): Promise<PatientSummary[]> {
         '#reviewStatus',
         '#needsOutreach',
         '#safetyCheckRequired',
+        '#safetyCautionReason',
+        '#safetySeverity',
+        '#safetyDueDate',
+        '#safetyAssignedTo',
+        '#safetyResolvedNote',
         '#createdAt',
         '#createdBy',
       ].join(', '),
@@ -296,6 +321,11 @@ export async function listPatients(orgId: string): Promise<PatientSummary[]> {
         '#reviewStatus': 'review_status',
         '#needsOutreach': 'needs_outreach',
         '#safetyCheckRequired': 'safety_check_required',
+        '#safetyCautionReason': 'safety_caution_reason',
+        '#safetySeverity': 'safety_severity',
+        '#safetyDueDate': 'safety_due_date',
+        '#safetyAssignedTo': 'safety_assigned_to',
+        '#safetyResolvedNote': 'safety_resolved_note',
         '#createdAt': 'created_at',
         '#createdBy': 'created_by',
       },
@@ -602,25 +632,109 @@ export async function setPatientOutreachStatus(params: {
 export async function setPatientSafetyStatus(params: {
   pk: string
   safetyCheckRequired: boolean
+  resolvedNote?: string
   adminSub: string
   adminEmail: string
 }): Promise<void> {
   const now = new Date().toISOString()
+  const setExprs = [
+    'safety_check_required = :flag',
+    'safety_status = :sstatus',
+    'safety_updated_at = :now',
+    'safety_updated_by = :sub',
+    'safety_updated_by_email = :email',
+    'updated_at = :now',
+    'updated_by = :sub',
+    'updated_by_email = :email',
+  ]
+  const removeExprs: string[] = []
+  const values: Record<string, unknown> = {
+    ':flag':    params.safetyCheckRequired,
+    ':sstatus': params.safetyCheckRequired ? 'required' : 'cleared',
+    ':now':     now,
+    ':sub':     params.adminSub,
+    ':email':   params.adminEmail,
+  }
+  if (!params.safetyCheckRequired && params.resolvedNote !== undefined) {
+    if (params.resolvedNote.trim()) {
+      setExprs.push('safety_resolved_note = :resolvedNote')
+      values[':resolvedNote'] = params.resolvedNote.trim()
+    } else {
+      removeExprs.push('safety_resolved_note')
+    }
+  }
+  let expr = 'SET ' + setExprs.join(', ')
+  if (removeExprs.length > 0) expr += ' REMOVE ' + removeExprs.join(', ')
   await docClient.send(new UpdateCommand({
     TableName: TABLES.PATIENTS,
     Key: { pk: params.pk, sk: 'PROFILE' },
     ConditionExpression: 'attribute_exists(pk)',
-    UpdateExpression:
-      'SET safety_check_required = :flag, safety_status = :sstatus,' +
-      ' safety_updated_at = :now, safety_updated_by = :sub, safety_updated_by_email = :email,' +
-      ' updated_at = :now, updated_by = :sub, updated_by_email = :email',
-    ExpressionAttributeValues: {
-      ':flag':    params.safetyCheckRequired,
-      ':sstatus': params.safetyCheckRequired ? 'required' : 'cleared',
-      ':now':     now,
-      ':sub':     params.adminSub,
-      ':email':   params.adminEmail,
-    },
+    UpdateExpression: expr,
+    ExpressionAttributeValues: values,
+  }))
+}
+
+export async function setSafetyCautionDetails(params: {
+  pk: string
+  cautionReason: string
+  severity: string
+  dueDate: string
+  assignedTo: string
+  adminSub: string
+  adminEmail: string
+}): Promise<void> {
+  const now = new Date().toISOString()
+  const setExprs = [
+    'safety_updated_at = :now',
+    'safety_updated_by = :sub',
+    'safety_updated_by_email = :email',
+    'updated_at = :now',
+    'updated_by = :sub',
+    'updated_by_email = :email',
+  ]
+  const removeExprs: string[] = []
+  const values: Record<string, unknown> = {
+    ':now': now, ':sub': params.adminSub, ':email': params.adminEmail,
+  }
+
+  if (params.cautionReason.trim()) {
+    setExprs.push('safety_caution_reason = :reason')
+    values[':reason'] = params.cautionReason.trim()
+  } else {
+    removeExprs.push('safety_caution_reason')
+  }
+
+  const VALID_SEVERITIES = ['low', 'medium', 'high']
+  if (VALID_SEVERITIES.includes(params.severity)) {
+    setExprs.push('safety_severity = :severity')
+    values[':severity'] = params.severity
+  } else {
+    removeExprs.push('safety_severity')
+  }
+
+  if (params.dueDate.trim()) {
+    setExprs.push('safety_due_date = :dueDate')
+    values[':dueDate'] = params.dueDate.trim()
+  } else {
+    removeExprs.push('safety_due_date')
+  }
+
+  if (params.assignedTo.trim()) {
+    setExprs.push('safety_assigned_to = :assignedTo')
+    values[':assignedTo'] = params.assignedTo.trim()
+  } else {
+    removeExprs.push('safety_assigned_to')
+  }
+
+  let expr = 'SET ' + setExprs.join(', ')
+  if (removeExprs.length > 0) expr += ' REMOVE ' + removeExprs.join(', ')
+
+  await docClient.send(new UpdateCommand({
+    TableName: TABLES.PATIENTS,
+    Key: { pk: params.pk, sk: 'PROFILE' },
+    ConditionExpression: 'attribute_exists(pk)',
+    UpdateExpression: expr,
+    ExpressionAttributeValues: values,
   }))
 }
 

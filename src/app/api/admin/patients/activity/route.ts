@@ -16,7 +16,8 @@ const ACTION_LABELS: Record<string, string> = {
   NOTE_UPDATED:                    'Note edited',
   PATIENT_REVIEW_STATUS_UPDATED:   'Patient review status updated',
   PATIENT_OUTREACH_STATUS_UPDATED: 'Outreach status updated',
-  PATIENT_SAFETY_STATUS_UPDATED:   'Safety check status updated',
+  PATIENT_SAFETY_STATUS_UPDATED:   'Admin caution status updated',
+  PATIENT_SAFETY_DETAILS_UPDATED:  'Admin caution details updated',
 }
 
 function labelForAction(action: string): string {

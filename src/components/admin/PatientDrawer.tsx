@@ -41,6 +41,11 @@ interface DrawerPatient {
   reviewStatus?: string;
   needsOutreach?: boolean;
   safetyCheckRequired?: boolean;
+  safetyCautionReason?: string;
+  safetySeverity?: 'low' | 'medium' | 'high';
+  safetyDueDate?: string;
+  safetyAssignedTo?: string;
+  safetyResolvedNote?: string;
   fundedBy?: string;
 }
 
@@ -58,6 +63,11 @@ interface ImportedPatientDetail {
     review_status?: string;
     needs_outreach?: boolean;
     safety_check_required?: boolean;
+    safety_caution_reason?: string;
+    safety_severity?: 'low' | 'medium' | 'high';
+    safety_due_date?: string;
+    safety_assigned_to?: string;
+    safety_resolved_note?: string;
     created_at?: string;
   };
   devices: Array<{
@@ -289,6 +299,11 @@ function makeImportedPatient(detail: ImportedPatientDetail): DrawerPatient {
     reviewStatus: humanizeLabel(imported.review_status),
     needsOutreach: imported.needs_outreach ?? false,
     safetyCheckRequired: imported.safety_check_required ?? false,
+    safetyCautionReason: imported.safety_caution_reason,
+    safetySeverity: imported.safety_severity,
+    safetyDueDate: imported.safety_due_date,
+    safetyAssignedTo: imported.safety_assigned_to,
+    safetyResolvedNote: imported.safety_resolved_note,
     fundedBy: imported.funded_by,
   };
 }
@@ -333,6 +348,267 @@ function getReviewCues(patient: DrawerPatient): string[] {
   return cues;
 }
 
+interface SafetyDetailPayload {
+  reason: string;
+  severity: string;
+  dueDate: string;
+  assignedTo: string;
+}
+
+const SEVERITY_LABELS: Record<string, string> = { low: 'Low', medium: 'Medium', high: 'High' };
+const SEVERITY_CHIP: Record<string, string> = {
+  low:    'border-yellow-300 bg-yellow-50 text-yellow-800',
+  medium: 'border-orange-300 bg-orange-100 text-orange-900',
+  high:   'border-red-300 bg-red-100 text-red-900',
+};
+
+function AdminCautionSection({
+  patient,
+  loading,
+  error,
+  onToggleRequired,
+  onSaveDetails,
+}: {
+  patient: DrawerPatient;
+  loading: boolean;
+  error: string | null;
+  onToggleRequired: (required: boolean, resolvedNote?: string) => void;
+  onSaveDetails: (details: SafetyDetailPayload) => void;
+}) {
+  const [mode, setMode] = useState<'view' | 'edit' | 'clear'>('view');
+  const [reason, setReason]       = useState('');
+  const [severity, setSeverity]   = useState('');
+  const [dueDate, setDueDate]     = useState('');
+  const [assignedTo, setAssignedTo] = useState('');
+  const [resolvedNote, setResolvedNote] = useState('');
+
+  function enterEdit() {
+    setReason(patient.safetyCautionReason ?? '');
+    setSeverity(patient.safetySeverity ?? '');
+    setDueDate(patient.safetyDueDate ?? '');
+    setAssignedTo(patient.safetyAssignedTo ?? '');
+    setMode('edit');
+  }
+
+  function cancelEdit() {
+    setMode('view');
+  }
+
+  function enterClear() {
+    setResolvedNote('');
+    setMode('clear');
+  }
+
+  function cancelClear() {
+    setMode('view');
+  }
+
+  const hasDetails = patient.safetyCautionReason || patient.safetySeverity || patient.safetyDueDate || patient.safetyAssignedTo;
+
+  return (
+    <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-3">
+      <h3 className="text-sm font-semibold text-amber-900 uppercase tracking-wide">Admin caution</h3>
+
+      {/* Status row */}
+      <div className="flex flex-wrap items-center gap-3">
+        <span className={cn(
+          "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium",
+          patient.safetyCheckRequired
+            ? "border border-amber-400 bg-amber-100 text-amber-900"
+            : "border border-gray-200 bg-gray-100 text-gray-600"
+        )}>
+          {patient.safetyCheckRequired ? "Safety check required" : "No safety check required"}
+        </span>
+        {patient.safetyCheckRequired && patient.safetySeverity && (
+          <span className={cn(
+            "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium border",
+            SEVERITY_CHIP[patient.safetySeverity] ?? 'border-gray-200 bg-gray-100 text-gray-600'
+          )}>
+            {SEVERITY_LABELS[patient.safetySeverity]}
+          </span>
+        )}
+      </div>
+
+      {/* Current details — view mode only, when required=true */}
+      {patient.safetyCheckRequired && mode === 'view' && hasDetails && (
+        <div className="space-y-1.5 text-sm text-amber-900">
+          {patient.safetyCautionReason && (
+            <p className="leading-6">{patient.safetyCautionReason}</p>
+          )}
+          <div className="flex flex-wrap gap-4 text-xs text-amber-800">
+            {patient.safetyDueDate && (
+              <span>Due: {formatNzDate(patient.safetyDueDate)}</span>
+            )}
+            {patient.safetyAssignedTo && (
+              <span>Assigned: {patient.safetyAssignedTo}</span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Edit form */}
+      {mode === 'edit' && (
+        <div className="space-y-3 pt-1">
+          <div className="space-y-1">
+            <label className="block text-xs font-medium text-amber-900">Reason</label>
+            <textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              rows={3}
+              maxLength={500}
+              placeholder="Describe the admin caution (optional)…"
+              className="w-full px-3 py-2 border border-amber-300 rounded-lg text-sm text-gray-800 bg-white
+                         focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent
+                         placeholder:text-gray-400"
+            />
+          </div>
+          <div className="flex flex-wrap gap-2 items-center">
+            <span className="text-xs font-medium text-amber-900">Severity:</span>
+            {(['low', 'medium', 'high'] as const).map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setSeverity(severity === s ? '' : s)}
+                className={cn(
+                  "rounded-full px-3 py-1 text-xs font-medium border transition-colors",
+                  severity === s
+                    ? SEVERITY_CHIP[s]
+                    : "border-gray-300 bg-white text-gray-600 hover:border-gray-400"
+                )}
+              >
+                {SEVERITY_LABELS[s]}
+              </button>
+            ))}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="block text-xs font-medium text-amber-900">Due date</label>
+              <input
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+                className="w-full px-3 py-2 border border-amber-300 rounded-lg text-sm text-gray-800 bg-white
+                           focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="block text-xs font-medium text-amber-900">Assigned to</label>
+              <input
+                type="text"
+                value={assignedTo}
+                onChange={(e) => setAssignedTo(e.target.value)}
+                maxLength={100}
+                placeholder="Name or team…"
+                className="w-full px-3 py-2 border border-amber-300 rounded-lg text-sm text-gray-800 bg-white
+                           focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent
+                           placeholder:text-gray-400"
+              />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={loading}
+              onClick={() => { onSaveDetails({ reason, severity, dueDate, assignedTo }); setMode('view'); }}
+              className="bg-[#0B5C6C] text-white text-sm font-medium px-4 py-2 rounded-lg min-h-[36px]
+                         hover:bg-[#0B4A57] transition-colors disabled:opacity-50"
+            >
+              {loading ? "Saving…" : "Save details"}
+            </button>
+            <button
+              type="button"
+              disabled={loading}
+              onClick={cancelEdit}
+              className="text-sm font-medium text-gray-600 hover:text-gray-800 px-4 py-2 min-h-[36px] transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Clear/resolve panel */}
+      {mode === 'clear' && (
+        <div className="space-y-3 border-t border-amber-200 pt-3">
+          <p className="text-sm text-amber-900">Clearing this flag removes the patient from the Safety Checks worklist.</p>
+          <div className="space-y-1">
+            <label className="block text-xs font-medium text-amber-900">Resolution note (optional)</label>
+            <textarea
+              value={resolvedNote}
+              onChange={(e) => setResolvedNote(e.target.value)}
+              rows={2}
+              maxLength={500}
+              placeholder="Note what was resolved or actioned…"
+              className="w-full px-3 py-2 border border-amber-300 rounded-lg text-sm text-gray-800 bg-white
+                         focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent
+                         placeholder:text-gray-400"
+            />
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={loading}
+              onClick={() => { onToggleRequired(false, resolvedNote); setMode('view'); }}
+              className="border border-gray-300 bg-white text-gray-700 text-sm font-medium px-4 py-2 rounded-lg min-h-[36px]
+                         hover:bg-gray-50 transition-colors disabled:opacity-50"
+            >
+              {loading ? "Clearing…" : "Confirm clear"}
+            </button>
+            <button
+              type="button"
+              disabled={loading}
+              onClick={cancelClear}
+              className="text-sm font-medium text-gray-600 hover:text-gray-800 px-4 py-2 min-h-[36px] transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Action row (view mode) */}
+      {mode === 'view' && (
+        <div className="flex flex-wrap items-center gap-3">
+          {!patient.safetyCheckRequired ? (
+            <button
+              type="button"
+              disabled={loading}
+              onClick={() => onToggleRequired(true)}
+              className="bg-[#0B5C6C] text-white text-sm font-medium px-3 py-1.5 rounded-lg
+                         hover:bg-[#0B4A57] transition-colors disabled:opacity-50"
+            >
+              {loading ? "Saving…" : "Mark safety check required"}
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                disabled={loading}
+                onClick={enterEdit}
+                className="border border-amber-300 bg-white text-amber-900 text-sm font-medium px-3 py-1.5 rounded-lg
+                           hover:bg-amber-50 transition-colors disabled:opacity-50"
+              >
+                Edit details
+              </button>
+              <button
+                type="button"
+                disabled={loading}
+                onClick={enterClear}
+                className="border border-gray-300 bg-white text-gray-700 text-sm font-medium px-3 py-1.5 rounded-lg
+                           hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                Clear safety check
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {error && <p className="text-sm text-red-600">{error}</p>}
+    </section>
+  );
+}
+
 function OverviewTab({
   patient,
   reviewLoading,
@@ -344,6 +620,7 @@ function OverviewTab({
   safetyLoading,
   safetyError,
   onSetSafetyStatus,
+  onSaveSafetyDetails,
   patientActivity,
   patientActivityState,
 }: {
@@ -356,7 +633,8 @@ function OverviewTab({
   onSetOutreachStatus: (needsOutreach: boolean) => void;
   safetyLoading: boolean;
   safetyError: string | null;
-  onSetSafetyStatus: (safetyCheckRequired: boolean) => void;
+  onSetSafetyStatus: (safetyCheckRequired: boolean, resolvedNote?: string) => void;
+  onSaveSafetyDetails: (details: SafetyDetailPayload) => void;
   patientActivity: PatientActivityEvent[];
   patientActivityState: "idle" | "loading" | "loaded" | "error";
 }) {
@@ -443,35 +721,14 @@ function OverviewTab({
 
       {/* Admin caution / safety check */}
       {patient.imported && (
-        <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-3">
-          <h3 className="text-sm font-semibold text-amber-900 uppercase tracking-wide">Admin caution</h3>
-          <div className="flex flex-wrap items-center gap-3">
-            <span className={cn(
-              "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium",
-              patient.safetyCheckRequired
-                ? "border border-amber-400 bg-amber-100 text-amber-900"
-                : "border border-gray-200 bg-gray-100 text-gray-600"
-            )}>
-              {patient.safetyCheckRequired ? "Safety check required" : "No safety check required"}
-            </span>
-            <button
-              type="button"
-              disabled={safetyLoading}
-              onClick={() => onSetSafetyStatus(!patient.safetyCheckRequired)}
-              className={cn(
-                "rounded-lg px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-50",
-                patient.safetyCheckRequired
-                  ? "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
-                  : "bg-[#0B5C6C] text-white hover:bg-[#0B4A57]"
-              )}
-            >
-              {safetyLoading ? "Saving…" : patient.safetyCheckRequired ? "Clear safety check" : "Mark safety check required"}
-            </button>
-            {safetyError && (
-              <p className="w-full text-sm text-red-600">{safetyError}</p>
-            )}
-          </div>
-        </section>
+        <AdminCautionSection
+          key={patient.msid}
+          patient={patient}
+          loading={safetyLoading}
+          error={safetyError}
+          onToggleRequired={onSetSafetyStatus}
+          onSaveDetails={onSaveSafetyDetails}
+        />
       )}
 
       <section className="rounded-xl border border-gray-200 bg-gray-50 p-4">
@@ -1520,16 +1777,18 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
     }
   }
 
-  async function handleSetSafetyStatus(safetyCheckRequired: boolean) {
+  async function handleSetSafetyStatus(safetyCheckRequired: boolean, resolvedNote?: string) {
     if (!patient || safetyLoading) return;
     setSafetyLoading(true);
     setSafetyError(null);
     try {
+      const body: Record<string, unknown> = { msid: patient.msid, safety_check_required: safetyCheckRequired };
+      if (!safetyCheckRequired && resolvedNote !== undefined) body.safety_resolved_note = resolvedNote;
       const res = await fetch("/api/admin/patients/safety", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ msid: patient.msid, safety_check_required: safetyCheckRequired }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         let message = "Update failed";
@@ -1541,9 +1800,54 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
       }
       const updatedMsid = patient.msid;
       setImportedPatient((prev) =>
-        prev ? { ...prev, safetyCheckRequired } : prev
+        prev ? {
+          ...prev,
+          safetyCheckRequired,
+          ...(resolvedNote !== undefined && { safetyResolvedNote: resolvedNote }),
+        } : prev
       );
       onSafetyChange?.(updatedMsid, safetyCheckRequired);
+    } catch (err) {
+      setSafetyError(err instanceof Error ? err.message : "Update failed");
+    } finally {
+      setSafetyLoading(false);
+    }
+  }
+
+  async function handleSaveSafetyDetails(details: SafetyDetailPayload) {
+    if (!patient || safetyLoading) return;
+    setSafetyLoading(true);
+    setSafetyError(null);
+    try {
+      const res = await fetch("/api/admin/patients/safety", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          msid:                  patient.msid,
+          safety_caution_reason: details.reason,
+          safety_severity:       details.severity,
+          safety_due_date:       details.dueDate,
+          safety_assigned_to:    details.assignedTo,
+        }),
+      });
+      if (!res.ok) {
+        let message = "Update failed";
+        try {
+          const err = (await res.json()) as Record<string, unknown>;
+          if (typeof err.error === "string") message = err.error;
+        } catch { /* non-JSON error body */ }
+        throw new Error(message);
+      }
+      setImportedPatient((prev) =>
+        prev ? {
+          ...prev,
+          safetyCautionReason: details.reason || undefined,
+          safetySeverity: (details.severity as 'low' | 'medium' | 'high') || undefined,
+          safetyDueDate:  details.dueDate  || undefined,
+          safetyAssignedTo: details.assignedTo || undefined,
+        } : prev
+      );
     } catch (err) {
       setSafetyError(err instanceof Error ? err.message : "Update failed");
     } finally {
@@ -1661,6 +1965,7 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
                   safetyLoading={safetyLoading}
                   safetyError={safetyError}
                   onSetSafetyStatus={handleSetSafetyStatus}
+                  onSaveSafetyDetails={handleSaveSafetyDetails}
                   patientActivity={patientActivity}
                   patientActivityState={patientActivityState}
                 />
