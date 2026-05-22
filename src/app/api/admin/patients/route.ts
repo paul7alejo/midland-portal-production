@@ -52,6 +52,8 @@ function sanitizeImportedPatient(patient: PatientRecord): ImportedPatientSummary
     safety_due_date: patient.safety_due_date,
     safety_assigned_to: patient.safety_assigned_to,
     safety_resolved_note: patient.safety_resolved_note,
+    safety_updated_at: patient.safety_updated_at,
+    safety_updated_by_email: patient.safety_updated_by_email,
     created_at: patient.created_at,
     created_by: patient.created_by,
   };

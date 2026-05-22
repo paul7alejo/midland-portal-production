@@ -46,6 +46,8 @@ interface DrawerPatient {
   safetyDueDate?: string;
   safetyAssignedTo?: string;
   safetyResolvedNote?: string;
+  safetyUpdatedAt?: string;
+  safetyUpdatedByEmail?: string;
   fundedBy?: string;
 }
 
@@ -68,6 +70,8 @@ interface ImportedPatientDetail {
     safety_due_date?: string;
     safety_assigned_to?: string;
     safety_resolved_note?: string;
+    safety_updated_at?: string;
+    safety_updated_by_email?: string;
     created_at?: string;
   };
   devices: Array<{
@@ -304,6 +308,8 @@ function makeImportedPatient(detail: ImportedPatientDetail): DrawerPatient {
     safetyDueDate: imported.safety_due_date,
     safetyAssignedTo: imported.safety_assigned_to,
     safetyResolvedNote: imported.safety_resolved_note,
+    safetyUpdatedAt: imported.safety_updated_at,
+    safetyUpdatedByEmail: imported.safety_updated_by_email,
     fundedBy: imported.funded_by,
   };
 }
@@ -368,12 +374,16 @@ function AdminCautionSection({
   error,
   onToggleRequired,
   onSaveDetails,
+  safetyActivity,
+  safetyActivityState,
 }: {
   patient: DrawerPatient;
   loading: boolean;
   error: string | null;
   onToggleRequired: (required: boolean, resolvedNote?: string) => void;
   onSaveDetails: (details: SafetyDetailPayload) => void;
+  safetyActivity: PatientActivityEvent[];
+  safetyActivityState: "idle" | "loading" | "loaded" | "error";
 }) {
   const [mode, setMode] = useState<'view' | 'edit' | 'clear'>('view');
   const [reason, setReason]       = useState('');
@@ -604,6 +614,36 @@ function AdminCautionSection({
         </div>
       )}
 
+      {/* Last resolved — visible when not required and a resolved note exists */}
+      {!patient.safetyCheckRequired && patient.safetyResolvedNote && (
+        <div className="border-t border-amber-200 pt-3 space-y-1">
+          <p className="text-xs font-semibold text-amber-800 uppercase tracking-wide">Last resolved</p>
+          <p className="text-sm text-amber-900 leading-6">{patient.safetyResolvedNote}</p>
+          {patient.safetyUpdatedAt && (
+            <p className="text-xs text-amber-700">
+              {formatNzDateTime(patient.safetyUpdatedAt)}
+              {patient.safetyUpdatedByEmail ? ` · ${patient.safetyUpdatedByEmail}` : ''}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Safety activity mini-list */}
+      {safetyActivityState === 'loaded' && safetyActivity.length > 0 && (
+        <div className="border-t border-amber-200 pt-3 space-y-2">
+          <p className="text-xs font-semibold text-amber-800 uppercase tracking-wide">Safety activity</p>
+          <ul className="space-y-1.5">
+            {safetyActivity.slice(0, 5).map((event, i) => (
+              <li key={i} className="text-xs text-amber-800 leading-5">
+                <span className="font-medium">{event.label}</span>
+                {' · '}{formatNzDateTime(event.timestamp)}
+                {event.adminEmail ? <span className="text-amber-600"> · {event.adminEmail}</span> : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {error && <p className="text-sm text-red-600">{error}</p>}
     </section>
   );
@@ -728,6 +768,10 @@ function OverviewTab({
           error={safetyError}
           onToggleRequired={onSetSafetyStatus}
           onSaveDetails={onSaveSafetyDetails}
+          safetyActivity={patientActivity.filter(
+            (e) => e.action === 'PATIENT_SAFETY_STATUS_UPDATED' || e.action === 'PATIENT_SAFETY_DETAILS_UPDATED'
+          )}
+          safetyActivityState={patientActivityState}
         />
       )}
 

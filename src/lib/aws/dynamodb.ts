@@ -176,6 +176,8 @@ export type ImportedPatientSummary = Pick<
   | 'safety_due_date'
   | 'safety_assigned_to'
   | 'safety_resolved_note'
+  | 'safety_updated_at'
+  | 'safety_updated_by_email'
   | 'created_at'
   | 'created_by'
 >
@@ -229,6 +231,8 @@ export async function listImportedPatients(orgId: string): Promise<ImportedPatie
         '#safetyDueDate',
         '#safetyAssignedTo',
         '#safetyResolvedNote',
+        '#safetyUpdatedAt',
+        '#safetyUpdatedByEmail',
         '#createdAt',
         '#createdBy',
       ].join(', '),
@@ -253,6 +257,8 @@ export async function listImportedPatients(orgId: string): Promise<ImportedPatie
         '#safetyDueDate': 'safety_due_date',
         '#safetyAssignedTo': 'safety_assigned_to',
         '#safetyResolvedNote': 'safety_resolved_note',
+        '#safetyUpdatedAt': 'safety_updated_at',
+        '#safetyUpdatedByEmail': 'safety_updated_by_email',
         '#createdAt': 'created_at',
         '#createdBy': 'created_by',
       },
@@ -301,6 +307,8 @@ export async function listPatients(orgId: string): Promise<PatientSummary[]> {
         '#safetyDueDate',
         '#safetyAssignedTo',
         '#safetyResolvedNote',
+        '#safetyUpdatedAt',
+        '#safetyUpdatedByEmail',
         '#createdAt',
         '#createdBy',
       ].join(', '),
@@ -326,6 +334,8 @@ export async function listPatients(orgId: string): Promise<PatientSummary[]> {
         '#safetyDueDate': 'safety_due_date',
         '#safetyAssignedTo': 'safety_assigned_to',
         '#safetyResolvedNote': 'safety_resolved_note',
+        '#safetyUpdatedAt': 'safety_updated_at',
+        '#safetyUpdatedByEmail': 'safety_updated_by_email',
         '#createdAt': 'created_at',
         '#createdBy': 'created_by',
       },
