@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
-type TabId = "overview" | "equipment" | "entitlement" | "orders" | "notes" | "nhi" | "account";
+type TabId = "work" | "record" | "notes" | "history";
 
 interface DrawerPatient {
   msid: string;
@@ -133,6 +133,7 @@ interface PatientActivityEvent {
   action: string;
   adminEmail: string | null;
   result: string | null;
+  details?: string;
 }
 
 export interface PatientDrawerProps {
@@ -315,13 +316,10 @@ function makeImportedPatient(detail: ImportedPatientDetail): DrawerPatient {
 }
 
 const TABS: { id: TabId; label: string }[] = [
-  { id: "overview",    label: "Overview" },
-  { id: "equipment",   label: "Equipment" },
-  { id: "entitlement", label: "Entitlement" },
-  { id: "orders",      label: "Orders" },
-  { id: "notes",       label: "Notes" },
-  { id: "nhi",         label: "NHI" },
-  { id: "account",     label: "Portal Account" },
+  { id: "work",    label: "Work" },
+  { id: "record",  label: "Record" },
+  { id: "notes",   label: "Notes" },
+  { id: "history", label: "History" },
 ];
 
 const NHI_REASONS = [
@@ -649,7 +647,7 @@ function AdminCautionSection({
   );
 }
 
-function OverviewTab({
+function WorkTab({
   patient,
   reviewLoading,
   reviewError,
@@ -663,6 +661,7 @@ function OverviewTab({
   onSaveSafetyDetails,
   patientActivity,
   patientActivityState,
+  onViewHistory,
 }: {
   patient: DrawerPatient;
   reviewLoading: boolean;
@@ -677,8 +676,10 @@ function OverviewTab({
   onSaveSafetyDetails: (details: SafetyDetailPayload) => void;
   patientActivity: PatientActivityEvent[];
   patientActivityState: "idle" | "loading" | "loaded" | "error";
+  onViewHistory: () => void;
 }) {
   const cues = getReviewCues(patient);
+  const recentActivity = patientActivity.slice(0, 3);
   return (
     <div className="space-y-5">
       {/* Review cues + action */}
@@ -775,7 +776,64 @@ function OverviewTab({
         />
       )}
 
+      {/* Compact activity preview */}
+      <section className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Recent activity</p>
+          <button
+            type="button"
+            onClick={onViewHistory}
+            className="text-xs font-medium text-[#0B5C6C] hover:underline"
+          >
+            View all →
+          </button>
+        </div>
+        {(patientActivityState === "idle" || patientActivityState === "loading") && (
+          <p className="text-sm text-gray-400">Loading…</p>
+        )}
+        {patientActivityState === "error" && (
+          <p className="text-sm text-gray-400">Activity temporarily unavailable.</p>
+        )}
+        {patientActivityState === "loaded" && patientActivity.length === 0 && (
+          <p className="text-sm text-gray-400">No recent activity.</p>
+        )}
+        {patientActivityState === "loaded" && recentActivity.length > 0 && (
+          <ul className="divide-y divide-gray-100">
+            {recentActivity.map((event, i) => (
+              <li key={i} className="flex items-start gap-3 py-2 first:pt-0 last:pb-0">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-800">{event.label}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {formatNzDateTime(event.timestamp)}
+                    {event.adminEmail ? ` · ${event.adminEmail}` : ""}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function RecordTab({
+  patient,
+  nhiVisible,
+  nhiReason,
+  setNhiReason,
+  onReveal,
+}: {
+  patient: DrawerPatient;
+  nhiVisible: boolean;
+  nhiReason: string;
+  setNhiReason: (v: string) => void;
+  onReveal: () => void;
+}) {
+  return (
+    <div className="space-y-8">
       <section className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+        <h3 className="mb-4 text-sm font-semibold text-gray-600 uppercase tracking-wide">Patient details</h3>
         <dl className="grid gap-5 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <dt className="text-sm font-medium text-gray-500 uppercase tracking-wide">MSID</dt>
@@ -796,24 +854,6 @@ function OverviewTab({
             }
           />
           <FieldRow label="Registration date" value={patient.registrationDate} />
-        </dl>
-      </section>
-
-      <section className="rounded-xl border border-gray-200 bg-white p-4">
-        <h3 className="mb-4 text-sm font-semibold text-gray-600 uppercase tracking-wide">Equipment summary</h3>
-        <dl className="grid gap-5 sm:grid-cols-2">
-          <FieldRow
-            label="Machine"
-            value={`${patient.machine.brand} ${patient.machine.model}`}
-          />
-          <FieldRow
-            label="Mask"
-            value={
-              patient.mask
-                ? `${patient.mask.brand} ${patient.mask.model} (${patient.mask.size})`
-                : "No mask record imported"
-            }
-          />
           {patient.imported && (
             <>
               <FieldRow label="Entitlement programme" value={safeValue(patient.fundedBy)} />
@@ -824,45 +864,135 @@ function OverviewTab({
         </dl>
       </section>
 
-      {/* Recent patient activity */}
-      <section className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Recent patient activity</p>
-        {(patientActivityState === "idle" || patientActivityState === "loading") && (
+      <section>
+        <h3 className="mb-4 text-sm font-semibold text-gray-600 uppercase tracking-wide">Equipment</h3>
+        <EquipmentTab patient={patient} />
+      </section>
+
+      <section>
+        <h3 className="mb-4 text-sm font-semibold text-gray-600 uppercase tracking-wide">Entitlement &amp; funding</h3>
+        <EntitlementTab patient={patient} />
+      </section>
+
+      <section>
+        <h3 className="mb-4 text-sm font-semibold text-gray-600 uppercase tracking-wide">Orders</h3>
+        <OrdersTab patient={patient} />
+      </section>
+
+      <section>
+        <h3 className="mb-4 text-sm font-semibold text-gray-600 uppercase tracking-wide">NHI</h3>
+        <NhiTab
+          patient={patient}
+          nhiVisible={nhiVisible}
+          nhiReason={nhiReason}
+          setNhiReason={setNhiReason}
+          onReveal={onReveal}
+        />
+      </section>
+
+      <section>
+        <h3 className="mb-4 text-sm font-semibold text-gray-600 uppercase tracking-wide">Portal account</h3>
+        <AccountTab msid={patient.msid} />
+      </section>
+    </div>
+  );
+}
+
+function HistoryTab({
+  patientActivity,
+  patientActivityState,
+}: {
+  patientActivity: PatientActivityEvent[];
+  patientActivityState: "idle" | "loading" | "loaded" | "error";
+}) {
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Patient activity history</p>
+      {(patientActivityState === "idle" || patientActivityState === "loading") && (
+        <div className="rounded-xl border border-gray-200 bg-gray-50 px-5 py-4">
           <p className="text-sm text-gray-400">Loading activity…</p>
-        )}
-        {patientActivityState === "error" && (
-          <p className="text-sm text-gray-400">Activity temporarily unavailable.</p>
-        )}
-        {patientActivityState === "loaded" && patientActivity.length === 0 && (
-          <p className="text-sm text-gray-400">No recent activity found for this patient.</p>
-        )}
-        {patientActivityState === "loaded" && patientActivity.length > 0 && (
-          <div className="space-y-2">
-            <ul className="divide-y divide-gray-100 max-h-56 overflow-y-auto">
-              {patientActivity.map((event, i) => (
-                <li key={i} className="flex items-start justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-800">{event.label}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      {formatNzDateTime(event.timestamp)}
-                      {event.adminEmail ? ` · ${event.adminEmail}` : ""}
-                    </p>
-                  </div>
-                  {event.result && (
-                    <span className="shrink-0 mt-0.5 text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200">
-                      {event.result}
-                    </span>
+        </div>
+      )}
+      {patientActivityState === "error" && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4">
+          <p className="text-sm text-amber-800">Activity temporarily unavailable.</p>
+        </div>
+      )}
+      {patientActivityState === "loaded" && patientActivity.length === 0 && (
+        <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-5 py-4">
+          <p className="text-sm text-gray-400">No activity recorded for this patient yet.</p>
+        </div>
+      )}
+      {patientActivityState === "loaded" && patientActivity.length > 0 && (
+        <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+          <ul className="divide-y divide-gray-100">
+            {patientActivity.map((event, i) => {
+              const isExpanded = expandedIndex === i;
+              return (
+                <li key={i}>
+                  <button
+                    type="button"
+                    onClick={() => setExpandedIndex(isExpanded ? null : i)}
+                    className="w-full flex items-start justify-between gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-gray-800">{event.label}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {formatNzDateTime(event.timestamp)}
+                        {event.adminEmail ? ` · ${event.adminEmail}` : ""}
+                      </p>
+                    </div>
+                    <svg
+                      className={cn("h-4 w-4 shrink-0 mt-0.5 text-gray-400 transition-transform", isExpanded && "rotate-180")}
+                      fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  {isExpanded && (
+                    <div className="px-4 pb-3 space-y-1 bg-gray-50 border-t border-gray-100">
+                      <dl className="grid gap-x-6 gap-y-1.5 sm:grid-cols-2 text-xs">
+                        <div>
+                          <dt className="font-medium text-gray-500 uppercase tracking-wide">Action</dt>
+                          <dd className="text-gray-700 font-mono mt-0.5">{event.action}</dd>
+                        </div>
+                        <div>
+                          <dt className="font-medium text-gray-500 uppercase tracking-wide">Timestamp</dt>
+                          <dd className="text-gray-700 mt-0.5">{formatNzDateTime(event.timestamp)}</dd>
+                        </div>
+                        {event.adminEmail && (
+                          <div>
+                            <dt className="font-medium text-gray-500 uppercase tracking-wide">Admin</dt>
+                            <dd className="text-gray-700 mt-0.5">{event.adminEmail}</dd>
+                          </div>
+                        )}
+                        {event.result && (
+                          <div>
+                            <dt className="font-medium text-gray-500 uppercase tracking-wide">Result</dt>
+                            <dd className="text-gray-700 mt-0.5">{event.result}</dd>
+                          </div>
+                        )}
+                        {event.details && (
+                          <div className="sm:col-span-2">
+                            <dt className="font-medium text-gray-500 uppercase tracking-wide">Details</dt>
+                            <dd className="text-gray-700 mt-0.5 whitespace-pre-wrap">{event.details}</dd>
+                          </div>
+                        )}
+                      </dl>
+                    </div>
                   )}
                 </li>
-              ))}
-            </ul>
-            <p className="text-xs text-gray-400">
-              Showing latest 20 events · Full audit log available from{" "}
-              <a href="/admin/audit" className="underline hover:text-gray-600 transition-colors">Audit Log</a>.
-            </p>
-          </div>
-        )}
-      </section>
+              );
+            })}
+          </ul>
+          <p className="text-xs text-gray-400 px-4 py-3 border-t border-gray-100">
+            Showing latest 20 events · Full audit log available from{" "}
+            <a href="/admin/audit" className="underline hover:text-gray-600 transition-colors">Audit Log</a>.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
@@ -1482,7 +1612,7 @@ function AccountTab({ msid }: { msid: string }) {
 }
 
 export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStatusChange, onOutreachChange, onSafetyChange }: PatientDrawerProps) {
-  const [activeTab, setActiveTab] = useState<TabId>("overview");
+  const [activeTab, setActiveTab] = useState<TabId>("work");
   const [nhiVisible, setNhiVisible]   = useState(false);
   const [nhiReason, setNhiReason]     = useState("");
   const [noteText, setNoteText]       = useState("");
@@ -1525,7 +1655,7 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
     if (!isOpen) {
       setNhiVisible(false);
       setNhiReason("");
-      setActiveTab("overview");
+      setActiveTab("work");
       setEditingNoteId(null);
       setEditText("");
       setDeletingNoteId(null);
@@ -1597,7 +1727,7 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
   }, []);
 
   useEffect(() => {
-    if (!isOpen || !msid || activeTab !== "overview") return;
+    if (!isOpen || !msid || (activeTab !== "work" && activeTab !== "history")) return;
     if (activityFetchedRef.current) return;
     activityFetchedRef.current = true;
     let cancelled = false;
@@ -1644,6 +1774,19 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
     setNhiVisible(true);
     if (nhiTimerRef.current) clearTimeout(nhiTimerRef.current);
     nhiTimerRef.current = setTimeout(() => setNhiVisible(false), 30000);
+  }
+
+  function addOptimisticActivity(label: string, action: string) {
+    const event: PatientActivityEvent = {
+      timestamp: new Date().toISOString(),
+      label,
+      action,
+      adminEmail: null,
+      result: 'attempted',
+    };
+    setPatientActivity((prev) => [event, ...prev]);
+    setPatientActivityState('loaded');
+    activityFetchedRef.current = true;
   }
 
   async function handleAddNote() {
@@ -1783,6 +1926,7 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
         prev ? { ...prev, reviewStatus: humanizeLabel(status) } : prev
       );
       onReviewStatusChange?.(updatedMsid, status);
+      addOptimisticActivity('Review status updated', 'PATIENT_REVIEW_STATUS_UPDATED');
     } catch (err) {
       setReviewError(err instanceof Error ? err.message : "Update failed");
     } finally {
@@ -1814,6 +1958,7 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
         prev ? { ...prev, needsOutreach } : prev
       );
       onOutreachChange?.(updatedMsid, needsOutreach);
+      addOptimisticActivity('Outreach status updated', 'PATIENT_OUTREACH_STATUS_UPDATED');
     } catch (err) {
       setOutreachError(err instanceof Error ? err.message : "Update failed");
     } finally {
@@ -1851,6 +1996,7 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
         } : prev
       );
       onSafetyChange?.(updatedMsid, safetyCheckRequired);
+      addOptimisticActivity('Admin caution status updated', 'PATIENT_SAFETY_STATUS_UPDATED');
     } catch (err) {
       setSafetyError(err instanceof Error ? err.message : "Update failed");
     } finally {
@@ -1892,6 +2038,7 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
           safetyAssignedTo: details.assignedTo || undefined,
         } : prev
       );
+      addOptimisticActivity('Admin caution details updated', 'PATIENT_SAFETY_DETAILS_UPDATED');
     } catch (err) {
       setSafetyError(err instanceof Error ? err.message : "Update failed");
     } finally {
@@ -1917,7 +2064,7 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
         aria-modal="true"
         aria-label={patient?.name ?? "Patient details"}
         className={cn(
-          "fixed inset-y-0 right-0 z-50 w-full sm:w-[680px] bg-white shadow-2xl flex flex-col transition-transform duration-300",
+          "fixed inset-y-0 right-0 z-50 w-full sm:w-[940px] sm:max-w-[90vw] bg-white shadow-2xl flex flex-col transition-transform duration-300",
           isOpen ? "translate-x-0" : "translate-x-full"
         )}
       >
@@ -1997,8 +2144,8 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
             </div>
           ) : patient ? (
             <>
-              {activeTab === "overview" && (
-                <OverviewTab
+              {activeTab === "work" && (
+                <WorkTab
                   patient={patient}
                   reviewLoading={reviewLoading}
                   reviewError={reviewError}
@@ -2012,12 +2159,19 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
                   onSaveSafetyDetails={handleSaveSafetyDetails}
                   patientActivity={patientActivity}
                   patientActivityState={patientActivityState}
+                  onViewHistory={() => setActiveTab("history")}
                 />
               )}
-              {activeTab === "equipment"   && <EquipmentTab patient={patient} />}
-              {activeTab === "entitlement" && <EntitlementTab patient={patient} />}
-              {activeTab === "orders"      && <OrdersTab patient={patient} />}
-              {activeTab === "notes"       && (
+              {activeTab === "record" && (
+                <RecordTab
+                  patient={patient}
+                  nhiVisible={nhiVisible}
+                  nhiReason={nhiReason}
+                  setNhiReason={setNhiReason}
+                  onReveal={handleRevealNhi}
+                />
+              )}
+              {activeTab === "notes" && (
                 <NotesTab
                   noteText={noteText}
                   setNoteText={setNoteText}
@@ -2042,17 +2196,11 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
                   onConfirmDelete={handleConfirmDelete}
                 />
               )}
-              {activeTab === "nhi" && (
-                <NhiTab
-                  patient={patient}
-                  nhiVisible={nhiVisible}
-                  nhiReason={nhiReason}
-                  setNhiReason={setNhiReason}
-                  onReveal={handleRevealNhi}
+              {activeTab === "history" && (
+                <HistoryTab
+                  patientActivity={patientActivity}
+                  patientActivityState={patientActivityState}
                 />
-              )}
-              {activeTab === "account" && (
-                <AccountTab msid={patient.msid} />
               )}
             </>
           ) : (
