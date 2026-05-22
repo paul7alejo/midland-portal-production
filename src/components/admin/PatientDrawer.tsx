@@ -236,6 +236,20 @@ function formatNzDateTime(value?: string): string {
   }).format(date);
 }
 
+function formatNzDateTimeShort(value?: string): string {
+  if (!value?.trim()) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("en-NZ", {
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "Pacific/Auckland",
+  }).format(date);
+}
+
 function formatNzPhone(value?: string): string {
   const raw = value?.trim();
   if (!raw || raw === "—") return "—";
@@ -962,97 +976,104 @@ function HistoryTab({
 
       {patientActivityState === "loaded" && displaySlice.length > 0 && (
         <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
-          {/* Table header — desktop only */}
-          <div className="hidden sm:grid sm:grid-cols-[100px_100px_150px_1fr_130px_74px_20px] sm:gap-x-3 px-4 py-2.5 bg-gray-50 border-b border-gray-200">
-            {["When", "Area", "Activity", "Details", "By", "Result", ""].map((h) => (
-              <span key={h} className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</span>
-            ))}
+          <div className="overflow-x-auto">
+            <div className="min-w-[750px]">
+              {/* Table header */}
+              <div className="grid grid-cols-[120px_110px_170px_1fr_140px_80px_20px] gap-x-3 px-4 py-2.5 bg-gray-50 border-b border-gray-200">
+                {["When", "Area", "Activity", "Details", "By", "Result", ""].map((h) => (
+                  <span key={h} className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</span>
+                ))}
+              </div>
+
+              <ul className="divide-y divide-gray-100">
+                {displaySlice.map((event, i) => {
+                  const area = activityArea(event.action);
+                  const isExpanded = expandedIndex === i;
+                  return (
+                    <li key={i}>
+                      <button
+                        type="button"
+                        onClick={() => setExpandedIndex(isExpanded ? null : i)}
+                        className="w-full grid grid-cols-[120px_110px_170px_1fr_140px_80px_20px] gap-x-3 items-center px-4 py-3.5 text-left hover:bg-gray-50 transition-colors"
+                      >
+                        <span className="text-xs text-gray-500 whitespace-nowrap">
+                          {formatNzDateTimeShort(event.timestamp)}
+                        </span>
+                        <span>
+                          <span className={cn(
+                            "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border whitespace-nowrap",
+                            AREA_CHIP[area] ?? AREA_CHIP['Other']
+                          )}>
+                            {area}
+                          </span>
+                        </span>
+                        <span className="text-sm font-medium text-gray-800 truncate">
+                          {event.label}
+                        </span>
+                        <span className="text-xs text-gray-600 truncate">
+                          {event.details ?? <span className="text-gray-400 italic">—</span>}
+                        </span>
+                        <span
+                          className="text-xs text-gray-500 truncate"
+                          title={event.adminEmail ?? undefined}
+                        >
+                          {event.adminEmail ?? "—"}
+                        </span>
+                        <span>
+                          {event.result && (
+                            <span className="inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200 whitespace-nowrap">
+                              {event.result}
+                            </span>
+                          )}
+                        </span>
+                        <svg
+                          className={cn("h-4 w-4 shrink-0 text-gray-400 transition-transform", isExpanded && "rotate-180")}
+                          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+
+                      {isExpanded && (
+                        <div className="px-4 pt-2 pb-3 bg-gray-50 border-t border-gray-100">
+                          <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2 text-xs">
+                            <div>
+                              <dt className="font-medium text-gray-500 uppercase tracking-wide">Action code</dt>
+                              <dd className="text-gray-700 font-mono mt-0.5 break-all">{event.action}</dd>
+                            </div>
+                            <div>
+                              <dt className="font-medium text-gray-500 uppercase tracking-wide">Timestamp</dt>
+                              <dd className="text-gray-700 mt-0.5">{formatNzDateTime(event.timestamp)}</dd>
+                            </div>
+                            {event.adminEmail && (
+                              <div>
+                                <dt className="font-medium text-gray-500 uppercase tracking-wide">Admin</dt>
+                                <dd className="text-gray-700 mt-0.5 break-all">{event.adminEmail}</dd>
+                              </div>
+                            )}
+                            {event.result && (
+                              <div>
+                                <dt className="font-medium text-gray-500 uppercase tracking-wide">Result</dt>
+                                <dd className="text-gray-700 mt-0.5">{event.result}</dd>
+                              </div>
+                            )}
+                            <div className="sm:col-span-2">
+                              <dt className="font-medium text-gray-500 uppercase tracking-wide">Details</dt>
+                              <dd className="text-gray-700 mt-0.5 whitespace-pre-wrap">
+                                {event.details ?? "No extra details captured."}
+                              </dd>
+                            </div>
+                          </dl>
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
           </div>
 
-          <ul className="divide-y divide-gray-100">
-            {displaySlice.map((event, i) => {
-              const area = activityArea(event.action);
-              const isExpanded = expandedIndex === i;
-              return (
-                <li key={i}>
-                  <button
-                    type="button"
-                    onClick={() => setExpandedIndex(isExpanded ? null : i)}
-                    className="w-full sm:grid sm:grid-cols-[100px_100px_150px_1fr_130px_74px_20px] sm:gap-x-3 sm:items-center flex flex-wrap gap-x-2 gap-y-1 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
-                  >
-                    <span className="text-xs text-gray-500 whitespace-nowrap leading-5 order-2 sm:order-none w-full sm:w-auto">
-                      {formatNzDateTime(event.timestamp)}
-                    </span>
-                    <span className="order-1 sm:order-none">
-                      <span className={cn(
-                        "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border whitespace-nowrap",
-                        AREA_CHIP[area] ?? AREA_CHIP['Other']
-                      )}>
-                        {area}
-                      </span>
-                    </span>
-                    <span className="text-sm font-medium text-gray-800 leading-5 order-1 sm:order-none sm:truncate w-full sm:w-auto">
-                      {event.label}
-                    </span>
-                    <span className="text-xs text-gray-600 leading-5 order-3 sm:order-none sm:truncate w-full sm:w-auto">
-                      {event.details ?? <span className="text-gray-400 italic">No extra details captured.</span>}
-                    </span>
-                    <span className="text-xs text-gray-500 leading-5 order-3 sm:order-none sm:truncate hidden sm:block">
-                      {event.adminEmail ?? "—"}
-                    </span>
-                    <span className="order-3 sm:order-none">
-                      {event.result && (
-                        <span className="inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200 whitespace-nowrap">
-                          {event.result}
-                        </span>
-                      )}
-                    </span>
-                    <svg
-                      className={cn("h-4 w-4 shrink-0 text-gray-400 transition-transform order-1 sm:order-none", isExpanded && "rotate-180")}
-                      fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
-
-                  {isExpanded && (
-                    <div className="px-4 pt-2 pb-3 bg-gray-50 border-t border-gray-100">
-                      <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2 text-xs">
-                        <div>
-                          <dt className="font-medium text-gray-500 uppercase tracking-wide">Action code</dt>
-                          <dd className="text-gray-700 font-mono mt-0.5 break-all">{event.action}</dd>
-                        </div>
-                        <div>
-                          <dt className="font-medium text-gray-500 uppercase tracking-wide">Timestamp</dt>
-                          <dd className="text-gray-700 mt-0.5">{formatNzDateTime(event.timestamp)}</dd>
-                        </div>
-                        {event.adminEmail && (
-                          <div>
-                            <dt className="font-medium text-gray-500 uppercase tracking-wide">Admin</dt>
-                            <dd className="text-gray-700 mt-0.5">{event.adminEmail}</dd>
-                          </div>
-                        )}
-                        {event.result && (
-                          <div>
-                            <dt className="font-medium text-gray-500 uppercase tracking-wide">Result</dt>
-                            <dd className="text-gray-700 mt-0.5">{event.result}</dd>
-                          </div>
-                        )}
-                        <div className="sm:col-span-2">
-                          <dt className="font-medium text-gray-500 uppercase tracking-wide">Details</dt>
-                          <dd className="text-gray-700 mt-0.5 whitespace-pre-wrap">
-                            {event.details ?? "No extra details captured."}
-                          </dd>
-                        </div>
-                      </dl>
-                    </div>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-
-          {/* Pagination footer */}
+          {/* Pagination footer — outside overflow-x-auto */}
           <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 gap-4">
             <p className="text-xs text-gray-500 shrink-0">
               Page {currentPage} of {totalPages}
