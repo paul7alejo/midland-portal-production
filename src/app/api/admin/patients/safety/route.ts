@@ -50,6 +50,11 @@ export async function POST(req: NextRequest) {
       adminSub:    admin.sub,
       adminEmail:  admin.email,
       patientMsid: msid,
+      details:     safetyCheckRequired
+        ? 'Safety check flag set'
+        : resolvedNote
+          ? 'Cleared with resolution note'
+          : 'Safety check flag cleared',
     })
     if (!auditResult.ok) {
       return NextResponse.json({ error: 'Audit write failed — action aborted' }, { status: 500 })
@@ -76,11 +81,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid severity value' }, { status: 400 })
   }
 
+  const updatedFields = [
+    cautionReason && 'reason',
+    severity && 'severity',
+    dueDate && 'due date',
+    assignedTo && 'assigned-to',
+  ].filter(Boolean).join(', ')
+
   const auditResult = await writeAdminAuditEvent({
     action:      'PATIENT_SAFETY_DETAILS_UPDATED',
     adminSub:    admin.sub,
     adminEmail:  admin.email,
     patientMsid: msid,
+    details:     updatedFields ? `Updated: ${updatedFields}` : 'Admin caution details saved',
   })
   if (!auditResult.ok) {
     return NextResponse.json({ error: 'Audit write failed — action aborted' }, { status: 500 })

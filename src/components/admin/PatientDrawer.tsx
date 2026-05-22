@@ -659,9 +659,6 @@ function WorkTab({
   safetyError,
   onSetSafetyStatus,
   onSaveSafetyDetails,
-  patientActivity,
-  patientActivityState,
-  onViewHistory,
 }: {
   patient: DrawerPatient;
   reviewLoading: boolean;
@@ -674,12 +671,8 @@ function WorkTab({
   safetyError: string | null;
   onSetSafetyStatus: (safetyCheckRequired: boolean, resolvedNote?: string) => void;
   onSaveSafetyDetails: (details: SafetyDetailPayload) => void;
-  patientActivity: PatientActivityEvent[];
-  patientActivityState: "idle" | "loading" | "loaded" | "error";
-  onViewHistory: () => void;
 }) {
   const cues = getReviewCues(patient);
-  const recentActivity = patientActivity.slice(0, 3);
   return (
     <div className="space-y-5">
       {/* Review cues + action */}
@@ -771,44 +764,6 @@ function WorkTab({
           onSaveDetails={onSaveSafetyDetails}
         />
       )}
-
-      {/* Compact activity preview */}
-      <section className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Recent activity</p>
-          <button
-            type="button"
-            onClick={onViewHistory}
-            className="text-xs font-medium text-[#0B5C6C] hover:underline"
-          >
-            View all →
-          </button>
-        </div>
-        {(patientActivityState === "idle" || patientActivityState === "loading") && (
-          <p className="text-sm text-gray-400">Loading…</p>
-        )}
-        {patientActivityState === "error" && (
-          <p className="text-sm text-gray-400">Activity temporarily unavailable.</p>
-        )}
-        {patientActivityState === "loaded" && patientActivity.length === 0 && (
-          <p className="text-sm text-gray-400">No recent activity.</p>
-        )}
-        {patientActivityState === "loaded" && recentActivity.length > 0 && (
-          <ul className="divide-y divide-gray-100">
-            {recentActivity.map((event, i) => (
-              <li key={i} className="flex items-start gap-3 py-2 first:pt-0 last:pb-0">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-gray-800">{event.label}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    {formatNzDateTime(event.timestamp)}
-                    {event.adminEmail ? ` · ${event.adminEmail}` : ""}
-                  </p>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
     </div>
   );
 }
@@ -894,6 +849,8 @@ function RecordTab({
   );
 }
 
+const AREA_OPTIONS = ["All", "Review", "Outreach", "Admin Caution", "Notes", "Portal Account", "Import", "Other"] as const;
+
 function HistoryTab({
   patientActivity,
   patientActivityState,
@@ -902,17 +859,77 @@ function HistoryTab({
   patientActivityState: "idle" | "loading" | "loaded" | "error";
 }) {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
-  const displayActivity = patientActivity.slice(0, 20);
+  const [areaFilter, setAreaFilter]   = useState<string>("All");
+  const [timeFilter, setTimeFilter]   = useState<string>("all");
+  const [sortOrder, setSortOrder]     = useState<"newest" | "oldest">("newest");
+  const [pageSize, setPageSize]       = useState<number>(20);
+  const [page, setPage]               = useState<number>(1);
+
+  function resetPage() { setPage(1); setExpandedIndex(null); }
+
+  const now = new Date();
+
+  const filtered = patientActivity.filter((event) => {
+    if (areaFilter !== "All" && activityArea(event.action) !== areaFilter) return false;
+    if (timeFilter !== "all" && event.timestamp) {
+      const d = new Date(event.timestamp);
+      if (timeFilter === "today") {
+        if (d.toDateString() !== now.toDateString()) return false;
+      } else if (timeFilter === "7d") {
+        const cut = new Date(now); cut.setDate(cut.getDate() - 7);
+        if (d < cut) return false;
+      } else if (timeFilter === "30d") {
+        const cut = new Date(now); cut.setDate(cut.getDate() - 30);
+        if (d < cut) return false;
+      }
+    }
+    return true;
+  });
+
+  const sorted = sortOrder === "newest" ? filtered : [...filtered].reverse();
+  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const displaySlice = sorted.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  const selectCls = "px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#0B5C6C]/30 focus:border-[#0B5C6C]/50";
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-baseline gap-2">
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Patient activity history</p>
-        {patientActivity.length > 0 && (
-          <span className="text-xs text-gray-400">
-            ({displayActivity.length} of {patientActivity.length} events)
-          </span>
-        )}
+    <div className="space-y-4">
+      {/* Controls */}
+      <div className="flex flex-wrap gap-3 items-end">
+        <div className="space-y-1">
+          <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide">Area</label>
+          <select value={areaFilter} onChange={(e) => { setAreaFilter(e.target.value); resetPage(); }} className={selectCls}>
+            {AREA_OPTIONS.map((o) => <option key={o}>{o}</option>)}
+          </select>
+        </div>
+        <div className="space-y-1">
+          <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide">Period</label>
+          <select value={timeFilter} onChange={(e) => { setTimeFilter(e.target.value); resetPage(); }} className={selectCls}>
+            <option value="all">All time</option>
+            <option value="today">Today</option>
+            <option value="7d">Last 7 days</option>
+            <option value="30d">Last 30 days</option>
+          </select>
+        </div>
+        <div className="space-y-1">
+          <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide">Sort</label>
+          <select value={sortOrder} onChange={(e) => { setSortOrder(e.target.value as "newest" | "oldest"); resetPage(); }} className={selectCls}>
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+          </select>
+        </div>
+        <div className="space-y-1">
+          <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide">Per page</label>
+          <select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); resetPage(); }} className={selectCls}>
+            <option value={20}>20</option>
+            <option value={50}>50</option>
+            <option value={100}>100</option>
+          </select>
+        </div>
+        <p className="text-xs text-gray-400 self-end pb-2">
+          {filtered.length} event{filtered.length !== 1 ? "s" : ""}
+        </p>
       </div>
 
       {(patientActivityState === "idle" || patientActivityState === "loading") && (
@@ -930,10 +947,30 @@ function HistoryTab({
           <p className="text-sm text-gray-400">No activity recorded for this patient yet.</p>
         </div>
       )}
-      {patientActivityState === "loaded" && displayActivity.length > 0 && (
+      {patientActivityState === "loaded" && patientActivity.length > 0 && filtered.length === 0 && (
+        <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-5 py-4 space-y-2">
+          <p className="text-sm text-gray-500">No events match the current filters.</p>
+          <button
+            type="button"
+            onClick={() => { setAreaFilter("All"); setTimeFilter("all"); resetPage(); }}
+            className="text-sm font-medium text-[#0B5C6C] hover:underline"
+          >
+            Clear filters
+          </button>
+        </div>
+      )}
+
+      {patientActivityState === "loaded" && displaySlice.length > 0 && (
         <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+          {/* Table header — desktop only */}
+          <div className="hidden sm:grid sm:grid-cols-[100px_100px_150px_1fr_130px_74px_20px] sm:gap-x-3 px-4 py-2.5 bg-gray-50 border-b border-gray-200">
+            {["When", "Area", "Activity", "Details", "By", "Result", ""].map((h) => (
+              <span key={h} className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</span>
+            ))}
+          </div>
+
           <ul className="divide-y divide-gray-100">
-            {displayActivity.map((event, i) => {
+            {displaySlice.map((event, i) => {
               const area = activityArea(event.action);
               const isExpanded = expandedIndex === i;
               return (
@@ -941,38 +978,48 @@ function HistoryTab({
                   <button
                     type="button"
                     onClick={() => setExpandedIndex(isExpanded ? null : i)}
-                    className="w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+                    className="w-full sm:grid sm:grid-cols-[100px_100px_150px_1fr_130px_74px_20px] sm:gap-x-3 sm:items-center flex flex-wrap gap-x-2 gap-y-1 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
                   >
-                    <span className={cn(
-                      "mt-0.5 shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border whitespace-nowrap",
-                      AREA_CHIP[area] ?? AREA_CHIP['Other']
-                    )}>
-                      {area}
+                    <span className="text-xs text-gray-500 whitespace-nowrap leading-5 order-2 sm:order-none w-full sm:w-auto">
+                      {formatNzDateTime(event.timestamp)}
                     </span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-800">{event.label}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        {formatNzDateTime(event.timestamp)}
-                        {event.adminEmail ? ` · ${event.adminEmail}` : ""}
-                      </p>
-                    </div>
-                    {event.result && (
-                      <span className="shrink-0 mt-0.5 text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200 whitespace-nowrap">
-                        {event.result}
+                    <span className="order-1 sm:order-none">
+                      <span className={cn(
+                        "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border whitespace-nowrap",
+                        AREA_CHIP[area] ?? AREA_CHIP['Other']
+                      )}>
+                        {area}
                       </span>
-                    )}
+                    </span>
+                    <span className="text-sm font-medium text-gray-800 leading-5 order-1 sm:order-none sm:truncate w-full sm:w-auto">
+                      {event.label}
+                    </span>
+                    <span className="text-xs text-gray-600 leading-5 order-3 sm:order-none sm:truncate w-full sm:w-auto">
+                      {event.details ?? <span className="text-gray-400 italic">No extra details captured.</span>}
+                    </span>
+                    <span className="text-xs text-gray-500 leading-5 order-3 sm:order-none sm:truncate hidden sm:block">
+                      {event.adminEmail ?? "—"}
+                    </span>
+                    <span className="order-3 sm:order-none">
+                      {event.result && (
+                        <span className="inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200 whitespace-nowrap">
+                          {event.result}
+                        </span>
+                      )}
+                    </span>
                     <svg
-                      className={cn("h-4 w-4 shrink-0 mt-0.5 text-gray-400 transition-transform", isExpanded && "rotate-180")}
+                      className={cn("h-4 w-4 shrink-0 text-gray-400 transition-transform order-1 sm:order-none", isExpanded && "rotate-180")}
                       fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
                     >
                       <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                     </svg>
                   </button>
+
                   {isExpanded && (
                     <div className="px-4 pt-2 pb-3 bg-gray-50 border-t border-gray-100">
                       <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2 text-xs">
                         <div>
-                          <dt className="font-medium text-gray-500 uppercase tracking-wide">Action</dt>
+                          <dt className="font-medium text-gray-500 uppercase tracking-wide">Action code</dt>
                           <dd className="text-gray-700 font-mono mt-0.5 break-all">{event.action}</dd>
                         </div>
                         <div>
@@ -991,12 +1038,12 @@ function HistoryTab({
                             <dd className="text-gray-700 mt-0.5">{event.result}</dd>
                           </div>
                         )}
-                        {event.details && (
-                          <div className="sm:col-span-2">
-                            <dt className="font-medium text-gray-500 uppercase tracking-wide">Details</dt>
-                            <dd className="text-gray-700 mt-0.5 whitespace-pre-wrap">{event.details}</dd>
-                          </div>
-                        )}
+                        <div className="sm:col-span-2">
+                          <dt className="font-medium text-gray-500 uppercase tracking-wide">Details</dt>
+                          <dd className="text-gray-700 mt-0.5 whitespace-pre-wrap">
+                            {event.details ?? "No extra details captured."}
+                          </dd>
+                        </div>
                       </dl>
                     </div>
                   )}
@@ -1004,10 +1051,42 @@ function HistoryTab({
               );
             })}
           </ul>
-          <p className="text-xs text-gray-400 px-4 py-3 border-t border-gray-100">
-            Showing latest 20 events · Full audit log available from{" "}
-            <a href="/admin/audit" className="underline hover:text-gray-600 transition-colors">Audit Log</a>.
-          </p>
+
+          {/* Pagination footer */}
+          <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 gap-4">
+            <p className="text-xs text-gray-500 shrink-0">
+              Page {currentPage} of {totalPages}
+              {filtered.length !== patientActivity.length
+                ? ` · ${filtered.length} filtered`
+                : ` · ${patientActivity.length} total`}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={currentPage <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                className="text-xs font-medium px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-600
+                           hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                ← Prev
+              </button>
+              <button
+                type="button"
+                disabled={currentPage >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                className="text-xs font-medium px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-600
+                           hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                Next →
+              </button>
+            </div>
+            <a
+              href="/admin/audit"
+              className="text-xs font-medium text-[#0B5C6C] hover:underline shrink-0 hidden sm:block"
+            >
+              Full audit log →
+            </a>
+          </div>
         </div>
       )}
     </div>
@@ -1749,7 +1828,7 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
     activityFetchedRef.current = true;
     let cancelled = false;
     setPatientActivityState("loading");
-    fetch(`/api/admin/patients/activity?msid=${encodeURIComponent(msid)}`, { credentials: "include" })
+    fetch(`/api/admin/patients/activity?msid=${encodeURIComponent(msid)}&limit=100`, { credentials: "include" })
       .then((r) => r.json())
       .then((data: unknown) => {
         if (cancelled) return;
@@ -2181,9 +2260,6 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
                   safetyError={safetyError}
                   onSetSafetyStatus={handleSetSafetyStatus}
                   onSaveSafetyDetails={handleSaveSafetyDetails}
-                  patientActivity={patientActivity}
-                  patientActivityState={patientActivityState}
-                  onViewHistory={() => setActiveTab("history")}
                 />
               )}
               {activeTab === "record" && (

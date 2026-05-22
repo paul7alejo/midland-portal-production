@@ -498,6 +498,7 @@ export interface PatientAuditEvent {
   action:     string
   adminEmail: string | null
   result:     string | null
+  details?:   string
   sk:         string
 }
 
@@ -542,6 +543,7 @@ export async function queryAuditByPatient(
               : typeof item.adminEmail  === 'string' ? item.adminEmail
               : null,
     result:     typeof item.result      === 'string' ? item.result      : null,
+    details:    typeof item.details     === 'string' ? item.details     : undefined,
     sk:         typeof item.sk          === 'string' ? item.sk          : '',
   }))
 }

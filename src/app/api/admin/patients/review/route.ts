@@ -44,6 +44,7 @@ export async function POST(req: NextRequest) {
     adminSub:     admin.sub,
     adminEmail:   admin.email,
     patientMsid:  msid,
+    details:      reviewStatus === 'reviewed' ? 'Status set to: Reviewed' : 'Status set to: Pending review',
   })
   if (!auditResult.ok) {
     return NextResponse.json({ error: 'Audit write failed — action aborted' }, { status: 500 })

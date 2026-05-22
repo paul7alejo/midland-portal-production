@@ -67,6 +67,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'body must be 1–1000 characters' }, { status: 400 })
   }
 
+  const notePreview = noteBody.length > 120 ? noteBody.slice(0, 120) + '…' : noteBody
+  const noteCreateAudit = await writeAdminAuditEvent({
+    action:      'NOTE_CREATED',
+    adminSub:    admin.sub,
+    adminEmail:  admin.email,
+    patientMsid: msid,
+    details:     `Note created: ${notePreview}`,
+  })
+  if (!noteCreateAudit.ok) {
+    return NextResponse.json({ error: 'Audit write failed — note not saved' }, { status: 500 })
+  }
+
   const record = await putPatientNote({
     msid,
     orgId: ORG_ID,
@@ -128,12 +140,14 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'You can only edit notes you created' }, { status: 403 })
   }
 
+  const editPreview = noteBody.length > 120 ? noteBody.slice(0, 120) + '…' : noteBody
   const auditResult = await writeAdminAuditEvent({
-    action: 'NOTE_UPDATED',
-    adminSub: admin.sub,
-    adminEmail: admin.email,
+    action:      'NOTE_UPDATED',
+    adminSub:    admin.sub,
+    adminEmail:  admin.email,
     patientMsid: msid,
     noteId,
+    details:     `Note edited: ${editPreview}`,
   })
   if (!auditResult.ok) {
     return NextResponse.json({ error: 'Audit write failed — edit aborted' }, { status: 500 })
@@ -216,11 +230,12 @@ export async function DELETE(req: NextRequest) {
 
   // Stage: audit write — must succeed before mutation
   const auditResult = await writeAdminAuditEvent({
-    action: 'NOTE_DELETE_ATTEMPT',
-    adminSub: admin.sub,
-    adminEmail: admin.email,
+    action:      'NOTE_DELETE_ATTEMPT',
+    adminSub:    admin.sub,
+    adminEmail:  admin.email,
     patientMsid: msid,
     noteId,
+    details:     'Note removed',
   })
   if (!auditResult.ok) {
     console.error('[admin-notes] soft delete failed', {

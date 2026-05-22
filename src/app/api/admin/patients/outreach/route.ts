@@ -42,6 +42,7 @@ export async function POST(req: NextRequest) {
     adminSub:    admin.sub,
     adminEmail:  admin.email,
     patientMsid: msid,
+    details:     needsOutreach ? 'Outreach flag set' : 'Outreach flag cleared',
   })
   if (!auditResult.ok) {
     return NextResponse.json({ error: 'Audit write failed — action aborted' }, { status: 500 })

@@ -11,10 +11,11 @@ const ACTION_LABELS: Record<string, string> = {
   PATIENT_LOGIN:                   'Patient login',
   PATIENT_PASSWORD_CHANGED:        'Patient password changed',
   ACCOUNT_ENABLED:                 'Account enabled',
+  NOTE_CREATED:                    'Note created',
   NOTE_DELETE_ATTEMPT:             'Note deletion requested',
   NOTE_SOFT_DELETED:               'Note deleted',
   NOTE_UPDATED:                    'Note edited',
-  PATIENT_REVIEW_STATUS_UPDATED:   'Patient review status updated',
+  PATIENT_REVIEW_STATUS_UPDATED:   'Review status updated',
   PATIENT_OUTREACH_STATUS_UPDATED: 'Outreach status updated',
   PATIENT_SAFETY_STATUS_UPDATED:   'Admin caution status updated',
   PATIENT_SAFETY_DETAILS_UPDATED:  'Admin caution details updated',
@@ -39,15 +40,18 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Valid MSID is required' }, { status: 400 })
   }
 
+  const limitParam = parseInt(request.nextUrl.searchParams.get('limit') ?? '20', 10)
+  const limit = isNaN(limitParam) ? 20 : Math.min(Math.max(1, limitParam), 100)
+
   try {
-    // queryAuditByPatient defaults to limit=20 — no client-side slicing needed
-    const events = await queryAuditByPatient(msid)
+    const events = await queryAuditByPatient(msid, limit)
     const activity = events.map((e) => ({
       timestamp:  e.timestamp,
       label:      labelForAction(e.action),
       action:     e.action,
       adminEmail: e.adminEmail,
       result:     e.result,
+      ...(e.details !== undefined && { details: e.details }),
     }))
     return NextResponse.json({ activity })
   } catch {
