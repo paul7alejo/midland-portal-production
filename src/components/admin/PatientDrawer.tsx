@@ -366,22 +366,38 @@ const SEVERITY_CHIP: Record<string, string> = {
   high:   'border-red-300 bg-red-100 text-red-900',
 };
 
+function activityArea(action: string): string {
+  if (action.startsWith('PATIENT_REVIEW')) return 'Review';
+  if (action.startsWith('PATIENT_OUTREACH')) return 'Outreach';
+  if (action.startsWith('PATIENT_SAFETY')) return 'Admin Caution';
+  if (action.startsWith('NOTE')) return 'Notes';
+  if (action.includes('PASSWORD') || action.includes('UNLOCK')) return 'Portal Account';
+  if (action.startsWith('IMPORT')) return 'Import';
+  return 'Other';
+}
+
+const AREA_CHIP: Record<string, string> = {
+  'Review':         'border-sky-200 bg-sky-50 text-sky-700',
+  'Outreach':       'border-orange-200 bg-orange-50 text-orange-700',
+  'Admin Caution':  'border-amber-200 bg-amber-50 text-amber-700',
+  'Notes':          'border-purple-200 bg-purple-50 text-purple-700',
+  'Portal Account': 'border-blue-200 bg-blue-50 text-blue-700',
+  'Import':         'border-gray-200 bg-gray-50 text-gray-600',
+  'Other':          'border-gray-200 bg-gray-50 text-gray-600',
+};
+
 function AdminCautionSection({
   patient,
   loading,
   error,
   onToggleRequired,
   onSaveDetails,
-  safetyActivity,
-  safetyActivityState,
 }: {
   patient: DrawerPatient;
   loading: boolean;
   error: string | null;
   onToggleRequired: (required: boolean, resolvedNote?: string) => void;
   onSaveDetails: (details: SafetyDetailPayload) => void;
-  safetyActivity: PatientActivityEvent[];
-  safetyActivityState: "idle" | "loading" | "loaded" | "error";
 }) {
   const [mode, setMode] = useState<'view' | 'edit' | 'clear'>('view');
   const [reason, setReason]       = useState('');
@@ -626,22 +642,6 @@ function AdminCautionSection({
         </div>
       )}
 
-      {/* Safety activity mini-list */}
-      {safetyActivityState === 'loaded' && safetyActivity.length > 0 && (
-        <div className="border-t border-amber-200 pt-3 space-y-2">
-          <p className="text-xs font-semibold text-amber-800 uppercase tracking-wide">Safety activity</p>
-          <ul className="space-y-1.5">
-            {safetyActivity.slice(0, 5).map((event, i) => (
-              <li key={i} className="text-xs text-amber-800 leading-5">
-                <span className="font-medium">{event.label}</span>
-                {' · '}{formatNzDateTime(event.timestamp)}
-                {event.adminEmail ? <span className="text-amber-600"> · {event.adminEmail}</span> : null}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
       {error && <p className="text-sm text-red-600">{error}</p>}
     </section>
   );
@@ -769,10 +769,6 @@ function WorkTab({
           error={safetyError}
           onToggleRequired={onSetSafetyStatus}
           onSaveDetails={onSaveSafetyDetails}
-          safetyActivity={patientActivity.filter(
-            (e) => e.action === 'PATIENT_SAFETY_STATUS_UPDATED' || e.action === 'PATIENT_SAFETY_DETAILS_UPDATED'
-          )}
-          safetyActivityState={patientActivityState}
         />
       )}
 
@@ -906,10 +902,19 @@ function HistoryTab({
   patientActivityState: "idle" | "loading" | "loaded" | "error";
 }) {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
+  const displayActivity = patientActivity.slice(0, 20);
 
   return (
     <div className="space-y-3">
-      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Patient activity history</p>
+      <div className="flex items-baseline gap-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Patient activity history</p>
+        {patientActivity.length > 0 && (
+          <span className="text-xs text-gray-400">
+            ({displayActivity.length} of {patientActivity.length} events)
+          </span>
+        )}
+      </div>
+
       {(patientActivityState === "idle" || patientActivityState === "loading") && (
         <div className="rounded-xl border border-gray-200 bg-gray-50 px-5 py-4">
           <p className="text-sm text-gray-400">Loading activity…</p>
@@ -925,25 +930,37 @@ function HistoryTab({
           <p className="text-sm text-gray-400">No activity recorded for this patient yet.</p>
         </div>
       )}
-      {patientActivityState === "loaded" && patientActivity.length > 0 && (
+      {patientActivityState === "loaded" && displayActivity.length > 0 && (
         <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
           <ul className="divide-y divide-gray-100">
-            {patientActivity.map((event, i) => {
+            {displayActivity.map((event, i) => {
+              const area = activityArea(event.action);
               const isExpanded = expandedIndex === i;
               return (
                 <li key={i}>
                   <button
                     type="button"
                     onClick={() => setExpandedIndex(isExpanded ? null : i)}
-                    className="w-full flex items-start justify-between gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+                    className="w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
                   >
-                    <div className="min-w-0">
+                    <span className={cn(
+                      "mt-0.5 shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border whitespace-nowrap",
+                      AREA_CHIP[area] ?? AREA_CHIP['Other']
+                    )}>
+                      {area}
+                    </span>
+                    <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-800">{event.label}</p>
                       <p className="text-xs text-gray-400 mt-0.5">
                         {formatNzDateTime(event.timestamp)}
                         {event.adminEmail ? ` · ${event.adminEmail}` : ""}
                       </p>
                     </div>
+                    {event.result && (
+                      <span className="shrink-0 mt-0.5 text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200 whitespace-nowrap">
+                        {event.result}
+                      </span>
+                    )}
                     <svg
                       className={cn("h-4 w-4 shrink-0 mt-0.5 text-gray-400 transition-transform", isExpanded && "rotate-180")}
                       fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
@@ -952,11 +969,11 @@ function HistoryTab({
                     </svg>
                   </button>
                   {isExpanded && (
-                    <div className="px-4 pb-3 space-y-1 bg-gray-50 border-t border-gray-100">
-                      <dl className="grid gap-x-6 gap-y-1.5 sm:grid-cols-2 text-xs">
+                    <div className="px-4 pt-2 pb-3 bg-gray-50 border-t border-gray-100">
+                      <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2 text-xs">
                         <div>
                           <dt className="font-medium text-gray-500 uppercase tracking-wide">Action</dt>
-                          <dd className="text-gray-700 font-mono mt-0.5">{event.action}</dd>
+                          <dd className="text-gray-700 font-mono mt-0.5 break-all">{event.action}</dd>
                         </div>
                         <div>
                           <dt className="font-medium text-gray-500 uppercase tracking-wide">Timestamp</dt>
@@ -1776,13 +1793,14 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
     nhiTimerRef.current = setTimeout(() => setNhiVisible(false), 30000);
   }
 
-  function addOptimisticActivity(label: string, action: string) {
+  function addOptimisticActivity(label: string, action: string, details?: string) {
     const event: PatientActivityEvent = {
       timestamp: new Date().toISOString(),
       label,
       action,
       adminEmail: null,
       result: 'attempted',
+      ...(details !== undefined && { details }),
     };
     setPatientActivity((prev) => [event, ...prev]);
     setPatientActivityState('loaded');
@@ -1926,7 +1944,7 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
         prev ? { ...prev, reviewStatus: humanizeLabel(status) } : prev
       );
       onReviewStatusChange?.(updatedMsid, status);
-      addOptimisticActivity('Review status updated', 'PATIENT_REVIEW_STATUS_UPDATED');
+      addOptimisticActivity('Review status updated', 'PATIENT_REVIEW_STATUS_UPDATED', `Status set to: ${humanizeLabel(status)}`);
     } catch (err) {
       setReviewError(err instanceof Error ? err.message : "Update failed");
     } finally {
@@ -1958,7 +1976,7 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
         prev ? { ...prev, needsOutreach } : prev
       );
       onOutreachChange?.(updatedMsid, needsOutreach);
-      addOptimisticActivity('Outreach status updated', 'PATIENT_OUTREACH_STATUS_UPDATED');
+      addOptimisticActivity('Outreach status updated', 'PATIENT_OUTREACH_STATUS_UPDATED', needsOutreach ? 'Outreach flag set' : 'Outreach flag cleared');
     } catch (err) {
       setOutreachError(err instanceof Error ? err.message : "Update failed");
     } finally {
@@ -1996,7 +2014,7 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
         } : prev
       );
       onSafetyChange?.(updatedMsid, safetyCheckRequired);
-      addOptimisticActivity('Admin caution status updated', 'PATIENT_SAFETY_STATUS_UPDATED');
+      addOptimisticActivity('Admin caution status updated', 'PATIENT_SAFETY_STATUS_UPDATED', safetyCheckRequired ? 'Safety check flag set' : resolvedNote ? 'Cleared with resolution note' : 'Safety check flag cleared');
     } catch (err) {
       setSafetyError(err instanceof Error ? err.message : "Update failed");
     } finally {
@@ -2038,7 +2056,13 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
           safetyAssignedTo: details.assignedTo || undefined,
         } : prev
       );
-      addOptimisticActivity('Admin caution details updated', 'PATIENT_SAFETY_DETAILS_UPDATED');
+      const updatedFields = [
+        details.reason && 'reason',
+        details.severity && 'severity',
+        details.dueDate && 'due date',
+        details.assignedTo && 'assigned-to',
+      ].filter(Boolean).join(', ');
+      addOptimisticActivity('Admin caution details updated', 'PATIENT_SAFETY_DETAILS_UPDATED', updatedFields ? `Updated: ${updatedFields}` : undefined);
     } catch (err) {
       setSafetyError(err instanceof Error ? err.message : "Update failed");
     } finally {
