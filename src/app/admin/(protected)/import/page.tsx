@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import type { ParsedPatient, ReviewRow } from "@/lib/csv-import/patient-import";
 import type { ImportManifestRow, PreflightState } from "@/lib/csv-import/import-preflight";
 import { computePreflightState, buildManifest } from "@/lib/csv-import/import-preflight";
@@ -441,106 +441,69 @@ const READINESS: Record<PreviewResult["readiness"], { label: string; leftBorder:
   },
 };
 
-const WORKFLOW_STEPS = [
-  "CSV preview",
-  "Data validation",
-  "Duplicate review",
-  "Preflight manifest",
-  "Approval checklist",
-  "Evidence pack",
-  "Execute import",
+type WizardStep = "upload" | "validate" | "approve" | "results";
+
+const WIZARD_STEPS: { id: WizardStep; label: string }[] = [
+  { id: "upload",   label: "Upload" },
+  { id: "validate", label: "Validate" },
+  { id: "approve",  label: "Review & Approve" },
+  { id: "results",  label: "Results" },
 ];
 
-const STAGE_CARDS = [
-  {
-    title: "CSV preview",
-    text: "Parses uploaded CSV data without writing to the system.",
-  },
-  {
-    title: "Data validation",
-    text: "Checks required fields and separates valid and invalid rows.",
-  },
-  {
-    title: "Duplicate review",
-    text: "Flags duplicate NHI, machine serial, and shared contact details.",
-  },
-  {
-    title: "Preflight manifest",
-    text: "Creates a masked-NHI manifest for admin review.",
-  },
-  {
-    title: "Approval checklist",
-    text: "Creates a sign-off checklist before any production import is considered.",
-  },
-  {
-    title: "Evidence pack",
-    text: "Creates downloadable review evidence for internal admin records.",
-  },
-  {
-    title: "Real import",
-    text: "Commits valid rows to DynamoDB. Available only after preflight passes — preview is required first.",
-  },
-];
-
-function DemoSummaryPanel() {
-  return (
-    <div className="bg-white border border-gray-200 border-l-4 border-l-[#0B5C6C] rounded-xl p-4 flex items-start justify-between gap-4 flex-wrap">
-      <div className="space-y-1 max-w-4xl">
-        <p className="text-sm font-medium text-gray-800">
-          This workflow has two phases: preview validates CSV quality and runs preflight checks; execute commits valid rows to DynamoDB once preflight passes.
-        </p>
-        <p className="text-sm text-gray-600">Preview first. The Execute Import button appears only when preflight passes with no blocking issues.</p>
-      </div>
-      <DownloadButton label="Download demo checklist CSV" onClick={downloadDemoChecklist} />
-    </div>
-  );
-}
-
-function WorkflowStepper() {
+function WizardStepper({ step }: { step: WizardStep }) {
+  const currentIndex = WIZARD_STEPS.findIndex((s) => s.id === step);
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-4">
-      <div className="flex flex-wrap items-center gap-2">
-        {WORKFLOW_STEPS.map((step, i) => {
-          const isSeparateScope = i === WORKFLOW_STEPS.length - 1;
-          return (
-            <div key={step} className="flex items-center gap-2">
-              {isSeparateScope && <div className="hidden sm:block h-6 w-px bg-gray-200 mx-1" />}
-              <div
-                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${
-                  isSeparateScope
-                    ? "border-gray-200 bg-gray-50 text-gray-500"
-                    : "border-[#0B5C6C]/20 bg-[#0B5C6C]/5 text-[#0B5C6C]"
-                }`}
-              >
-                <span
-                  className={`inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px] ${
-                    isSeparateScope ? "bg-gray-200 text-gray-600" : "bg-[#0B5C6C] text-white"
-                  }`}
-                >
-                  {i + 1}
-                </span>
-                {step}
-              </div>
+      <div className="flex items-center">
+        {WIZARD_STEPS.map((s, i) => (
+          <div key={s.id} className="flex items-center flex-1 min-w-0">
+            <div className={`flex items-center gap-2 shrink-0 ${
+              i === currentIndex ? "text-[#0B5C6C]" : i < currentIndex ? "text-emerald-600" : "text-gray-400"
+            }`}>
+              <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold shrink-0 ${
+                i === currentIndex ? "bg-[#0B5C6C] text-white" :
+                i < currentIndex  ? "bg-emerald-600 text-white" :
+                                    "bg-gray-100 text-gray-500"
+              }`}>
+                {i < currentIndex ? "✓" : i + 1}
+              </span>
+              <span className="text-sm font-medium whitespace-nowrap hidden sm:inline">{s.label}</span>
             </div>
-          );
-        })}
+            {i < WIZARD_STEPS.length - 1 && (
+              <div className={`flex-1 mx-3 h-0.5 ${i < currentIndex ? "bg-emerald-400" : "bg-gray-200"}`} />
+            )}
+          </div>
+        ))}
       </div>
     </div>
   );
 }
 
-function StageExplanationCards() {
+function RemediationGuide() {
+  const items: { label: "Blocked" | "Needs review"; text: string }[] = [
+    { label: "Blocked",      text: "Missing date_of_birth — add DOB and re-upload CSV." },
+    { label: "Blocked",      text: "Missing full_name or NHI — required before import." },
+    { label: "Blocked",      text: "Invalid date format — use DD/MM/YYYY." },
+    { label: "Blocked",      text: "Duplicate NHI — existing patient record found. Remove duplicate or confirm source data." },
+    { label: "Blocked",      text: "Duplicate machine serial — review equipment assignment before import." },
+    { label: "Needs review", text: "Shared contact detail — review before approval." },
+    { label: "Needs review", text: "Portal account warning — portal access is enabled, but email is missing or invalid." },
+  ];
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      {STAGE_CARDS.map((stage) => {
-        const isSeparateScope = stage.title === "Real import";
-        return (
-          <div key={stage.title} className={`border rounded-lg p-4 bg-white ${isSeparateScope ? "border-gray-200 text-gray-500" : "border-gray-200"}`}>
-            <h2 className={`text-sm font-semibold ${isSeparateScope ? "text-gray-600" : "text-gray-800"}`}>{stage.title}</h2>
-            <p className="text-xs text-gray-500 mt-1 leading-5">{stage.text}</p>
-          </div>
-        );
-      })}
+    <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-3">
+      <h3 className="text-sm font-semibold text-gray-800">Common fixes</h3>
+      <ul className="space-y-2">
+        {items.map(({ label, text }) => (
+          <li key={text} className="flex items-start gap-2.5 text-sm text-gray-700">
+            <span className={`mt-0.5 inline-block text-xs font-semibold px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap ${
+              label === "Blocked" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"
+            }`}>
+              {label}
+            </span>
+            <span>{text}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -1262,7 +1225,10 @@ function ExecuteResultPanel({ result }: { result: ExecuteResultState }) {
         <div className="bg-amber-50 border border-amber-300 rounded-xl overflow-hidden">
           <div className="px-5 py-4 border-b border-amber-200 space-y-1">
             <h3 className="text-sm font-semibold text-amber-900">Portal access — temporary passwords</h3>
-            <p className="text-xs text-amber-800 font-semibold">Copy now. Temporary passwords are not stored.</p>
+            <p className="text-xs text-amber-800 font-semibold">Copy these credentials now. Temporary passwords are shown once and are not stored.</p>
+            <p className="text-xs text-amber-800">
+              If missed, generate a new temporary password from the Portal Account reset action. Original passwords cannot be retrieved.
+            </p>
             <p className="text-xs text-amber-700">
               Patients log in with their number-only username (no MS- prefix). Password must be changed on first login.
             </p>
@@ -1295,6 +1261,58 @@ function ExecuteResultPanel({ result }: { result: ExecuteResultState }) {
   );
 }
 
+// ─── Session import marker (safe, no passwords, no NHI) ──────────────────────
+
+type RecentImportMarker = {
+  batchId:    string;
+  executedAt: string;
+  created:    number;
+  skipped:    number;
+  failed:     number;
+  status:     CompletedBatch["status"];
+};
+
+const SESSION_KEY = "midland_import_session";
+
+function readImportMarkers(): RecentImportMarker[] {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeImportMarker(marker: RecentImportMarker): void {
+  try {
+    const existing = readImportMarkers();
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify([marker, ...existing]));
+  } catch {
+    // sessionStorage unavailable, ignore
+  }
+}
+
+function markersToCompletedBatches(markers: RecentImportMarker[]): CompletedBatch[] {
+  return markers.map((m) => ({
+    batchId:                  m.batchId,
+    executedAt:               m.executedAt,
+    importedBy:               "Admin session",
+    totalRows:                m.created + m.skipped + m.failed,
+    created:                  m.created,
+    skipped:                  m.skipped,
+    failed:                   m.failed,
+    status:                   m.status,
+    portalUsersCreated:       [],
+    portalUsersAlreadyExisted: 0,
+    portalUserFailures:       0,
+    failedRows:               [],
+    skippedRows:              [],
+    portalUserFailureDetails: [],
+  }));
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function computeBatchStatus(
@@ -1322,8 +1340,18 @@ export default function AdminImportPage() {
   const [executeError, setExecuteError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [view,             setView]             = useState<"history" | "wizard">("history");
+  const [wizardStep,       setWizardStep]       = useState<WizardStep>("upload");
   const [completedBatches, setCompletedBatches] = useState<CompletedBatch[]>([]);
   const [selectedBatch,    setSelectedBatch]    = useState<CompletedBatch | null>(null);
+
+  // Restore session-level import history from sessionStorage after navigation away and back.
+  // Only safe metadata is stored — no passwords, no NHI.
+  useEffect(() => {
+    const markers = readImportMarkers();
+    if (markers.length > 0) {
+      setCompletedBatches((prev) => (prev.length > 0 ? prev : markersToCompletedBatches(markers)));
+    }
+  }, []);
 
   const manifest: ImportManifestRow[] = result
     ? buildManifest({ valid: result.valid, invalid: result.invalid, reviewRows: result.reviewRows })
@@ -1378,6 +1406,7 @@ export default function AdminImportPage() {
         dupContactWarnCount: data.dupContactWarnCount ?? 0,
       });
       setActiveTab("valid");
+      setWizardStep("validate");
     } catch {
       setPreviewError('Validation failed. Try again.');
     } finally {
@@ -1424,6 +1453,14 @@ export default function AdminImportPage() {
         portalUserFailureDetails: data.portalUserFailureDetails ?? [],
       };
       setCompletedBatches(prev => [batch, ...prev]);
+      writeImportMarker({
+        batchId:    data.importBatchId,
+        executedAt: batch.executedAt,
+        created:    data.summary.created,
+        skipped:    data.summary.skipped,
+        failed:     data.summary.failed,
+        status:     batch.status,
+      });
       setExecuteResult({
         created: data.summary.created,
         skipped: data.summary.skipped,
@@ -1436,6 +1473,7 @@ export default function AdminImportPage() {
         skippedRows: data.skippedRows ?? [],
         portalUserFailureDetails: data.portalUserFailureDetails ?? [],
       });
+      setWizardStep("results");
     } catch {
       setExecuteError('Import failed. Try again.');
     } finally {
@@ -1460,6 +1498,7 @@ export default function AdminImportPage() {
     setExecuteResult(null);
     setExecuteError(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
+    setWizardStep("upload");
     setView("wizard");
   }
 
@@ -1515,16 +1554,26 @@ export default function AdminImportPage() {
             <svg className="h-10 w-10 text-gray-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
             </svg>
-            <h2 className="font-display text-2xl font-semibold text-navy">No import batches yet</h2>
+            <h2 className="font-display text-2xl font-semibold text-navy">No Patients Imported Yet</h2>
             <p className="mt-2 text-sm leading-6 text-charcoal/65 max-w-sm">
-              Import history will appear after a batch is executed in this session. No mock production batches are shown.
+              Import validates your CSV and runs preflight checks before any records are created. Review is required before execution.
+            </p>
+            <p className="mt-1 text-xs text-charcoal/50 max-w-xs">
+              No patient records are created until an approved import is executed.
             </p>
             <button
               type="button"
               onClick={openWizard}
               className="mt-6 bg-[#0B5C6C] text-white text-sm font-medium px-6 py-3 rounded-lg min-h-[44px] hover:bg-[#0B5C6C]/90 transition-colors"
             >
-              Start New Import
+              Import Patients
+            </button>
+            <button
+              type="button"
+              onClick={downloadTemplate}
+              className="mt-3 text-sm font-medium text-[#0B5C6C] hover:underline"
+            >
+              Download blank template
             </button>
           </div>
         ) : (
@@ -1538,308 +1587,369 @@ export default function AdminImportPage() {
       {/* Wizard view */}
       {view === "wizard" && (
         <div className="space-y-6">
+          <WizardStepper step={wizardStep} />
 
-      {/* Workflow banner — always visible */}
-      <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-4">
-        <p className="text-base text-amber-900 font-semibold">
-          Preview first, then execute
-        </p>
-        <p className="mt-1 text-sm leading-6 text-amber-800">
-          Preview validates the CSV and runs preflight checks. Execute Import becomes available only after preflight passes with no blocking issues.
-        </p>
-      </div>
-
-      <DemoSummaryPanel />
-
-      <WorkflowStepper />
-
-      <StageExplanationCards />
-
-      {/* Error banner */}
-      {previewError && (
-        <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3">
-          <p className="text-sm text-red-700 font-medium">{previewError}</p>
-        </div>
-      )}
-
-      {result === null && <CsvPreparationEmptyState />}
-
-      {/* Input card */}
-      <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-5 shadow-sm">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-800">CSV input</h2>
-          <p className="mt-1 text-sm leading-6 text-gray-500">
-            Upload a CSV file or paste CSV content below. NHI is masked in review reports.
-          </p>
-        </div>
-
-        {/* File upload */}
-        <div className="space-y-2">
-          <label className="block text-sm font-semibold uppercase tracking-wide text-gray-700">Upload CSV file</label>
-          <div className="flex items-center gap-3 flex-wrap">
-            <label
-              htmlFor="csv-file-input"
-              className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700
-                         bg-white hover:border-[#0B5C6C] hover:text-[#0B5C6C] cursor-pointer transition-colors min-h-[40px]"
-            >
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-              </svg>
-              Choose CSV file
-            </label>
-            <input
-              id="csv-file-input"
-              ref={fileInputRef}
-              type="file"
-              accept=".csv"
-              onChange={handleFileChange}
-              className="sr-only"
-            />
-            {fileName && (
-              <span className="text-sm text-gray-600 font-medium">{fileName}</span>
-            )}
-          </div>
-        </div>
-
-        {/* OR divider */}
-        <div className="flex items-center gap-3">
-          <div className="flex-1 h-px bg-gray-200" />
-          <span className="text-sm font-medium text-gray-400">or</span>
-          <div className="flex-1 h-px bg-gray-200" />
-        </div>
-
-        {/* Paste textarea */}
-        <div className="space-y-2">
-          <label htmlFor="csv-paste" className="block text-sm font-semibold uppercase tracking-wide text-gray-700">
-            Paste CSV
-          </label>
-          <textarea
-            id="csv-paste"
-            value={csvText}
-            onChange={(e) => setCsvText(e.target.value)}
-            rows={8}
-            placeholder="Paste CSV content here…"
-            className="w-full px-3 py-3 border border-gray-300 rounded-lg text-sm font-mono text-gray-800
-                       focus:outline-none focus:ring-2 focus:ring-[#0B5C6C] focus:border-transparent
-                       placeholder:text-gray-400 resize-y"
-          />
-        </div>
-
-        {/* Action buttons + template download */}
-        <div className="flex items-center gap-3 flex-wrap">
-          <button
-            type="button"
-            onClick={handlePreview}
-            disabled={!canPreview}
-            className="bg-[#0B5C6C] text-white text-sm font-medium px-5 py-2.5 rounded-lg min-h-[40px]
-                       hover:bg-[#0B5C6C]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isPreviewing ? 'Previewing…' : 'Preview CSV'}
-          </button>
-          <button
-            type="button"
-            onClick={handleClear}
-            disabled={!canClear}
-            className="border border-gray-300 text-gray-700 text-sm font-medium px-5 py-2.5 rounded-lg min-h-[40px]
-                       hover:border-gray-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Clear
-          </button>
-          {result !== null && preflightState === 'passed' && (
-            <button
-              type="button"
-              onClick={handleExecute}
-              disabled={!canExecute}
-              className="bg-[#74C0A2] text-white text-sm font-semibold px-5 py-2.5 rounded-lg min-h-[40px]
-                         hover:bg-[#74C0A2]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isExecuting ? 'Importing…' : 'Execute Import'}
-            </button>
-          )}
-          <div className="h-6 w-px bg-gray-200 hidden sm:block" />
-          <DownloadButton label="Download blank template" onClick={downloadTemplate} />
-        </div>
-      </div>
-
-      {/* Execute result — shown immediately after action buttons, before preview detail */}
-      {executeError && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-          <p className="text-sm text-red-700 font-medium">{executeError}</p>
-        </div>
-      )}
-      {executeResult && <ExecuteResultPanel result={executeResult} />}
-
-      {/* Results */}
-      {result !== null && (
-        <div className="space-y-5">
-
-          {/* Import readiness panel */}
-          <ReadinessPanel result={result} />
-
-          {/* Import preflight panel */}
-          <PreflightPanel result={result} preflightState={preflightState} manifest={manifest} />
-
-          {/* Import approval panel */}
-          <ImportApprovalPanel result={result} preflightState={preflightState} />
-
-          {/* Import risk report panel */}
-          <ImportRiskReportPanel result={result} preflightState={preflightState} manifest={manifest} />
-
-          {/* Import manifest preview */}
-          <ManifestPreview manifest={manifest} />
-
-          {/* Summary cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <SummaryCard label="Total rows" value={result.totalRows} />
-            <SummaryCard
-              label="Valid"
-              value={result.valid.length}
-              accent={result.valid.length > 0 ? "text-emerald-700" : "text-gray-500"}
-            />
-            <SummaryCard
-              label="Invalid"
-              value={result.invalid.length}
-              accent={result.invalid.length > 0 ? "text-red-600" : "text-gray-500"}
-            />
-          </div>
-
-          {/* Rows needing review */}
-          {result.reviewRows.length > 0 && (
-            <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-200">
-                <h2 className="text-base font-semibold text-gray-800">Rows needing review</h2>
-                <p className="text-sm text-gray-500 mt-0.5">Resolve these issues before import.</p>
+          {/* ── Step 1: Upload ── */}
+          {wizardStep === "upload" && (
+            <div className="space-y-6">
+              <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-4 space-y-1">
+                <p className="text-sm font-semibold text-amber-900">No records are created during this step</p>
+                <p className="text-sm text-amber-800">
+                  Your CSV will be validated and reviewed before any data is written. NHI values are masked in preview and report screens.
+                </p>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[640px] border-collapse text-sm">
-                  <thead>
-                    <tr className="bg-gray-50 border-b border-gray-200">
-                      {["Row", "Name", "NHI", "Serial", "Issue", "Detail", "Severity"].map((col) => (
-                        <th key={col} className="text-left px-4 py-3 font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap text-xs">
-                          {col}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {result.reviewRows.map((row, i) => (
-                      <tr key={i} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-4 py-3 text-gray-600 tabular-nums">{row.rowNumber}</td>
-                        <td className="px-4 py-3 font-medium text-gray-800 whitespace-nowrap">{row.name || "—"}</td>
-                        <td className="px-4 py-3 font-mono text-gray-700">{row.maskedNhi}</td>
-                        <td className="px-4 py-3 font-mono text-gray-700">{row.machineSerial || "—"}</td>
-                        <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{row.issueType.replace(/_/g, " ")}</td>
-                        <td className="px-4 py-3 text-gray-600">{row.issueDetail}</td>
-                        <td className="px-4 py-3">
-                          {row.severity === "review" ? (
-                            <span className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700">Review</span>
-                          ) : (
-                            <span className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Warning</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
 
-          {/* CSV cleanup tools */}
-          <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-4">
-            <div>
-              <h2 className="text-base font-semibold text-gray-800">CSV cleanup tools</h2>
-              <p className="text-sm text-gray-500 mt-0.5">
-                Download processed files for review or re-import. NHI is masked in the error report.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <DownloadButton
-                label="Download blank template"
-                onClick={downloadTemplate}
-              />
-              <DownloadButton
-                label={`Download valid rows (${result.valid.length})`}
-                onClick={() => downloadValidRows(result.valid)}
-                disabled={result.valid.length === 0}
-              />
-              <DownloadButton
-                label={`Download invalid rows (${result.invalid.length})`}
-                onClick={() => downloadInvalidRows(result.invalid)}
-                disabled={result.invalid.length === 0}
-              />
-              <DownloadButton
-                label={`Download error report (${result.invalid.length})`}
-                onClick={() => downloadErrorReport(result.invalid)}
-                disabled={result.invalid.length === 0}
-              />
-              <DownloadButton
-                label={`Download review report (${result.reviewRows.length})`}
-                onClick={() => downloadReviewReport(result.reviewRows)}
-                disabled={result.reviewRows.length === 0}
-              />
-            </div>
-          </div>
+              <CsvPreparationEmptyState />
 
-          {/* Tab bar + table */}
-          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-            <div className="border-b border-gray-200">
-              <nav className="flex">
-                {(["valid", "invalid"] as ActiveTab[]).map((tab) => {
-                  const count = tab === "valid" ? result.valid.length : result.invalid.length;
-                  const isActive = activeTab === tab;
-                  return (
-                    <button
-                      key={tab}
-                      type="button"
-                      onClick={() => setActiveTab(tab)}
-                      className={`flex items-center gap-2 px-5 py-3.5 text-sm font-medium border-b-2 transition-colors ${
-                        isActive
-                          ? "border-[#0B5C6C] text-[#0B5C6C]"
-                          : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                      }`}
+              {previewError && (
+                <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+                  <p className="text-sm text-red-700 font-medium">{previewError}</p>
+                </div>
+              )}
+
+              <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-5 shadow-sm">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-800">Upload CSV</h2>
+                  <p className="mt-1 text-sm leading-6 text-gray-500">
+                    Upload a CSV file or paste CSV content below. NHI is masked in all preview and report screens.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold uppercase tracking-wide text-gray-700">Upload CSV file</label>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <label
+                      htmlFor="csv-file-input"
+                      className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700
+                                 bg-white hover:border-[#0B5C6C] hover:text-[#0B5C6C] cursor-pointer transition-colors min-h-[40px]"
                     >
-                      {tab === "valid" ? "Valid rows" : "Invalid rows"}
-                      <span
-                        className={`inline-flex items-center justify-center rounded-full text-xs font-semibold px-2 py-0.5 min-w-[22px] ${
-                          isActive ? "bg-[#0B5C6C] text-white" : "bg-gray-100 text-gray-600"
-                        }`}
-                      >
-                        {count}
-                      </span>
-                    </button>
-                  );
-                })}
-              </nav>
-            </div>
-            <div className="p-4">
-              {activeTab === "valid"
-                ? <ValidTable rows={result.valid} />
-                : <InvalidTable rows={result.invalid} />
-              }
-            </div>
-          </div>
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                      </svg>
+                      Choose CSV file
+                    </label>
+                    <input
+                      id="csv-file-input"
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".csv"
+                      onChange={handleFileChange}
+                      className="sr-only"
+                    />
+                    {fileName && (
+                      <span className="text-sm text-gray-600 font-medium">{fileName}</span>
+                    )}
+                  </div>
+                </div>
 
-          {/* Error summary */}
-          {result.errorSummary.length > 0 && (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-5 space-y-3">
-              <h3 className="text-sm font-semibold text-red-800 uppercase tracking-wide">
-                Error types found
-              </h3>
-              <ul className="space-y-1">
-                {result.errorSummary.map((msg) => (
-                  <li key={msg} className="flex items-start gap-2 text-sm text-red-700">
-                    <span className="mt-0.5 shrink-0">•</span>
-                    <span>{msg}</span>
-                  </li>
-                ))}
-              </ul>
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 h-px bg-gray-200" />
+                  <span className="text-sm font-medium text-gray-400">or</span>
+                  <div className="flex-1 h-px bg-gray-200" />
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="csv-paste" className="block text-sm font-semibold uppercase tracking-wide text-gray-700">
+                    Paste CSV
+                  </label>
+                  <textarea
+                    id="csv-paste"
+                    value={csvText}
+                    onChange={(e) => setCsvText(e.target.value)}
+                    rows={8}
+                    placeholder="Paste CSV content here…"
+                    className="w-full px-3 py-3 border border-gray-300 rounded-lg text-sm font-mono text-gray-800
+                               focus:outline-none focus:ring-2 focus:ring-[#0B5C6C] focus:border-transparent
+                               placeholder:text-gray-400 resize-y"
+                  />
+                </div>
+
+                <div className="flex items-center gap-3 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={handlePreview}
+                    disabled={!canPreview}
+                    className="bg-[#0B5C6C] text-white text-sm font-medium px-5 py-2.5 rounded-lg min-h-[40px]
+                               hover:bg-[#0B5C6C]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isPreviewing ? 'Validating…' : 'Validate CSV'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleClear}
+                    disabled={!canClear}
+                    className="border border-gray-300 text-gray-700 text-sm font-medium px-5 py-2.5 rounded-lg min-h-[40px]
+                               hover:border-gray-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Clear
+                  </button>
+                  <div className="h-6 w-px bg-gray-200 hidden sm:block" />
+                  <DownloadButton label="Download blank template" onClick={downloadTemplate} />
+                </div>
+              </div>
             </div>
           )}
 
+          {/* ── Step 2: Validate ── */}
+          {wizardStep === "validate" && result !== null && (
+            <div className="space-y-5">
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-800">Validation results</h2>
+                  <p className="text-sm text-gray-500 mt-0.5">Review all issues before proceeding to approval.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setWizardStep("upload")}
+                  className="flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-[#0B5C6C] transition-colors"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                  </svg>
+                  Back to Upload
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <SummaryCard label="Total rows"  value={result.totalRows} />
+                <SummaryCard label="Valid"        value={result.valid.length}       accent={result.valid.length       > 0 ? "text-emerald-700" : "text-gray-500"} />
+                <SummaryCard label="Invalid"      value={result.invalid.length}     accent={result.invalid.length     > 0 ? "text-red-600"     : "text-gray-500"} />
+                <SummaryCard label="Needs review" value={result.reviewRows.length}  accent={result.reviewRows.length  > 0 ? "text-amber-600"   : "text-gray-500"} />
+              </div>
+
+              <ReadinessPanel result={result} />
+
+              {result.invalid.length > 0 && (
+                <div className="bg-white border border-red-200 rounded-xl overflow-hidden">
+                  <div className="px-5 py-4 border-b border-red-100 flex items-start justify-between gap-3 flex-wrap">
+                    <div>
+                      <h3 className="text-sm font-semibold text-red-800">Blocked rows ({result.invalid.length})</h3>
+                      <p className="text-xs text-red-700 mt-0.5">These rows must be corrected and re-uploaded before import.</p>
+                    </div>
+                    <DownloadButton
+                      label={`Download invalid rows (${result.invalid.length})`}
+                      onClick={() => downloadInvalidRows(result.invalid)}
+                    />
+                  </div>
+                  <div className="p-4">
+                    <InvalidTable rows={result.invalid} />
+                  </div>
+                  {result.errorSummary.length > 0 && (
+                    <div className="px-5 py-4 border-t border-red-100 bg-red-50 space-y-2">
+                      <p className="text-xs font-semibold text-red-800 uppercase tracking-wide">Error types found</p>
+                      <ul className="space-y-1">
+                        {result.errorSummary.map((msg) => (
+                          <li key={msg} className="flex items-start gap-2 text-sm text-red-700">
+                            <span className="mt-0.5 shrink-0">•</span>
+                            <span>{msg}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {result.reviewRows.length > 0 && (
+                <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                  <div className="px-5 py-4 border-b border-gray-200 flex items-start justify-between gap-3 flex-wrap">
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-800">Rows needing review ({result.reviewRows.length})</h3>
+                      <p className="text-sm text-gray-500 mt-0.5">Resolve these issues before approval.</p>
+                    </div>
+                    <DownloadButton
+                      label={`Download review report (${result.reviewRows.length})`}
+                      onClick={() => downloadReviewReport(result.reviewRows)}
+                    />
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[640px] border-collapse text-sm">
+                      <thead>
+                        <tr className="bg-gray-50 border-b border-gray-200">
+                          {["Row", "Name", "NHI", "Serial", "Issue", "Detail", "Severity"].map((col) => (
+                            <th key={col} className="text-left px-4 py-3 font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap text-xs">
+                              {col}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {result.reviewRows.map((row, i) => (
+                          <tr key={i} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-4 py-3 text-gray-600 tabular-nums">{row.rowNumber}</td>
+                            <td className="px-4 py-3 font-medium text-gray-800 whitespace-nowrap">{row.name || "—"}</td>
+                            <td className="px-4 py-3 font-mono text-gray-700">{row.maskedNhi}</td>
+                            <td className="px-4 py-3 font-mono text-gray-700">{row.machineSerial || "—"}</td>
+                            <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{row.issueType.replace(/_/g, " ")}</td>
+                            <td className="px-4 py-3 text-gray-600">{row.issueDetail}</td>
+                            <td className="px-4 py-3">
+                              {row.severity === "review" ? (
+                                <span className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700">Review</span>
+                              ) : (
+                                <span className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Warning</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              <RemediationGuide />
+
+              <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
+                <h3 className="text-sm font-semibold text-gray-800">CSV cleanup tools</h3>
+                <div className="flex flex-wrap gap-3">
+                  <DownloadButton label="Download blank template" onClick={downloadTemplate} />
+                  <DownloadButton
+                    label={`Download valid rows (${result.valid.length})`}
+                    onClick={() => downloadValidRows(result.valid)}
+                    disabled={result.valid.length === 0}
+                  />
+                  <DownloadButton
+                    label={`Download invalid rows (${result.invalid.length})`}
+                    onClick={() => downloadInvalidRows(result.invalid)}
+                    disabled={result.invalid.length === 0}
+                  />
+                  <DownloadButton
+                    label={`Download error report (${result.invalid.length})`}
+                    onClick={() => downloadErrorReport(result.invalid)}
+                    disabled={result.invalid.length === 0}
+                  />
+                  <DownloadButton
+                    label={`Download review report (${result.reviewRows.length})`}
+                    onClick={() => downloadReviewReport(result.reviewRows)}
+                    disabled={result.reviewRows.length === 0}
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-4 flex-wrap pt-2">
+                <button
+                  type="button"
+                  onClick={() => setWizardStep("upload")}
+                  className="flex items-center gap-1.5 border border-gray-300 text-gray-700 text-sm font-medium px-4 py-2.5 rounded-lg min-h-[40px] hover:border-[#0B5C6C] hover:text-[#0B5C6C] transition-colors"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                  </svg>
+                  Back to Upload
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWizardStep("approve")}
+                  className="bg-[#0B5C6C] text-white text-sm font-medium px-6 py-2.5 rounded-lg min-h-[40px] hover:bg-[#0B5C6C]/90 transition-colors"
+                >
+                  Next: Review & Approve →
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── Step 3: Review & Approve ── */}
+          {wizardStep === "approve" && result !== null && (
+            <div className="space-y-5">
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-800">Review & Approve</h2>
+                  <p className="text-sm text-gray-500 mt-0.5">Complete the approval checklist and execute the import when ready.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setWizardStep("validate")}
+                  className="flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-[#0B5C6C] transition-colors"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                  </svg>
+                  Back to Validate
+                </button>
+              </div>
+
+              <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-4 space-y-1">
+                <p className="text-sm font-semibold text-amber-900">Portal account consequences</p>
+                <p className="text-sm text-amber-800">
+                  Rows with portal access enabled may create linked portal accounts. Temporary credentials are shown once after import and cannot be retrieved later.
+                </p>
+              </div>
+
+              <PreflightPanel result={result} preflightState={preflightState} manifest={manifest} />
+
+              <ImportApprovalPanel result={result} preflightState={preflightState} />
+
+              <ImportRiskReportPanel result={result} preflightState={preflightState} manifest={manifest} />
+
+              <ManifestPreview manifest={manifest} />
+
+              {preflightState !== 'passed' && (
+                <div className="bg-red-50 border border-red-200 rounded-xl px-5 py-4">
+                  <p className="text-sm font-semibold text-red-800 mb-1">Execute Import is not available</p>
+                  <p className="text-sm text-red-700">
+                    {result.invalid.length > 0 || result.dupNhiGroupCount > 0 || result.dupSerialGroupCount > 0
+                      ? "Blocked rows must be corrected before import. Go back to Validate and re-upload a corrected CSV."
+                      : result.dupContactWarnCount > 0 || result.reviewRows.length > 0
+                        ? "Rows needing review must be approved before execution. Complete all approval items to enable import."
+                        : "Complete all approval items to enable import."}
+                  </p>
+                </div>
+              )}
+
+              {executeError && (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+                  <p className="text-sm text-red-700 font-medium">{executeError}</p>
+                </div>
+              )}
+
+              <div className="flex items-center gap-4 flex-wrap pt-2">
+                <button
+                  type="button"
+                  onClick={() => setWizardStep("validate")}
+                  className="flex items-center gap-1.5 border border-gray-300 text-gray-700 text-sm font-medium px-4 py-2.5 rounded-lg min-h-[40px] hover:border-[#0B5C6C] hover:text-[#0B5C6C] transition-colors"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                  </svg>
+                  Back to Validate
+                </button>
+                {preflightState === 'passed' && (
+                  <button
+                    type="button"
+                    onClick={handleExecute}
+                    disabled={!canExecute}
+                    className="bg-[#74C0A2] text-white text-sm font-semibold px-6 py-2.5 rounded-lg min-h-[40px]
+                               hover:bg-[#74C0A2]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isExecuting ? 'Importing…' : 'Execute Import'}
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ── Step 4: Results ── */}
+          {wizardStep === "results" && executeResult !== null && (
+            <div className="space-y-5">
+              <ExecuteResultPanel result={executeResult} />
+              <div className="flex items-center gap-3 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setView("history")}
+                  className="bg-[#0B5C6C] text-white text-sm font-medium px-5 py-2.5 rounded-lg min-h-[40px] hover:bg-[#0B5C6C]/90 transition-colors"
+                >
+                  Return to Import History
+                </button>
+                <a
+                  href="/admin/patients"
+                  className="border border-gray-300 text-gray-700 text-sm font-medium px-5 py-2.5 rounded-lg min-h-[40px] inline-flex items-center hover:border-[#0B5C6C] hover:text-[#0B5C6C] transition-colors"
+                >
+                  Go to Patients →
+                </a>
+              </div>
+            </div>
+          )}
         </div>
-      )}
-      </div>
       )}
     </div>
   );
