@@ -164,6 +164,7 @@ const HEADER_ALIASES: Record<string, string> = {
 
 const FUNDED_BY_MAP: Record<string, string> = {
   'acc':           'ACC',
+  'public':        'Public',
   'private':       'Private',
   'acc/private':   'ACC/Private',
   'acc / private': 'ACC/Private',
@@ -173,6 +174,21 @@ const FUNDED_BY_MAP: Record<string, string> = {
 
 const PORTAL_TRUE_VALS  = new Set(['yes', 'YES', 'Yes', 'TRUE', 'True', '1']);
 const PORTAL_FALSE_VALS = new Set(['no',  'NO',  'No',  'FALSE', 'False', '0']);
+
+const BRAND_MAP: Record<string, string> = {
+  'resmed': 'ResMed',
+};
+
+const MODEL_MAP: Record<string, string> = {
+  'airsense 10': 'AirSense 10',
+  'airfit n20':  'AirFit N20',
+};
+
+const MASK_SIZE_MAP: Record<string, string> = {
+  'm': 'M',
+  's': 'S',
+  'l': 'L',
+};
 
 type AutocleanSummary = { changes: string[] };
 
@@ -209,7 +225,8 @@ function buildAutoCleanedCsvBlob(rawCsv: string): AutocleanSummary & { blob: Blo
   }
 
   const outputRows: string[][] = [];
-  let blankRemoved = 0, trimCount = 0, portalCount = 0, fundedCount = 0, dateCount = 0;
+  let blankRemoved = 0, trimCount = 0, portalCount = 0, fundedCount = 0,
+      dobCount = 0, setupDateCount = 0, maskSizeCount = 0, brandCount = 0, modelCount = 0;
 
   for (let i = headerIdx + 1; i < rawLines.length; i++) {
     const line = rawLines[i];
@@ -239,16 +256,39 @@ function buildAutoCleanedCsvBlob(rawCsv: string): AutocleanSummary & { blob: Blo
     // Normalize unambiguous date formats only
     const dob = row['date_of_birth'] ?? '';
     const normalizedDob = tryNormalizeDateUnambiguous(dob);
-    if (normalizedDob !== null) { row['date_of_birth'] = normalizedDob; dateCount++; }
+    if (normalizedDob !== null) { row['date_of_birth'] = normalizedDob; dobCount++; }
+
+    const msd = row['machine_setup_date'] ?? '';
+    const normalizedMsd = tryNormalizeDateUnambiguous(msd);
+    if (normalizedMsd !== null) { row['machine_setup_date'] = normalizedMsd; setupDateCount++; }
+
+    // Normalize mask_size to title case
+    const msz = (row['mask_size'] ?? '').trim();
+    const mszNorm = MASK_SIZE_MAP[msz.toLowerCase()];
+    if (mszNorm && msz !== mszNorm) { row['mask_size'] = mszNorm; maskSizeCount++; }
+
+    // Normalize machine_brand display value
+    const mb = (row['machine_brand'] ?? '').trim();
+    const mbNorm = BRAND_MAP[mb.toLowerCase()];
+    if (mbNorm && mb !== mbNorm) { row['machine_brand'] = mbNorm; brandCount++; }
+
+    // Normalize machine_model display value
+    const mm = (row['machine_model'] ?? '').trim();
+    const mmNorm = MODEL_MAP[mm.toLowerCase()];
+    if (mmNorm && mm !== mmNorm) { row['machine_model'] = mmNorm; modelCount++; }
 
     outputRows.push(TEMPLATE_HEADERS_ARRAY.map((h) => row[h] ?? ''));
   }
 
-  if (blankRemoved > 0) changes.push(`Removed ${blankRemoved} blank row${blankRemoved !== 1 ? 's' : ''}.`);
-  if (trimCount   > 0) changes.push(`Trimmed whitespace from ${trimCount} cell${trimCount !== 1 ? 's' : ''}.`);
-  if (portalCount > 0) changes.push('Normalized portal access values to true/false.');
-  if (fundedCount > 0) changes.push('Normalized funded_by casing (ACC, Private, ACC/Private).');
-  if (dateCount   > 0) changes.push(`Normalized ${dateCount} unambiguous date format${dateCount !== 1 ? 's' : ''} to YYYY-MM-DD.`);
+  if (blankRemoved   > 0) changes.push(`Removed ${blankRemoved} blank row${blankRemoved !== 1 ? 's' : ''}.`);
+  if (trimCount      > 0) changes.push(`Trimmed whitespace from ${trimCount} cell${trimCount !== 1 ? 's' : ''}.`);
+  if (portalCount    > 0) changes.push('Normalized portal access values to true/false.');
+  if (fundedCount    > 0) changes.push('Normalized funded_by casing (ACC, Public, Private, ACC/Private).');
+  if (dobCount       > 0) changes.push(`Normalized ${dobCount} date_of_birth format${dobCount !== 1 ? 's' : ''} to YYYY-MM-DD.`);
+  if (setupDateCount > 0) changes.push(`Normalized ${setupDateCount} machine_setup_date format${setupDateCount !== 1 ? 's' : ''} to YYYY-MM-DD.`);
+  if (maskSizeCount  > 0) changes.push('Normalized mask size to title case (M, S, L).');
+  if (brandCount     > 0) changes.push('Normalized machine brand display values (e.g. ResMed).');
+  if (modelCount     > 0) changes.push('Normalized machine model display values (e.g. AirSense 10, AirFit N20).');
 
   return { changes, blob: buildCsvBlob(TEMPLATE_HEADERS_ARRAY, outputRows) };
 }
