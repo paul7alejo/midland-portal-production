@@ -52,8 +52,8 @@ export function ImportHistoryTable({
     <div className="bg-white border border-sand rounded-xl overflow-hidden shadow-[0_18px_50px_rgba(11,42,60,0.08)]">
       <div className="px-5 py-4 border-b border-sand flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h2 className="text-base font-semibold text-navy">Import history</h2>
-          <p className="text-sm text-charcoal/65 mt-0.5">Session imports only. No production history is invented.</p>
+          <h2 className="text-base font-semibold text-navy">Import History</h2>
+          <p className="text-sm text-charcoal/65 mt-0.5">Each row is an executed import batch. Select View Details to see created, skipped, and failed records.</p>
         </div>
         <span className="text-xs font-mono text-charcoal/50">
           {batches.length} batch{batches.length !== 1 ? "es" : ""}

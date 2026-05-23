@@ -285,6 +285,53 @@ export function ImportDetailsSheet({
             </div>
           )}
 
+          {/* Recovery awareness — placeholder only, no rollback implemented */}
+          <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <div>
+                <h3 className="text-sm font-semibold text-gray-800">Batch recovery</h3>
+                <p className="text-xs text-gray-500 mt-0.5">Rollback is not a one-click delete. A recovery preflight is required before any reversal.</p>
+              </div>
+              <span className="inline-block text-xs font-semibold px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 border border-gray-200 whitespace-nowrap">
+                Rollback eligibility not assessed
+              </span>
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-gray-700 uppercase tracking-wide">Impact areas requiring manual review</p>
+              <ul className="grid gap-1 sm:grid-cols-2">
+                {[
+                  "Patient records",
+                  "Device records",
+                  "Mask records",
+                  "Entitlement records",
+                  "Portal account links",
+                  "Cognito users",
+                  "Notes",
+                  "Outreach",
+                  "Admin caution / safety actions",
+                  "Orders / fulfilment (if applicable)",
+                ].map((area) => (
+                  <li key={area} className="flex items-center gap-2 text-sm text-gray-700">
+                    <span className="h-1.5 w-1.5 rounded-full bg-gray-400 shrink-0" />
+                    {area}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="border-t border-gray-100 pt-4 space-y-2">
+              <p className="text-xs text-gray-500">
+                Recovery preflight must be completed before any rollback is considered. A manual review of all impact areas is required first.
+              </p>
+              <button
+                type="button"
+                disabled
+                className="inline-flex items-center gap-2 border border-gray-200 text-gray-400 text-sm font-medium px-4 py-2.5 rounded-lg min-h-[40px] cursor-not-allowed bg-gray-50"
+              >
+                Rollback locked — manual review required
+              </button>
+            </div>
+          </div>
+
         </div>
       </div>
     </>
