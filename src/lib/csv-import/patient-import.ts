@@ -168,6 +168,12 @@ export function validateParsedPatient(p: ParsedPatient): string[] {
     errors.push('Machine serial must not be empty');
   }
 
+  if (!p.enablePortalAccess) {
+    errors.push(
+      'Portal access is required for all imported patients. Set enable_portal_access to true, or contact your administrator if an exception is needed.'
+    );
+  }
+
   if (p.csvPortalId && !/^MS-\d{6}$/.test(p.csvPortalId)) {
     errors.push(`Invalid portal_id format: "${p.csvPortalId}" — expected MS-XXXXXX (e.g. MS-445566)`);
   }

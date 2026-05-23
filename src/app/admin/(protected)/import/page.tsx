@@ -267,15 +267,23 @@ function buildAutoCleanedCsvBlob(rawCsv: string): AutocleanSummary & { blob: Blo
     const mszNorm = MASK_SIZE_MAP[msz.toLowerCase()];
     if (mszNorm && msz !== mszNorm) { row['mask_size'] = mszNorm; maskSizeCount++; }
 
-    // Normalize machine_brand display value
+    // Normalize machine_brand and mask_brand display values
     const mb = (row['machine_brand'] ?? '').trim();
     const mbNorm = BRAND_MAP[mb.toLowerCase()];
     if (mbNorm && mb !== mbNorm) { row['machine_brand'] = mbNorm; brandCount++; }
 
-    // Normalize machine_model display value
+    const mxb = (row['mask_brand'] ?? '').trim();
+    const mxbNorm = BRAND_MAP[mxb.toLowerCase()];
+    if (mxbNorm && mxb !== mxbNorm) { row['mask_brand'] = mxbNorm; brandCount++; }
+
+    // Normalize machine_model and mask_model display values
     const mm = (row['machine_model'] ?? '').trim();
     const mmNorm = MODEL_MAP[mm.toLowerCase()];
     if (mmNorm && mm !== mmNorm) { row['machine_model'] = mmNorm; modelCount++; }
+
+    const mxm = (row['mask_model'] ?? '').trim();
+    const mxmNorm = MODEL_MAP[mxm.toLowerCase()];
+    if (mxmNorm && mxm !== mxmNorm) { row['mask_model'] = mxmNorm; modelCount++; }
 
     outputRows.push(TEMPLATE_HEADERS_ARRAY.map((h) => row[h] ?? ''));
   }
@@ -287,8 +295,8 @@ function buildAutoCleanedCsvBlob(rawCsv: string): AutocleanSummary & { blob: Blo
   if (dobCount       > 0) changes.push(`Normalized ${dobCount} date_of_birth format${dobCount !== 1 ? 's' : ''} to YYYY-MM-DD.`);
   if (setupDateCount > 0) changes.push(`Normalized ${setupDateCount} machine_setup_date format${setupDateCount !== 1 ? 's' : ''} to YYYY-MM-DD.`);
   if (maskSizeCount  > 0) changes.push('Normalized mask size to title case (M, S, L).');
-  if (brandCount     > 0) changes.push('Normalized machine brand display values (e.g. ResMed).');
-  if (modelCount     > 0) changes.push('Normalized machine model display values (e.g. AirSense 10, AirFit N20).');
+  if (brandCount     > 0) changes.push('Normalized brand display values for machine and mask (e.g. ResMed).');
+  if (modelCount     > 0) changes.push('Normalized model display values for machine and mask (e.g. AirSense 10, AirFit N20).');
 
   return { changes, blob: buildCsvBlob(TEMPLATE_HEADERS_ARRAY, outputRows) };
 }
@@ -677,13 +685,14 @@ function WizardStepper({ step }: { step: WizardStep }) {
 
 function RemediationGuide() {
   const items: { label: "Blocked" | "Needs review"; text: string }[] = [
+    { label: "Blocked",      text: "Portal access disabled or missing — enable_portal_access must be true for all imported patients. Set it to true and re-upload, or contact your administrator if an exception is needed." },
     { label: "Blocked",      text: "Missing date_of_birth — add DOB and re-upload CSV." },
     { label: "Blocked",      text: "Missing full_name or NHI — required before import." },
-    { label: "Blocked",      text: "Invalid date format — use DD/MM/YYYY." },
+    { label: "Blocked",      text: "Invalid date format — use YYYY-MM-DD or unambiguous DD/MM/YYYY." },
     { label: "Blocked",      text: "Duplicate NHI — existing patient record found. Remove duplicate or confirm source data." },
     { label: "Blocked",      text: "Duplicate machine serial — review equipment assignment before import." },
     { label: "Needs review", text: "Shared contact detail — review before approval." },
-    { label: "Needs review", text: "Portal account warning — portal access is enabled, but email is missing or invalid." },
+    { label: "Needs review", text: "Portal access enabled but email is missing or invalid — add a valid email before import." },
   ];
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-3">
@@ -717,6 +726,9 @@ function CsvPreparationEmptyState() {
           </span>
         ))}
       </div>
+      <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+        <span className="font-semibold">Portal access required:</span> <code className="font-mono">enable_portal_access</code> must be <code className="font-mono">true</code> for all rows. Rows without portal access will be blocked before import.
+      </p>
     </div>
   );
 }
@@ -2013,9 +2025,12 @@ export default function AdminImportPage() {
                     Downloads a corrected copy of your CSV with safe formatting fixes applied — whitespace trimmed, blank rows removed, headers normalised, boolean and funded-by values standardised, and unambiguous dates converted to ISO format.
                   </p>
                 </div>
-                <div className="border border-amber-200 bg-amber-50 rounded-lg px-4 py-3">
+                <div className="border border-amber-200 bg-amber-50 rounded-lg px-4 py-3 space-y-1.5">
                   <p className="text-xs text-amber-800">
                     Auto-clean only fixes safe formatting issues. Duplicate, identity, portal account, and equipment conflicts still require staff review.
+                  </p>
+                  <p className="text-xs text-amber-800">
+                    Auto-clean normalises <code className="font-mono">yes</code>/<code className="font-mono">true</code>/<code className="font-mono">1</code> to <code className="font-mono">true</code> and <code className="font-mono">no</code>/<code className="font-mono">false</code>/<code className="font-mono">0</code> to <code className="font-mono">false</code>, but it does <strong>not</strong> enable portal access for disabled rows. Rows where <code className="font-mono">enable_portal_access</code> is <code className="font-mono">false</code> or missing will be blocked in validation and must be corrected in the source CSV.
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-4">
@@ -2115,11 +2130,22 @@ export default function AdminImportPage() {
                 </button>
               </div>
 
-              <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-4 space-y-1">
-                <p className="text-sm font-semibold text-amber-900">Portal account consequences</p>
-                <p className="text-sm text-amber-800">
-                  Rows with portal access enabled may create linked portal accounts. Temporary credentials are shown once after import and cannot be retrieved later.
-                </p>
+              <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-4 space-y-3">
+                <p className="text-sm font-semibold text-amber-900">Portal account preview</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-white rounded-lg px-4 py-3 border border-amber-100">
+                    <p className="text-xs text-amber-800 font-medium">Valid patients</p>
+                    <p className="text-2xl font-bold tabular-nums text-amber-900 mt-0.5">{result.valid.length}</p>
+                  </div>
+                  <div className="bg-white rounded-lg px-4 py-3 border border-amber-100">
+                    <p className="text-xs text-amber-800 font-medium">Expected portal accounts</p>
+                    <p className={`text-2xl font-bold tabular-nums mt-0.5 ${result.valid.length > 0 ? "text-[#0B5C6C]" : "text-gray-400"}`}>{result.valid.length}</p>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm text-amber-800">All valid rows must have portal access enabled. Rows with portal access disabled or missing are blocked before this step.</p>
+                  <p className="text-sm text-amber-800">Temporary credentials are shown once after import and cannot be retrieved later.</p>
+                </div>
               </div>
 
               <PreflightPanel result={result} preflightState={preflightState} manifest={manifest} />
