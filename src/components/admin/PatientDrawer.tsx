@@ -1716,6 +1716,14 @@ function AccountTab({ msid }: { msid: string }) {
           </div>
         )}
       </dl>
+      {account.passwordStatus === "temp" && (
+        <div className="border border-amber-200 bg-amber-50 rounded-lg px-4 py-3 space-y-1">
+          <p className="text-xs font-semibold text-amber-900">Temporary password active</p>
+          <p className="text-xs text-amber-800">
+            Original temporary password cannot be retrieved. Use Reset Password to generate a new temporary password.
+          </p>
+        </div>
+      )}
       <div className="pt-1">
         <a
           href={`/admin/portal-accounts?msid=${encodeURIComponent(msid)}`}

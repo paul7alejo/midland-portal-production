@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import type { ParsedPatient, ReviewRow } from "@/lib/csv-import/patient-import";
 import type { ImportManifestRow, PreflightState } from "@/lib/csv-import/import-preflight";
 import { computePreflightState, buildManifest } from "@/lib/csv-import/import-preflight";
@@ -1225,7 +1225,10 @@ function ExecuteResultPanel({ result }: { result: ExecuteResultState }) {
         <div className="bg-amber-50 border border-amber-300 rounded-xl overflow-hidden">
           <div className="px-5 py-4 border-b border-amber-200 space-y-1">
             <h3 className="text-sm font-semibold text-amber-900">Portal access — temporary passwords</h3>
-            <p className="text-xs text-amber-800 font-semibold">Copy now. Temporary passwords are not stored.</p>
+            <p className="text-xs text-amber-800 font-semibold">Copy these credentials now. Temporary passwords are shown once and are not stored.</p>
+            <p className="text-xs text-amber-800">
+              If missed, generate a new temporary password from the Portal Account reset action. Original passwords cannot be retrieved.
+            </p>
             <p className="text-xs text-amber-700">
               Patients log in with their number-only username (no MS- prefix). Password must be changed on first login.
             </p>
@@ -1258,6 +1261,58 @@ function ExecuteResultPanel({ result }: { result: ExecuteResultState }) {
   );
 }
 
+// ─── Session import marker (safe, no passwords, no NHI) ──────────────────────
+
+type RecentImportMarker = {
+  batchId:    string;
+  executedAt: string;
+  created:    number;
+  skipped:    number;
+  failed:     number;
+  status:     CompletedBatch["status"];
+};
+
+const SESSION_KEY = "midland_import_session";
+
+function readImportMarkers(): RecentImportMarker[] {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeImportMarker(marker: RecentImportMarker): void {
+  try {
+    const existing = readImportMarkers();
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify([marker, ...existing]));
+  } catch {
+    // sessionStorage unavailable, ignore
+  }
+}
+
+function markersToCompletedBatches(markers: RecentImportMarker[]): CompletedBatch[] {
+  return markers.map((m) => ({
+    batchId:                  m.batchId,
+    executedAt:               m.executedAt,
+    importedBy:               "Admin session",
+    totalRows:                m.created + m.skipped + m.failed,
+    created:                  m.created,
+    skipped:                  m.skipped,
+    failed:                   m.failed,
+    status:                   m.status,
+    portalUsersCreated:       [],
+    portalUsersAlreadyExisted: 0,
+    portalUserFailures:       0,
+    failedRows:               [],
+    skippedRows:              [],
+    portalUserFailureDetails: [],
+  }));
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function computeBatchStatus(
@@ -1288,6 +1343,15 @@ export default function AdminImportPage() {
   const [wizardStep,       setWizardStep]       = useState<WizardStep>("upload");
   const [completedBatches, setCompletedBatches] = useState<CompletedBatch[]>([]);
   const [selectedBatch,    setSelectedBatch]    = useState<CompletedBatch | null>(null);
+
+  // Restore session-level import history from sessionStorage after navigation away and back.
+  // Only safe metadata is stored — no passwords, no NHI.
+  useEffect(() => {
+    const markers = readImportMarkers();
+    if (markers.length > 0) {
+      setCompletedBatches((prev) => (prev.length > 0 ? prev : markersToCompletedBatches(markers)));
+    }
+  }, []);
 
   const manifest: ImportManifestRow[] = result
     ? buildManifest({ valid: result.valid, invalid: result.invalid, reviewRows: result.reviewRows })
@@ -1389,6 +1453,14 @@ export default function AdminImportPage() {
         portalUserFailureDetails: data.portalUserFailureDetails ?? [],
       };
       setCompletedBatches(prev => [batch, ...prev]);
+      writeImportMarker({
+        batchId:    data.importBatchId,
+        executedAt: batch.executedAt,
+        created:    data.summary.created,
+        skipped:    data.summary.skipped,
+        failed:     data.summary.failed,
+        status:     batch.status,
+      });
       setExecuteResult({
         created: data.summary.created,
         skipped: data.summary.skipped,

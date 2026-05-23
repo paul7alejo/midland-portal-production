@@ -141,6 +141,9 @@ export function ImportDetailsSheet({
                 <p className="text-xs text-amber-800 font-semibold">
                   Temporary passwords are not stored in import history and are not shown here.
                 </p>
+                <p className="text-xs text-amber-800">
+                  If a temporary password was missed, generate a new temporary password from the Portal Account reset action. Original passwords cannot be retrieved.
+                </p>
                 <p className="text-xs text-amber-700">
                   Patients log in with their number-only username (no MS- prefix).
                 </p>
