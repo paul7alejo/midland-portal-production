@@ -97,6 +97,162 @@ function patientToRow(row: ParsedPatient): string[] {
   ];
 }
 
+// ─── Auto-clean candidate ─────────────────────────────────────────────────────
+// Client-only — never touches API, DynamoDB, Cognito, or NHI encryption.
+
+function parseRawCsvLine(line: string): string[] {
+  const fields: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') { current += '"'; i++; }
+      else inQuotes = !inQuotes;
+    } else if (ch === ',' && !inQuotes) {
+      fields.push(current);
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  fields.push(current);
+  return fields;
+}
+
+function tryNormalizeDateUnambiguous(value: string): string | null {
+  if (!value.trim()) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return null; // already ISO — no change
+
+  // YYYY/MM/DD → YYYY-MM-DD — year-first is always unambiguous
+  const ymd = value.match(/^(\d{4})\/(\d{2})\/(\d{2})$/);
+  if (ymd) return `${ymd[1]}-${ymd[2]}-${ymd[3]}`;
+
+  // DD/MM/YYYY → YYYY-MM-DD only when DD > 12 — day cannot be confused with a month
+  const dmy = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (dmy) {
+    const day = parseInt(dmy[1], 10);
+    if (day > 12) return `${dmy[3]}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}`;
+  }
+
+  return null;
+}
+
+const HEADER_ALIASES: Record<string, string> = {
+  'full name':      'full_name',
+  'fullname':       'full_name',
+  'name':           'full_name',
+  'patient name':   'full_name',
+  'nhi number':     'nhi',
+  'nhi no':         'nhi',
+  'dob':            'date_of_birth',
+  'date of birth':  'date_of_birth',
+  'birth date':     'date_of_birth',
+  'birthdate':      'date_of_birth',
+  'email address':  'email',
+  'phone number':   'phone',
+  'mobile':         'phone',
+  'mobile number':  'phone',
+  'setup date':     'machine_setup_date',
+  'serial':         'machine_serial',
+  'serial number':  'machine_serial',
+  'funded by':      'funded_by',
+  'funding':        'funded_by',
+  'portal access':  'enable_portal_access',
+  'portal':         'enable_portal_access',
+};
+
+const FUNDED_BY_MAP: Record<string, string> = {
+  'acc':           'ACC',
+  'private':       'Private',
+  'acc/private':   'ACC/Private',
+  'acc / private': 'ACC/Private',
+  'private/acc':   'ACC/Private',
+  'private / acc': 'ACC/Private',
+};
+
+const PORTAL_TRUE_VALS  = new Set(['yes', 'YES', 'Yes', 'TRUE', 'True', '1']);
+const PORTAL_FALSE_VALS = new Set(['no',  'NO',  'No',  'FALSE', 'False', '0']);
+
+type AutocleanSummary = { changes: string[] };
+
+function buildAutoCleanedCsvBlob(rawCsv: string): AutocleanSummary & { blob: Blob } {
+  const rawLines = rawCsv.split(/\r?\n/);
+
+  // Find first non-blank line as the header
+  let headerIdx = -1;
+  let rawHeaderCells: string[] = [];
+  for (let i = 0; i < rawLines.length; i++) {
+    if (rawLines[i].trim().length > 0) {
+      headerIdx = i;
+      rawHeaderCells = parseRawCsvLine(rawLines[i]);
+      break;
+    }
+  }
+
+  if (headerIdx === -1) {
+    return {
+      changes: ['No header row found — no changes made.'],
+      blob: new Blob([rawCsv], { type: 'text/csv;charset=utf-8;' }),
+    };
+  }
+
+  const normalizedHeaders = rawHeaderCells.map((h) => {
+    const key = h.trim().toLowerCase().replace(/\s+/g, ' ');
+    if (HEADER_ALIASES[key]) return HEADER_ALIASES[key];
+    return h.trim().toLowerCase().replace(/\s+/g, '_');
+  });
+
+  const changes: string[] = [];
+  if (rawHeaderCells.some((h, i) => h.trim() !== normalizedHeaders[i])) {
+    changes.push('Normalized column headers to expected field names.');
+  }
+
+  const outputRows: string[][] = [];
+  let blankRemoved = 0, trimCount = 0, portalCount = 0, fundedCount = 0, dateCount = 0;
+
+  for (let i = headerIdx + 1; i < rawLines.length; i++) {
+    const line = rawLines[i];
+    if (line.trim().length === 0) { blankRemoved++; continue; }
+
+    const cells = parseRawCsvLine(line);
+    const row: Record<string, string> = {};
+    normalizedHeaders.forEach((h, idx) => { row[h] = cells[idx] ?? ''; });
+
+    // Trim all cells
+    for (const k of Object.keys(row)) {
+      const before = row[k];
+      row[k] = before.trim();
+      if (before !== row[k]) trimCount++;
+    }
+
+    // Normalize enable_portal_access
+    const pv = row['enable_portal_access'] ?? '';
+    if (PORTAL_TRUE_VALS.has(pv) && pv !== 'true')         { row['enable_portal_access'] = 'true';  portalCount++; }
+    else if (PORTAL_FALSE_VALS.has(pv) && pv !== 'false')  { row['enable_portal_access'] = 'false'; portalCount++; }
+
+    // Normalize funded_by casing
+    const fv = row['funded_by'] ?? '';
+    const fvk = fv.toLowerCase().trim();
+    if (FUNDED_BY_MAP[fvk] && fv !== FUNDED_BY_MAP[fvk]) { row['funded_by'] = FUNDED_BY_MAP[fvk]; fundedCount++; }
+
+    // Normalize unambiguous date formats only
+    const dob = row['date_of_birth'] ?? '';
+    const normalizedDob = tryNormalizeDateUnambiguous(dob);
+    if (normalizedDob !== null) { row['date_of_birth'] = normalizedDob; dateCount++; }
+
+    outputRows.push(TEMPLATE_HEADERS_ARRAY.map((h) => row[h] ?? ''));
+  }
+
+  if (blankRemoved > 0) changes.push(`Removed ${blankRemoved} blank row${blankRemoved !== 1 ? 's' : ''}.`);
+  if (trimCount   > 0) changes.push(`Trimmed whitespace from ${trimCount} cell${trimCount !== 1 ? 's' : ''}.`);
+  if (portalCount > 0) changes.push('Normalized portal access values to true/false.');
+  if (fundedCount > 0) changes.push('Normalized funded_by casing (ACC, Private, ACC/Private).');
+  if (dateCount   > 0) changes.push(`Normalized ${dateCount} unambiguous date format${dateCount !== 1 ? 's' : ''} to YYYY-MM-DD.`);
+
+  return { changes, blob: buildCsvBlob(TEMPLATE_HEADERS_ARRAY, outputRows) };
+}
+
 // ─── Download handlers ────────────────────────────────────────────────────────
 
 function downloadTemplate(): void {
@@ -1341,6 +1497,7 @@ export default function AdminImportPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [view,             setView]             = useState<"history" | "wizard">("history");
   const [wizardStep,       setWizardStep]       = useState<WizardStep>("upload");
+  const [autocleanSummary, setAutocleanSummary] = useState<AutocleanSummary | null>(null);
   const [completedBatches, setCompletedBatches] = useState<CompletedBatch[]>([]);
   const [selectedBatch,    setSelectedBatch]    = useState<CompletedBatch | null>(null);
 
@@ -1382,6 +1539,7 @@ export default function AdminImportPage() {
     if (!csvText.trim()) return;
     setIsPreviewing(true);
     setPreviewError(null);
+    setAutocleanSummary(null);
     try {
       const res = await fetch('/api/admin/import/preview', {
         method: 'POST',
@@ -1489,6 +1647,13 @@ export default function AdminImportPage() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
+  function handleDownloadCleaned() {
+    if (!csvText.trim()) return;
+    const result = buildAutoCleanedCsvBlob(csvText);
+    triggerDownload(result.blob, "import-cleaned-candidate.csv");
+    setAutocleanSummary({ changes: result.changes });
+  }
+
   function openWizard() {
     setCsvText("");
     setFileName(null);
@@ -1497,6 +1662,7 @@ export default function AdminImportPage() {
     setPreviewError(null);
     setExecuteResult(null);
     setExecuteError(null);
+    setAutocleanSummary(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
     setWizardStep("upload");
     setView("wizard");
@@ -1798,6 +1964,47 @@ export default function AdminImportPage() {
               )}
 
               <RemediationGuide />
+
+              {/* Auto-clean candidate download */}
+              <div className="bg-white border border-sand rounded-xl p-5 space-y-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-navy">Auto-clean candidate</h3>
+                  <p className="text-sm text-charcoal/65 mt-0.5">
+                    Downloads a corrected copy of your CSV with safe formatting fixes applied — whitespace trimmed, blank rows removed, headers normalised, boolean and funded-by values standardised, and unambiguous dates converted to ISO format.
+                  </p>
+                </div>
+                <div className="border border-amber-200 bg-amber-50 rounded-lg px-4 py-3">
+                  <p className="text-xs text-amber-800">
+                    Auto-clean only fixes safe formatting issues. Duplicate, identity, portal account, and equipment conflicts still require staff review.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-4">
+                  <DownloadButton
+                    label="Download cleaned CSV candidate"
+                    onClick={handleDownloadCleaned}
+                  />
+                  {autocleanSummary !== null && (
+                    <div className="flex-1 min-w-[260px]">
+                      {autocleanSummary.changes.length === 0 ? (
+                        <p className="text-sm text-charcoal/65">No formatting issues found — this CSV is already clean.</p>
+                      ) : (
+                        <div className="space-y-1.5">
+                          <p className="text-xs font-semibold text-charcoal/70 uppercase tracking-wide">{autocleanSummary.changes.length} fix{autocleanSummary.changes.length !== 1 ? "es" : ""} applied</p>
+                          <ul className="space-y-0.5">
+                            {autocleanSummary.changes.map((c, i) => (
+                              <li key={i} className="flex items-start gap-1.5 text-sm text-charcoal/75">
+                                <span className="mt-0.5 text-[#74C0A2] shrink-0">✓</span>
+                                <span>{c}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      <p className="text-xs text-charcoal/50 mt-2">Re-upload this file in the Upload step and validate again. The original CSV in this session is unchanged.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
 
               <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
                 <h3 className="text-sm font-semibold text-gray-800">CSV cleanup tools</h3>
