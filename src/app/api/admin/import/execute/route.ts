@@ -465,6 +465,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       mode: 'execute',
       importBatchId,
+      importedBy: createdBy,
       message: `Import complete. Created ${createdRows.length} row${createdRows.length === 1 ? '' : 's'}.`,
       summary: {
         totalRows: preview.totalRows,

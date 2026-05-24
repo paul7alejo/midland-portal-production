@@ -2,6 +2,78 @@
 
 import type { CompletedBatch } from "@/components/admin/ImportHistoryTable";
 
+// ─── Batch evidence download helpers ─────────────────────────────────────────
+
+function escapeCSV(v: string): string {
+  const s = v ?? "";
+  if (s.includes(",") || s.includes('"') || s.includes("\n") || s.includes("\r")) {
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+  return s;
+}
+
+function buildCsvString(headers: string[], rows: string[][]): string {
+  return [headers, ...rows].map((row) => row.map(escapeCSV).join(",")).join("\r\n");
+}
+
+function triggerCsvDownload(content: string, filename: string): void {
+  const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function downloadBatchSummary(batch: CompletedBatch): void {
+  const displayId = batch.friendlyId ?? batch.batchId;
+  const rows: string[][] = [
+    ["import_id",        displayId],
+    ["batch_id",         batch.batchId],
+    ["imported_by",      batch.importedBy],
+    ["executed_at",      batch.executedAt],
+    ["total_rows",       String(batch.totalRows)],
+    ["created",          String(batch.created)],
+    ["skipped",          String(batch.skipped)],
+    ["failed",           String(batch.failed)],
+    ["portal_accounts_created", String(batch.portalUsersCreated.length)],
+    ["portal_already_existed",  String(batch.portalUsersAlreadyExisted)],
+    ["portal_failures",         String(batch.portalUserFailures)],
+    ["status",           batch.status],
+  ];
+  triggerCsvDownload(buildCsvString(["field", "value"], rows), `${displayId}-batch-summary.csv`);
+}
+
+function downloadBatchFailedRows(batch: CompletedBatch): void {
+  const displayId = batch.friendlyId ?? batch.batchId;
+  const rows = batch.failedRows.map((r) => [String(r.rowNumber), r.name, r.machineSerial, r.reason]);
+  triggerCsvDownload(
+    buildCsvString(["row", "patient_name", "machine_serial", "failure_reason"], rows),
+    `${displayId}-failed-rows.csv`,
+  );
+}
+
+function downloadBatchSkippedRows(batch: CompletedBatch): void {
+  const displayId = batch.friendlyId ?? batch.batchId;
+  const rows = batch.skippedRows.map((r) => [String(r.rowNumber), r.name, r.machineSerial, r.reason]);
+  triggerCsvDownload(
+    buildCsvString(["row", "patient_name", "machine_serial", "skip_reason"], rows),
+    `${displayId}-skipped-rows.csv`,
+  );
+}
+
+function downloadPortalAccessSummary(batch: CompletedBatch): void {
+  const displayId = batch.friendlyId ?? batch.batchId;
+  const rows = batch.portalUsersCreated.map((u) => [
+    String(u.rowNumber), u.name, u.portalId, u.username, "created",
+  ]);
+  triggerCsvDownload(
+    buildCsvString(["row", "patient_name", "portal_id", "username", "outcome"], rows),
+    `${displayId}-portal-access-summary.csv`,
+  );
+}
+
 function formatDateTime(iso: string): string {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return iso;
@@ -56,7 +128,12 @@ export function ImportDetailsSheet({
         <div className="sticky top-0 bg-white border-b border-sand px-6 py-4 flex items-start justify-between gap-4">
           <div className="min-w-0">
             <p className="text-xs font-mono text-charcoal/55 uppercase tracking-wide">Batch details</p>
-            <h2 className="text-base font-semibold text-navy mt-0.5 break-all">{batch.batchId}</h2>
+            <h2 className="text-base font-semibold text-navy mt-0.5">
+              {batch.friendlyId ?? batch.batchId.slice(0, 8)}
+            </h2>
+            {batch.friendlyId && (
+              <p className="text-xs font-mono text-charcoal/40 mt-0.5 break-all">{batch.batchId}</p>
+            )}
             <p className="text-xs text-charcoal/60 mt-0.5 font-mono">{formatDateTime(batch.executedAt)}</p>
           </div>
           <button
@@ -287,6 +364,62 @@ export function ImportDetailsSheet({
               </div>
             </div>
           )}
+
+          {/* Batch evidence downloads */}
+          <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-3">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-800">Batch evidence</h3>
+              <p className="text-xs text-gray-500 mt-0.5">Safe CSV artifacts generated from browser-local batch metadata. No NHI, no passwords. Download and keep these if you need a record — history exists in this browser only.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => downloadBatchSummary(batch)}
+                className="inline-flex items-center gap-1.5 border border-gray-300 text-gray-700 text-xs font-medium px-3 py-2 rounded-lg hover:border-[#0B5C6C] hover:text-[#0B5C6C] transition-colors bg-white"
+              >
+                <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Batch summary
+              </button>
+              {batch.failedRows.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => downloadBatchFailedRows(batch)}
+                  className="inline-flex items-center gap-1.5 border border-gray-300 text-gray-700 text-xs font-medium px-3 py-2 rounded-lg hover:border-[#0B5C6C] hover:text-[#0B5C6C] transition-colors bg-white"
+                >
+                  <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  Failed rows ({batch.failedRows.length})
+                </button>
+              )}
+              {batch.skippedRows.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => downloadBatchSkippedRows(batch)}
+                  className="inline-flex items-center gap-1.5 border border-gray-300 text-gray-700 text-xs font-medium px-3 py-2 rounded-lg hover:border-[#0B5C6C] hover:text-[#0B5C6C] transition-colors bg-white"
+                >
+                  <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  Skipped rows ({batch.skippedRows.length})
+                </button>
+              )}
+              {batch.portalUsersCreated.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => downloadPortalAccessSummary(batch)}
+                  className="inline-flex items-center gap-1.5 border border-gray-300 text-gray-700 text-xs font-medium px-3 py-2 rounded-lg hover:border-[#0B5C6C] hover:text-[#0B5C6C] transition-colors bg-white"
+                >
+                  <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  Portal access summary ({batch.portalUsersCreated.length})
+                </button>
+              )}
+            </div>
+          </div>
 
           {/* Recovery awareness — placeholder only, no rollback implemented */}
           <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">

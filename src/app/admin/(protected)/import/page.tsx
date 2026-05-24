@@ -1254,6 +1254,7 @@ type ImportedRow = { rowNumber: number; name: string; machineSerial: string; rea
 type PortalOutcome = { rowNumber: number; name: string; reason: string };
 type ExecuteResultState = {
   created: number; skipped: number; failed: number; importBatchId: string;
+  friendlyId?: string;
   portalUsersCreated: PortalUserCreated[];
   portalUsersAlreadyExisted: number; portalUserFailures: number;
   failedRows: ImportedRow[]; skippedRows: ImportedRow[];
@@ -1289,7 +1290,12 @@ function ExecuteResultPanel({ result }: { result: ExecuteResultState }) {
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
             <h3 className={`text-base font-semibold ${cfg.titleColor}`}>{cfg.title}</h3>
-            <p className="text-xs text-gray-500 mt-0.5 font-mono">Batch: {result.importBatchId}</p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {result.friendlyId && (
+                <span className="font-semibold text-gray-700">{result.friendlyId} · </span>
+              )}
+              <span className="font-mono">{result.importBatchId}</span>
+            </p>
           </div>
           <span className={`text-xs font-semibold px-3 py-1 rounded-full shrink-0 ${cfg.badge}`}>
             {variant === "success" ? "Success" : variant === "partial" ? "Partial" : variant === "failure" ? "Failed" : "All skipped"}
@@ -1469,22 +1475,14 @@ function ExecuteResultPanel({ result }: { result: ExecuteResultState }) {
   );
 }
 
-// ─── Session import marker (safe, no passwords, no NHI) ──────────────────────
+// ─── Persistent import batch history (safe, no passwords, no NHI) ────────────
 
-type RecentImportMarker = {
-  batchId:    string;
-  executedAt: string;
-  created:    number;
-  skipped:    number;
-  failed:     number;
-  status:     CompletedBatch["status"];
-};
+const HISTORY_KEY = "midland_import_history";
 
-const SESSION_KEY = "midland_import_session";
-
-function readImportMarkers(): RecentImportMarker[] {
+function readBatchHistory(): CompletedBatch[] {
   try {
-    const raw = sessionStorage.getItem(SESSION_KEY);
+    if (typeof window === "undefined") return [];
+    const raw = localStorage.getItem(HISTORY_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
@@ -1493,32 +1491,21 @@ function readImportMarkers(): RecentImportMarker[] {
   }
 }
 
-function writeImportMarker(marker: RecentImportMarker): void {
-  try {
-    const existing = readImportMarkers();
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify([marker, ...existing]));
-  } catch {
-    // sessionStorage unavailable, ignore
-  }
+function generateFriendlyId(existingBatches: CompletedBatch[], executedAt: string): string {
+  const datePart = executedAt.slice(0, 10).replace(/-/g, "");
+  const datePrefix = executedAt.slice(0, 10);
+  const todayCount = existingBatches.filter((b) => b.executedAt.startsWith(datePrefix)).length;
+  return `IMP-${datePart}-${String(todayCount + 1).padStart(3, "0")}`;
 }
 
-function markersToCompletedBatches(markers: RecentImportMarker[]): CompletedBatch[] {
-  return markers.map((m) => ({
-    batchId:                  m.batchId,
-    executedAt:               m.executedAt,
-    importedBy:               "Admin session",
-    totalRows:                m.created + m.skipped + m.failed,
-    created:                  m.created,
-    skipped:                  m.skipped,
-    failed:                   m.failed,
-    status:                   m.status,
-    portalUsersCreated:       [],
-    portalUsersAlreadyExisted: 0,
-    portalUserFailures:       0,
-    failedRows:               [],
-    skippedRows:              [],
-    portalUserFailureDetails: [],
-  }));
+function saveBatchToHistory(batch: CompletedBatch): void {
+  try {
+    if (typeof window === "undefined") return;
+    const existing = readBatchHistory();
+    localStorage.setItem(HISTORY_KEY, JSON.stringify([batch, ...existing].slice(0, 100)));
+  } catch {
+    // localStorage unavailable or quota exceeded
+  }
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -1553,12 +1540,12 @@ export default function AdminImportPage() {
   const [completedBatches, setCompletedBatches] = useState<CompletedBatch[]>([]);
   const [selectedBatch,    setSelectedBatch]    = useState<CompletedBatch | null>(null);
 
-  // Restore session-level import history from sessionStorage after navigation away and back.
+  // Restore persistent import batch history from localStorage on mount.
   // Only safe metadata is stored — no passwords, no NHI.
   useEffect(() => {
-    const markers = readImportMarkers();
-    if (markers.length > 0) {
-      setCompletedBatches((prev) => (prev.length > 0 ? prev : markersToCompletedBatches(markers)));
+    const batches = readBatchHistory();
+    if (batches.length > 0) {
+      setCompletedBatches((prev) => (prev.length > 0 ? prev : batches));
     }
   }, []);
 
@@ -1641,10 +1628,14 @@ export default function AdminImportPage() {
         setExecuteError(data.error ?? 'Import failed. Try again.');
         return;
       }
+      const executedAt = new Date().toISOString();
+      const existingHistory = readBatchHistory();
+      const friendlyId = generateFriendlyId(existingHistory, executedAt);
       const batch: CompletedBatch = {
         batchId: data.importBatchId,
-        executedAt: new Date().toISOString(),
-        importedBy: "Admin session",
+        friendlyId,
+        executedAt,
+        importedBy: data.importedBy ?? "Admin session",
         totalRows: data.summary.created + data.summary.skipped + data.summary.failed,
         created: data.summary.created,
         skipped: data.summary.skipped,
@@ -1663,19 +1654,13 @@ export default function AdminImportPage() {
         portalUserFailureDetails: data.portalUserFailureDetails ?? [],
       };
       setCompletedBatches(prev => [batch, ...prev]);
-      writeImportMarker({
-        batchId:    data.importBatchId,
-        executedAt: batch.executedAt,
-        created:    data.summary.created,
-        skipped:    data.summary.skipped,
-        failed:     data.summary.failed,
-        status:     batch.status,
-      });
+      saveBatchToHistory(batch);
       setExecuteResult({
         created: data.summary.created,
         skipped: data.summary.skipped,
         failed: data.summary.failed,
         importBatchId: data.importBatchId,
+        friendlyId,
         portalUsersCreated: data.portalUsersCreated ?? [],
         portalUsersAlreadyExisted: data.summary.portalUsersAlreadyExisted ?? 0,
         portalUserFailures: data.summary.portalUserFailures ?? 0,
@@ -1772,12 +1757,12 @@ export default function AdminImportPage() {
             <svg className="h-10 w-10 text-gray-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
             </svg>
-            <h2 className="font-display text-2xl font-semibold text-navy">No Patients Imported Yet</h2>
+            <h2 className="font-display text-2xl font-semibold text-navy">No Import History</h2>
             <p className="mt-2 text-sm leading-6 text-charcoal/65 max-w-sm">
-              Import validates your CSV and runs preflight checks before any records are created. Review is required before execution.
+              No imports have been recorded in this browser. Import history is local to this device and browser only — it will not appear on other devices or after browser data is cleared.
             </p>
             <p className="mt-1 text-xs text-charcoal/50 max-w-xs">
-              No patient records are created until an approved import is executed.
+              Import validates your CSV and runs preflight checks before any records are created.
             </p>
             <button
               type="button"
