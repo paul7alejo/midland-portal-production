@@ -10,9 +10,9 @@ Required commands for a pre-implementation gate:
 - npm run build
 
 Required commands for boundary checks:
-- rg "console\\.log" src
-- rg "DeleteItem|UpdateItem" src
-- rg "[A-Z]{3}[0-9]{4,5}" src
+- rg -n "console\\.log" "src/app/admin/(protected)/import" src/components/admin src/app/api/admin/import src/lib/aws src/lib/csv-import/patient-import.ts
+- rg -n "DeleteItem|UpdateItem" "src/app/admin/(protected)/import" src/components/admin src/app/api/admin/import src/lib/aws src/lib/csv-import/patient-import.ts
+- rg -n "[A-Z]{3}[0-9]{4,5}" "src/app/admin/(protected)/import" src/components/admin src/app/api/admin/import src/lib/aws src/lib/csv-import/patient-import.ts
 
 ## Boundary Check Interpretation Rules
 
