@@ -2,6 +2,7 @@
 
 export type CompletedBatch = {
   batchId: string;
+  friendlyId?: string;
   executedAt: string;
   importedBy: string;
   totalRows: number;
@@ -53,17 +54,22 @@ export function ImportHistoryTable({
       <div className="px-5 py-4 border-b border-sand flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h2 className="text-base font-semibold text-navy">Import History</h2>
-          <p className="text-sm text-charcoal/65 mt-0.5">Each row is an executed import batch. Select View Details to see created, skipped, and failed records.</p>
+          <p className="text-sm text-charcoal/65 mt-0.5">
+            Batches executed on this device and browser. Click any row to view details.
+          </p>
+          <p className="text-xs text-amber-700 mt-1">
+            History is saved in this browser only. It will not appear on other devices, other browsers, or after browser data is cleared. This is a convenience reference — not an audit record.
+          </p>
         </div>
         <span className="text-xs font-mono text-charcoal/50">
-          {batches.length} batch{batches.length !== 1 ? "es" : ""}
+          {batches.length} batch{batches.length !== 1 ? "es" : ""} · this browser
         </span>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[980px] border-collapse text-sm">
           <thead>
             <tr className="bg-sand-pale/70 border-b border-sand">
-              {["Batch ID", "Date / Time", "Imported by", "Records", "Created", "Skipped", "Failed", "Status", "View Details"].map((col) => (
+              {["Import ID", "Date / Time", "Imported by", "Records", "Created", "Skipped", "Failed", "Status", "View Details"].map((col) => (
                 <th
                   key={col}
                   className="text-left px-4 py-3 text-xs font-semibold text-charcoal/70 uppercase tracking-wide whitespace-nowrap"
@@ -77,9 +83,26 @@ export function ImportHistoryTable({
             {batches.map((batch) => {
               const cfg = STATUS_CFG[batch.status];
               return (
-                <tr key={batch.batchId} className="hover:bg-sand-pale/45 transition-colors">
-                  <td className="px-4 py-3 font-mono text-xs text-charcoal whitespace-nowrap max-w-[180px] truncate">
-                    {batch.batchId}
+                <tr
+                  key={batch.batchId}
+                  className="hover:bg-sand-pale/45 transition-colors cursor-pointer"
+                  onClick={() => onViewDetails(batch)}
+                >
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); onViewDetails(batch); }}
+                      className="text-left group"
+                    >
+                      <span className="block text-sm font-semibold text-[#0B5C6C] group-hover:underline">
+                        {batch.friendlyId ?? batch.batchId.slice(0, 8)}
+                      </span>
+                      {batch.friendlyId && (
+                        <span className="block font-mono text-xs text-charcoal/45 truncate max-w-[160px]">
+                          {batch.batchId}
+                        </span>
+                      )}
+                    </button>
                   </td>
                   <td className="px-4 py-3 font-mono text-xs text-charcoal/75 whitespace-nowrap">
                     {formatDateTime(batch.executedAt)}
@@ -103,7 +126,7 @@ export function ImportHistoryTable({
                   <td className="px-4 py-3">
                     <button
                       type="button"
-                      onClick={() => onViewDetails(batch)}
+                      onClick={(e) => { e.stopPropagation(); onViewDetails(batch); }}
                       className="text-sm text-[#0B5C6C] font-medium hover:underline whitespace-nowrap"
                     >
                       View Details
