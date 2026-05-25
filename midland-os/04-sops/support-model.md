@@ -95,6 +95,12 @@ Bug:
 - imported patient drawer fails for records it should support
 - dry run or execute behaves differently from the approved SOP
 
+Expected behaviour — not a bug:
+
+- import history not appearing on a different device or browser — history is browser-local by design; download batch evidence CSVs at time of import for persistent records
+- import history lost after browser data is cleared — expected behaviour; this is a known limitation of the current implementation
+- rollback button is disabled — rollback is a placeholder only; automated reversal is not implemented
+
 Feature request:
 
 - new workflow
@@ -104,6 +110,7 @@ Feature request:
 - new automation
 - new patient-facing behaviour
 - new admin action that changes state
+- backend-persistent import history shared across devices or admin users
 
 Bugs may be handled within support if they affect agreed workflows. Feature requests require prioritisation and may need a separate estimate.
 

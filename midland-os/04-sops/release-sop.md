@@ -2,9 +2,9 @@
 
 ## Purpose
 
-This SOP defines the bounded Phase 1 release and rehearsal process for Midland Sleep.
+This SOP defines the bounded release and rehearsal process for Midland Sleep, covering Phase 1 and Phase 2A.
 
-Phase 1 release is an admin/import/review visibility release. It is not a launch of checkout, Stripe, patient portal onboarding, patient invites, email automation, fulfilment, inventory operations, or a reporting/analytics platform.
+The current release scope is an admin/import/review visibility release with portal account creation on import, portal account management (reset and unlock), and browser-local import history. It is not a launch of checkout, Stripe, patient portal onboarding, patient invites, email automation, fulfilment, inventory operations, or a reporting/analytics platform.
 
 ## Go / No-Go Checklist
 
@@ -63,6 +63,11 @@ Import:
 3. Blocked execute creates `0` records.
 4. Controlled execute is only performed after preflight passes.
 5. Created/skipped/failed summary is understandable.
+6. Portal accounts created count is visible in the execute results.
+7. Temporary passwords are shown once in the results panel and not stored in import history.
+8. Import history appears after execute with a friendly import ID (for example, `IMP-20260525-001`).
+9. Batch detail sheet opens from import history and shows safe operational metadata.
+10. Browser-local history limitation is acknowledged: history does not persist after browser data is cleared or on other devices.
 
 Admin review:
 
@@ -89,6 +94,21 @@ Rollback does not automatically undo imported patient records. Imported-record c
 Escalate to Midland owner for identity, machine serial, funding, source-data, or operational readiness decisions.
 
 Escalate to technical support for admin login failures, unexpected import errors, unsafe field display, missing created records, or failed build/typecheck.
+
+## Explicit Exclusions
+
+The following are not included in the current release scope and must not be presented as delivered:
+
+- checkout, Stripe, or payment capture of any kind
+- inventory or fulfilment system operations
+- patient invites or patient-facing email automation
+- mobile app workflows
+- clinical decision support or clinical advice
+- advanced audit or reporting dashboards
+- backend-persistent import history shared across devices or admin users
+- automated rollback execution of imported records
+- after-hours emergency SLA support unless separately contracted
+- legal, privacy, or clinical sign-off on imported patient data
 
 ## Signoff Checklist
 

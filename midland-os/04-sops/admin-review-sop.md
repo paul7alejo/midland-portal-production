@@ -40,6 +40,34 @@ In the patient drawer, review each tab that contains imported data:
 
 For imported patients, NHI reveal is not enabled in the MVP. Staff should not expect raw NHI to be shown in the drawer.
 
+## Import Batch Review Workflow
+
+Use the import batch review workflow to confirm outcomes and access evidence after an import is executed.
+
+1. Open `/admin/import`.
+2. The history view shows executed batches for this browser. Each batch has a friendly import ID such as `IMP-20260525-001`.
+3. Click any batch row or select **View Details** to open the batch detail sheet.
+4. In the detail sheet, confirm:
+   - friendly import ID and internal batch ID
+   - imported by (admin user) and executed at (date and time)
+   - created, skipped, and failed counts
+   - portal accounts created count
+   - safe portal access summary — shows patient name, portal ID, and login username only; no temporary passwords are stored
+   - failed row reasons where applicable
+   - skipped row reasons where applicable
+5. Download evidence CSVs from the batch detail sheet:
+   - batch summary — created/skipped/failed counts, importedBy, date
+   - failed rows — row number, patient name, machine serial, failure reason
+   - skipped rows — row number, patient name, machine serial, skip reason
+   - portal access summary — row number, patient name, portal ID, username
+6. Retain downloaded CSVs externally. Import history is stored in this browser only and will not appear on other devices or after browser data is cleared.
+
+If a batch is not visible in import history:
+
+1. Use the friendly import ID or internal batch ID recorded at execute time to identify the batch.
+2. Check the post-import verification steps in the Import SOP.
+3. Escalate to technical support if the batch was confirmed as created but evidence is missing.
+
 ## Fields Staff Should Review
 
 Patient identity and contact:
@@ -178,7 +206,7 @@ Escalate to technical support when:
 This review workflow does not:
 
 - provide clinical advice
-- create patient portal accounts
+- create patient portal accounts outside the import workflow
 - send patient invites
 - send patient emails
 - create orders
@@ -186,5 +214,7 @@ This review workflow does not:
 - move inventory
 - resolve source-data ownership questions for Midland
 - replace Midland clinical or operational approval
+- provide backend-persistent import history across devices or browsers — history is browser-local only
+- execute rollback or reversal of imported records — rollback is a placeholder requiring a separately approved data remediation plan
 
 Imported records remain staff-review records until Midland completes its operational review.
