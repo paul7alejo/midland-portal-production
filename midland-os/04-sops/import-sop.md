@@ -51,8 +51,9 @@ Before dry run, confirm the source file includes the agreed import headers:
 - `mask_model`
 - `mask_size`
 - `funded_by`
+- `enable_portal_access`
 
-Rows missing required identity, contact, or machine fields must be corrected before execute. Optional mask fields may be blank only when Midland is intentionally importing no mask record for that patient. The admin drawer must then show `No mask record imported`; staff must not assume a default mask.
+Rows missing required identity, contact, or machine fields must be corrected before execute. `enable_portal_access` must be `true` for all rows — rows where it is `false` or missing are blocked before execute. Optional mask fields may be blank only when Midland is intentionally importing no mask record for that patient. The admin drawer must then show `No mask record imported`; staff must not assume a default mask.
 
 ## Pre-Import Checklist
 
@@ -63,13 +64,13 @@ Before using the admin import workflow:
 3. Confirm the file uses the accepted CSV format.
 4. Confirm required columns are present.
 5. Confirm no real patient data has been pasted into AI tools, informal notes, or non-approved systems.
-6. Confirm the operator understands Phase 1 boundaries:
-   - no patient accounts
-   - no patient invites
-   - no patient emails
-   - no orders
-   - no fulfilment tasks
-   - no inventory movements
+6. Confirm the operator understands import scope:
+   - portal accounts are created for rows where `enable_portal_access` is `true`
+   - temporary passwords are shown once at import time and are not stored — they must be captured immediately
+   - no patient invites are sent
+   - no patient emails are triggered automatically
+   - no orders or fulfilment tasks are created
+   - no inventory movements are performed
 7. Confirm the nominated Midland owner is available for duplicate or failed-row decisions.
 
 ## Dry Run Process
@@ -108,17 +109,21 @@ Execute only if preflight has passed.
 
 After execution, record:
 
-- import batch ID
+- friendly import ID (for example, `IMP-20260525-001`) shown in the import history
+- internal import batch ID (UUID) shown in the results panel
 - created count
 - skipped count
 - failed count
-- created row summaries
+- portal accounts created count
+- temporary passwords — copy these immediately; they are shown once and cannot be retrieved later
 - skipped row reasons
 - failed row reasons
 - date/time of execution
 - admin operator
 
-Use the import batch ID as the reference for review. If execution is blocked before records are created, record that no import batch ID was created because preflight did not pass.
+Use the friendly import ID as the human reference and the internal batch ID for technical tracing. If execution is blocked before records are created, record that no import batch ID was created because preflight did not pass.
+
+After navigating away from the results screen, the import appears in the Import History view with a clickable batch row. Import history is browser-local only — open the batch detail sheet and download evidence CSVs before clearing browser data or switching devices.
 
 ## Result Definitions
 
@@ -213,15 +218,17 @@ For each batch, retain the available admin evidence appropriate to the batch:
 
 - source file name and export date
 - dry-run/preflight result
-- import batch ID, if created
-- created/skipped/failed counts
+- friendly import ID and internal batch ID, if created
+- created/skipped/failed and portal accounts created counts
+- temporary passwords captured at import time (handle according to Midland security policy)
 - skipped row reasons
 - failed row reasons
 - masked-NHI manifest or error report where available
 - approval checklist or sign-off notes
 - post-import verification notes
+- batch summary CSV, failed rows CSV, skipped rows CSV, and portal access summary CSV downloaded from the import history detail sheet
 
-Do not store raw NHI in tickets, AI tools, informal notes, or non-approved systems. Do not copy encrypted NHI or NHI hashes into evidence packs.
+Import history is stored in this browser only. Download batch evidence CSVs and retain them externally before clearing browser data or switching to a different device. Do not store raw NHI in tickets, AI tools, informal notes, or non-approved systems. Do not copy encrypted NHI or NHI hashes into evidence packs.
 
 ## Escalation Path
 

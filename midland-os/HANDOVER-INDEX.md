@@ -6,25 +6,36 @@ Midland OS v1 is handover-ready as the operating and documentation layer for Pha
 
 It is not a separate AI product, a second app, or a fake expansion of the portal. It is the handover documentation around the portal: how the platform should be used, reviewed, supported, and safely extended.
 
-## What Phase 1 Includes
+## What Is Currently Live
 
-Phase 1 currently includes:
+Phase 1 and Phase 2A together deliver:
 
-- admin portal foundation
-- patient portal foundation
-- controlled biomedical CSV import workflow
-- dry-run validation and preflight before writes
-- controlled execute import when preflight passes
+**Import workflow**
+- controlled biomedical CSV import with dry-run validation and preflight before writes
+- controlled execute when preflight passes
 - created/skipped/failed import result summaries
-- duplicate NHI and duplicate machine serial checks
+- duplicate NHI and machine serial safety checks
+- portal account creation on import when `enable_portal_access` is `true`
+- auto-clean candidate CSV for safe formatting fixes
+- friendly import IDs and browser-local import history with batch details and evidence downloads
+
+**Admin review**
 - imported patient visibility in the admin patient list
 - imported patient drawer with patient, machine, mask, funding, and import metadata
-- NHI-safe imported patient admin handling
+- NHI-safe admin handling — no raw NHI in UI or evidence outputs
 - no fake mask fallback when mask data is missing
-- SOPs for import, admin review, release, and support boundaries
-- Phase 1D demo and closeout evidence
 
-Phase 1 does not include checkout/Stripe, inventory or fulfilment operations, mobile app workflows, patient invites, patient email flows, advanced audit dashboards, fake analytics, or a complete reporting platform.
+**Portal account management**
+- Portal Accounts admin page with search, filter, and account status
+- password reset workflow with audit-before-action
+- account unlock workflow with audit-before-action
+
+**Documentation and operating layer**
+- SOPs for import, admin review, release, and support
+- known limitations, risks, decision log, and support model
+- Phase 1 and Phase 2A handover evidence
+
+**Not included in current scope:** checkout/Stripe, inventory or fulfilment operations, mobile app workflows, patient invites, patient email flows, advanced audit dashboards, backend-persistent import history across devices, automated rollback of imported records, or a complete reporting platform.
 
 ## Canonical Docs
 
@@ -63,6 +74,23 @@ Phase 1 outputs:
 - [Phase 1D Demo Script](07-outputs/phase-1/phase-1d-demo-script.md)
 - [Phase 1D Closeout Summary](07-outputs/phase-1/phase-1d-closeout-summary.md)
 - [Phase 1E Closeout Summary](07-outputs/phase-1/phase-1e-closeout-summary.md)
+
+Phase 2A outputs:
+
+- [Sprint 5J-A Import History Bridge Proof](07-outputs/phase-2a-sprint-5j-a-import-history-bridge-proof.md)
+
+## Current Known Limitations
+
+Before stakeholder demos or real patient imports, confirm these limitations are understood and accepted:
+
+- Import history is browser-local only — it will not appear on other devices or after browser data is cleared. Download batch evidence CSVs at import time.
+- Rollback is a placeholder only — automated reversal of imported records is not implemented.
+- No backend-persistent import history is shared across devices or admin users.
+- No patient invites or patient-facing email flows are triggered by any current workflow.
+- No checkout, payment capture, inventory, or fulfilment operations are live.
+- NHI reveal for imported patients is disabled in the current admin MVP.
+
+Full detail: [Known Limitations](06-memory/known-limitations.md)
 
 ## How To Request Changes
 

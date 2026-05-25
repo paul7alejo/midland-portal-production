@@ -1,16 +1,24 @@
 # Known Limitations
 
-## Phase 1 Truths
+## Current Delivery Truths
 
-Phase 1 is an admin/import/review visibility release. It is not a full commerce, fulfilment, analytics, mobile, or patient onboarding platform.
+Phase 1 and Phase 2A together deliver an admin portal, controlled CSV import, portal account creation on import, portal account management (reset and unlock), and browser-local import history. This is not a full commerce, fulfilment, analytics, mobile, or patient onboarding platform.
 
 ## Patient Portal and Accounts
 
-- No Cognito patient accounts are created by import.
-- No patient portal access is created by import.
-- No patient invites are sent by import.
-- No patient emails are sent by import.
-- Imported patients remain staff-review records until Midland completes operational review.
+- When `enable_portal_access` is `true` in the import CSV, a Cognito patient account and portal login are created during import. Temporary passwords are shown once at import time and are not stored. Use the Portal Account reset workflow if a password is missed — original passwords cannot be retrieved.
+- When `enable_portal_access` is `false` or missing, no portal account is created and the row is blocked before execute.
+- No patient invites are sent by import. Portal access provides login credentials only — no patient-facing email or invite is triggered.
+- No patient emails are sent automatically by import.
+- Imported patients remain staff-review records until Midland completes its operational review.
+
+## Import History and Batch Evidence
+
+- Import history is stored in the admin browser only. It does not appear on other devices, other browsers, or other admin users.
+- Import history will not survive clearing browser data or switching devices. This is a convenience reference — not an audit system of record.
+- Batch evidence CSVs (batch summary, failed rows, skipped rows, portal access summary) can be downloaded from the import history detail sheet. These should be saved externally if a persistent record is required.
+- Rollback is a placeholder only. No automated rollback execution is implemented. Reversal of imported records requires a separately approved data remediation plan with Midland owner sign-off.
+- No shared backend-persistent import batch history is implemented. If persistent import audit history for multi-admin or compliance use is required, it must be scoped as a separate change request.
 
 ## Checkout and Payments
 
@@ -55,6 +63,12 @@ Phase 1 is an admin/import/review visibility release. It is not a full commerce,
 - Missing mask data should display `No mask record imported`; no fake/default mask should be assumed.
 - Admin review is not clinical advice.
 - Admin review does not trigger patient communication, orders, fulfilment, or portal access.
+
+## Portal Account Management
+
+- The Portal Accounts admin page supports password reset and account unlock for imported patients.
+- Audit events are written before each action. Actions fail closed if the audit write fails.
+- Portal account management does not extend to creating new accounts outside the import workflow, removing accounts, or changing patient email addresses. These are out of scope unless separately approved.
 
 ## UI and Operations
 
