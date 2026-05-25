@@ -79,6 +79,14 @@ Phase 2A outputs:
 
 - [Sprint 5J-A Import History Bridge Proof](07-outputs/phase-2a-sprint-5j-a-import-history-bridge-proof.md)
 
+Controlled pilot readiness:
+
+- [Controlled Pilot Readiness Checklist](04-sops/controlled-pilot-readiness-checklist.md) — go / no-go gate, pilot scope, allowed users and data, signoff
+- [Admin Smoke Test Checklist](04-sops/admin-smoke-test-checklist.md) — login, navigation, patient list, drawer, NHI safety
+- [Import Smoke Test Checklist](04-sops/import-smoke-test-checklist.md) — upload, validate, execute, history, evidence downloads, safety
+- [Patient Portal Smoke Test Checklist](04-sops/patient-portal-smoke-test-checklist.md) — patient login, password change, record display, access control
+- [Go-Live Signoff Checklist](04-sops/go-live-signoff-checklist.md) — formal go / no-go record with all party sign-offs
+
 ## Current Known Limitations
 
 Before stakeholder demos or real patient imports, confirm these limitations are understood and accepted:
