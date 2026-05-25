@@ -548,6 +548,53 @@ export async function queryAuditByPatient(
   }))
 }
 
+export interface AuditEventSummary {
+  sk: string
+  timestamp: string
+  action: string
+  adminEmail: string | null
+  patientMsid: string | null
+  result: string | null
+  details?: string
+}
+
+// Scan-based — no GSI on org_id or timestamp. Acceptable for small clinic volumes.
+export async function listRecentAuditEvents(
+  orgId: string,
+  limit = 100,
+): Promise<AuditEventSummary[]> {
+  const res = await docClient.send(new ScanCommand({
+    TableName: TABLES.AUDIT,
+    FilterExpression: 'org_id = :orgId',
+    ExpressionAttributeValues: { ':orgId': orgId },
+  }))
+
+  const items = (res.Items ?? []) as Array<Record<string, unknown>>
+
+  items.sort((a, b) => {
+    const sa = typeof a.sk === 'string' ? a.sk : ''
+    const sb = typeof b.sk === 'string' ? b.sk : ''
+    return sb.localeCompare(sa)
+  })
+
+  return items.slice(0, limit).map((item) => ({
+    sk:          typeof item.sk           === 'string' ? item.sk : '',
+    timestamp:   typeof item.timestamp    === 'string' ? item.timestamp : '',
+    action:      typeof item.action       === 'string' ? item.action
+               : typeof item.event_type   === 'string' ? item.event_type
+               : typeof item.eventType    === 'string' ? item.eventType
+               : '',
+    adminEmail:  typeof item.admin_email  === 'string' ? item.admin_email
+               : typeof item.adminEmail   === 'string' ? item.adminEmail
+               : null,
+    patientMsid: typeof item.patient_msid === 'string' ? item.patient_msid
+               : typeof item.patientMsid  === 'string' ? item.patientMsid
+               : null,
+    result:      typeof item.result       === 'string' ? item.result : null,
+    details:     typeof item.details      === 'string' ? item.details : undefined,
+  }))
+}
+
 export async function countAuditEventsSince(
   userId: string,
   eventType: string,

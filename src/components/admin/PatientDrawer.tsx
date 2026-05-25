@@ -1178,6 +1178,9 @@ function EntitlementTab({ patient }: { patient: DrawerPatient }) {
           <p className="text-sm text-amber-800">
             Entitlement data is not yet available for this record. Staff review is required before funding amounts can be confirmed.
           </p>
+          <p className="text-sm text-amber-700">
+            Default Midland/Biomed allowance is $250 per eligible patient. Deduction and store ordering are Phase 3 — no amounts are applied automatically in this phase.
+          </p>
         </div>
       ) : (
         /* Funding summary */
@@ -1229,9 +1232,12 @@ function EntitlementTab({ patient }: { patient: DrawerPatient }) {
 
       {/* Staff-only notice */}
       {!pendingReview && (
-        <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3">
+        <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 space-y-1">
           <p className="text-sm text-gray-600">
             Funding balance is visible to staff only and is not shown to patients.
+          </p>
+          <p className="text-sm text-gray-500">
+            Store deduction and checkout are Phase 3 — no amounts are applied automatically in this phase.
           </p>
         </div>
       )}
