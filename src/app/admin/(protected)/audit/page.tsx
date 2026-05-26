@@ -11,6 +11,9 @@ interface AuditEvent {
   patientMsid: string | null;
   result: string | null;
   details?: string;
+  source?: string | null;
+  module?: string | null;
+  category?: string | null;
 }
 
 type LoadState = "loading" | "loaded" | "error";
@@ -28,6 +31,8 @@ type CategoryTab =
 type KpiFilter = "today" | "pwResets" | "nhiReveals" | "failed" | "orders" | null;
 type TimeFilter = "today" | "7d" | "30d" | "all";
 type SortOrder  = "newest" | "oldest";
+type PageSize = 20 | 50 | 100;
+type KpiTone = "today" | "password" | "nhi" | "failed" | "orders";
 
 const CATEGORY_TABS: CategoryTab[] = [
   "All", "Patients", "Portal Accounts", "Orders",
@@ -63,6 +68,17 @@ const PATIENT_ACTIONS = new Set([
 ]);
 
 const GOOD_RESULTS = new Set(["ok", "success", "attempted"]);
+const PAGE_SIZE_OPTIONS: PageSize[] = [20, 50, 100];
+const SENSITIVE_DETAIL_PATTERNS = [
+  /nhi/i,
+  /password/i,
+  /temporary password/i,
+  /token/i,
+  /cookie/i,
+  /secret/i,
+  /authorization/i,
+  /payload/i,
+];
 
 const CATEGORY_COLORS: Record<string, string> = {
   "Patients":        "bg-blue-50 text-blue-700 border-blue-200",
@@ -130,6 +146,72 @@ function formatTimestamp(value: string): string {
   }).format(d);
 }
 
+function formatFullTimestamp(value: string): string {
+  if (!value) return "Not captured";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return new Intl.DateTimeFormat("en-NZ", {
+    dateStyle: "full",
+    timeStyle: "long",
+    timeZone: "Pacific/Auckland",
+  }).format(d);
+}
+
+function safeText(value: string | null | undefined, fallback = "Not captured"): string {
+  const text = value?.trim();
+  if (!text) return fallback;
+  return text;
+}
+
+function getSafeDetails(event: AuditEvent): string {
+  const details = event.details?.trim();
+  if (!details) return "No safe details captured.";
+  if (SENSITIVE_DETAIL_PATTERNS.some((pattern) => pattern.test(details))) {
+    return "Safe details withheld from this view.";
+  }
+  return details;
+}
+
+function getAuditSource(event: AuditEvent): string {
+  const sourceParts = [
+    event.source,
+    event.module,
+    event.category ?? categorize(event.action),
+  ]
+    .map((part) => part?.trim())
+    .filter(Boolean);
+  return sourceParts.length > 0 ? sourceParts.join(" / ") : "Not captured";
+}
+
+function escapeCsvValue(value: string): string {
+  const clean = value.replace(/\r?\n|\r/g, " ");
+  return `"${clean.replace(/"/g, '""')}"`;
+}
+
+function buildAuditCsv(events: AuditEvent[]): string {
+  const headers = [
+    "timestamp",
+    "category",
+    "event label",
+    "action code",
+    "admin email",
+    "patient MSID",
+    "result",
+    "safe details",
+  ];
+  const rows = events.map((event) => [
+    event.timestamp || "Not captured",
+    categorize(event.action),
+    safeText(event.label, "Unknown event"),
+    safeText(event.action),
+    safeText(event.adminEmail),
+    safeText(event.patientMsid),
+    safeText(event.result),
+    getSafeDetails(event),
+  ]);
+  return [headers, ...rows].map((row) => row.map(escapeCsvValue).join(",")).join("\n");
+}
+
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 function ResultBadge({ result }: { result: string | null }) {
@@ -156,22 +238,53 @@ function CategoryBadge({ action }: { action: string }) {
 }
 
 function SummaryCard({
-  label, value, sub, highlight, isActive, onClick,
+  label, value, sub, tone, isActive, onClick,
 }: {
   label: string; value: number; sub?: string;
-  highlight?: "red"; isActive?: boolean; onClick: () => void;
+  tone: KpiTone; isActive?: boolean; onClick: () => void;
 }) {
-  const numColor  = highlight === "red" && value > 0 ? "text-red-600" : "text-navy";
-  const activeCls = isActive
-    ? "ring-2 ring-[#0B5C6C] border-[#0B5C6C]/40 bg-[#0B5C6C]/[0.04]"
-    : "border-gray-200 bg-white hover:border-[#0B5C6C]/30";
+  const tones: Record<KpiTone, { card: string; active: string; number: string; accent: string }> = {
+    today: {
+      card: "border-[#0B5C6C]/20 bg-[#0B5C6C]/[0.04] hover:border-[#0B5C6C]/40",
+      active: "ring-2 ring-[#0B5C6C] border-[#0B5C6C] bg-[#0B5C6C]/10",
+      number: "text-[#073B4A]",
+      accent: "bg-[#0B5C6C]",
+    },
+    password: {
+      card: "border-teal-200 bg-teal-50/60 hover:border-teal-300",
+      active: "ring-2 ring-teal-600 border-teal-500 bg-teal-100/70",
+      number: "text-teal-800",
+      accent: "bg-teal-600",
+    },
+    nhi: {
+      card: "border-amber-200 bg-amber-50/70 hover:border-amber-300",
+      active: "ring-2 ring-amber-500 border-amber-400 bg-amber-100/80",
+      number: "text-amber-800",
+      accent: "bg-amber-500",
+    },
+    failed: {
+      card: "border-red-200 bg-red-50/60 hover:border-red-300",
+      active: "ring-2 ring-red-600 border-red-500 bg-red-100/70",
+      number: "text-red-700",
+      accent: "bg-red-600",
+    },
+    orders: {
+      card: "border-orange-200 bg-orange-50/60 hover:border-orange-300",
+      active: "ring-2 ring-orange-500 border-orange-400 bg-orange-100/70",
+      number: "text-orange-800",
+      accent: "bg-orange-500",
+    },
+  };
+  const toneCls = tones[tone];
+  const stateCls = isActive ? toneCls.active : toneCls.card;
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`text-left rounded-xl border shadow-[0_2px_12px_rgba(0,0,0,0.04)] px-5 py-4 transition-all ${activeCls}`}
+      className={`relative text-left rounded-xl border shadow-[0_2px_12px_rgba(0,0,0,0.04)] px-5 py-4 transition-all ${stateCls}`}
     >
-      <p className={`text-2xl font-bold tabular-nums ${numColor}`}>{value}</p>
+      {isActive && <span className={`absolute inset-x-4 top-0 h-1 rounded-b-full ${toneCls.accent}`} />}
+      <p className={`text-2xl font-bold tabular-nums ${toneCls.number}`}>{value}</p>
       <p className="text-xs font-medium text-gray-500 mt-1 uppercase tracking-wide">{label}</p>
       {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
     </button>
@@ -243,16 +356,20 @@ function EventDetailsDrawer({
 
         {event && (
           <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-            <DetailRow label="Timestamp" value={formatTimestamp(event.timestamp)} />
+            <DetailRow label="Full timestamp" value={formatFullTimestamp(event.timestamp)} />
             <DetailRow label="Category"  node={<CategoryBadge action={event.action} />} />
             <DetailRow label="Event"     value={event.label || "Unknown event"} />
-            <DetailRow label="Action code" value={event.action || "Not captured"} mono />
+            <DetailRow label="Action / event code" value={event.action || "Not captured"} mono />
             <DetailRow label="Result"    node={<ResultBadge result={event.result} />} />
             <hr className="border-gray-100" />
-            <DetailRow label="Admin"         value={event.adminEmail  ?? "Not captured"} />
-            <DetailRow label="Patient MSID"  value={event.patientMsid ?? "Not captured"} mono />
-            <DetailRow label="Safe details"  value={event.details     ?? "No safe details captured."} />
+            <DetailRow label="Admin email"   value={safeText(event.adminEmail)} />
+            <DetailRow label="Patient MSID"  value={safeText(event.patientMsid)} mono />
+            <DetailRow label="Source / module / category" value={getAuditSource(event)} />
+            <DetailRow label="Safe details"  value={getSafeDetails(event)} />
             <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 mt-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-1">
+                Privacy notice
+              </p>
               <p className="text-xs text-gray-500">
                 No raw NHI, passwords, temporary passwords, tokens, or secrets are stored in audit records.
                 All fields shown here are safe operational metadata only.
@@ -277,6 +394,8 @@ export default function AdminAuditPage() {
   const [filterAction, setFilterAction] = useState("");
   const [filterMsid,   setFilterMsid]   = useState("");
   const [filterEmail,  setFilterEmail]  = useState("");
+  const [pageSize,     setPageSize]     = useState<PageSize>(20);
+  const [currentPage,  setCurrentPage]  = useState(1);
   const [selectedEvent, setSelectedEvent] = useState<AuditEvent | null>(null);
 
   useEffect(() => {
@@ -317,6 +436,20 @@ export default function AdminAuditPage() {
     setFilterAction("");
     setFilterMsid("");
     setFilterEmail("");
+    setCurrentPage(1);
+  }
+
+  function downloadCsv() {
+    const csv = buildAuditCsv(sorted);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `midland-audit-filtered-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
   }
 
   // Full filtering pipeline
@@ -345,6 +478,16 @@ export default function AdminAuditPage() {
     return result;
   }, [events, timeFilter, kpiFilter, activeTab, filterAction, filterMsid, filterEmail, sortOrder]);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [timeFilter, kpiFilter, activeTab, filterAction, filterMsid, filterEmail, sortOrder, pageSize]);
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const pageStartIndex = sorted.length === 0 ? 0 : (safeCurrentPage - 1) * pageSize;
+  const pageEndIndex = Math.min(pageStartIndex + pageSize, sorted.length);
+  const pagedEvents = sorted.slice(pageStartIndex, pageEndIndex);
+
   const hasAnyControl =
     kpiFilter || timeFilter !== "all" || sortOrder !== "newest" ||
     filterAction || filterMsid || filterEmail || activeTab !== "All";
@@ -368,6 +511,7 @@ export default function AdminAuditPage() {
           <SummaryCard
             label="Events today"
             value={stats.today}
+            tone="today"
             isActive={kpiFilter === "today"}
             onClick={() => toggleKpi("today")}
           />
@@ -375,6 +519,7 @@ export default function AdminAuditPage() {
             label="Password resets"
             value={stats.pwResets}
             sub="all time"
+            tone="password"
             isActive={kpiFilter === "pwResets"}
             onClick={() => toggleKpi("pwResets")}
           />
@@ -382,19 +527,21 @@ export default function AdminAuditPage() {
             label="NHI reveals"
             value={stats.nhiReveals}
             sub="disabled in MVP"
+            tone="nhi"
             isActive={kpiFilter === "nhiReveals"}
             onClick={() => toggleKpi("nhiReveals")}
           />
           <SummaryCard
             label="Failed events"
             value={stats.failed}
-            highlight={stats.failed > 0 ? "red" : undefined}
+            tone="failed"
             isActive={kpiFilter === "failed"}
             onClick={() => toggleKpi("failed")}
           />
           <SummaryCard
             label="Order events"
             value={stats.orders}
+            tone="orders"
             isActive={kpiFilter === "orders"}
             onClick={() => toggleKpi("orders")}
           />
@@ -555,10 +702,38 @@ export default function AdminAuditPage() {
       {/* Table */}
       {loadState === "loaded" && sorted.length > 0 && (
         <>
-          <p className="text-xs text-gray-400">
-            Showing {sorted.length} of {events.length} events ·{" "}
-            {sortOrder === "newest" ? "newest first" : "oldest first"} · click a row for details
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="space-y-1">
+              <p className="text-xs text-gray-500">
+                Showing {pageStartIndex + 1}-{pageEndIndex} of {sorted.length} filtered events ·{" "}
+                {sortOrder === "newest" ? "newest first" : "oldest first"} · click a row for details
+              </p>
+              <p className="text-xs text-gray-400">
+                {events.length} loaded events available for filtering.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="flex items-center gap-2 text-xs text-gray-500">
+                Page size
+                <select
+                  value={pageSize}
+                  onChange={(e) => setPageSize(Number(e.target.value) as PageSize)}
+                  className="rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#0B5C6C]/30"
+                >
+                  {PAGE_SIZE_OPTIONS.map((size) => (
+                    <option key={size} value={size}>{size}</option>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                onClick={downloadCsv}
+                className="rounded-lg border border-[#0B5C6C]/30 bg-white px-3 py-1.5 text-sm font-medium text-[#0B5C6C] hover:bg-[#0B5C6C]/5 transition-colors"
+              >
+                Download filtered audit CSV
+              </button>
+            </div>
+          </div>
           <div className="overflow-x-auto rounded-xl border border-gray-200 shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
             <table className="min-w-full divide-y divide-gray-100 text-sm">
               <thead className="bg-gray-50">
@@ -574,7 +749,7 @@ export default function AdminAuditPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 bg-white">
-                {sorted.map((e) => (
+                {pagedEvents.map((e) => (
                   <tr
                     key={e.sk}
                     onClick={() => setSelectedEvent(e)}
@@ -594,11 +769,34 @@ export default function AdminAuditPage() {
                     <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{e.adminEmail ?? "—"}</td>
                     <td className="px-4 py-3 text-gray-600 whitespace-nowrap font-mono text-xs">{e.patientMsid ?? "—"}</td>
                     <td className="px-4 py-3 whitespace-nowrap"><ResultBadge result={e.result} /></td>
-                    <td className="px-4 py-3 text-gray-500 max-w-xs truncate">{e.details ?? "—"}</td>
+                    <td className="px-4 py-3 text-gray-500 max-w-xs truncate">{getSafeDetails(e)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-gray-500">
+              Page {safeCurrentPage} of {totalPages}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                disabled={safeCurrentPage === 1}
+                className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                Previous
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                disabled={safeCurrentPage === totalPages}
+                className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                Next
+              </button>
+            </div>
           </div>
           <p className="text-xs text-gray-400">
             Showing up to 100 most recent events. No NHI, passwords, or secrets are included in audit records.

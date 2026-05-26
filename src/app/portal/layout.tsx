@@ -2,7 +2,7 @@
 
 import { useAuth } from "@/components/AuthProvider";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import PortalSidebar from "@/components/layout/PortalSidebar";
 import AccountMenu from "@/components/portal/AccountMenu";
 
@@ -11,26 +11,22 @@ function TopBar() {
   if (!patient) return null;
 
   return (
-    <div className="relative z-10 border-b border-sand bg-white px-4 py-2 md:px-8 hidden lg:flex items-center justify-end">
+    <div className="relative z-50 border-b border-sand bg-white px-4 py-2 md:px-8 hidden lg:flex items-center justify-end">
       <AccountMenu />
     </div>
   );
 }
 
 function PortalInner({ children }: { children: React.ReactNode }) {
-  const { patient, isLoading, isAuthenticated, logout } = useAuth();
+  const { patient, isLoading, isAuthenticated } = useAuth();
   const router = useRouter();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.push("/login");
     }
   }, [isLoading, isAuthenticated, router]);
-
-  const handleLogout = async () => {
-    await logout();
-    router.push("/login");
-  };
 
   if (isLoading) {
     return (
@@ -45,11 +41,14 @@ function PortalInner({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-cream overflow-x-hidden">
       <div className="hidden lg:block">
-        <PortalSidebar />
+        <PortalSidebar
+          collapsed={sidebarCollapsed}
+          onToggle={() => setSidebarCollapsed((value) => !value)}
+        />
       </div>
 
       {/* Narrow/mobile header — visible below lg (1024px) */}
-      <div className="lg:hidden bg-navy px-4 py-3 flex items-center justify-between">
+      <div className="relative z-50 lg:hidden bg-navy px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="h-8 w-8 rounded-full bg-deep-teal flex items-center justify-center text-white font-display text-sm font-bold">
             M
@@ -59,13 +58,13 @@ function PortalInner({ children }: { children: React.ReactNode }) {
           </p>
         </div>
         {patient && (
-          <button onClick={handleLogout} className="text-white/60 text-xs hover:text-white">
-            Log out
-          </button>
+          <div className="[&_button:hover]:bg-white/10 [&_p]:text-white [&_p+ p]:text-white/60 [&_svg]:text-white/60">
+            <AccountMenu />
+          </div>
         )}
       </div>
 
-      <main className="relative lg:ml-64 min-h-screen overflow-x-hidden">
+      <main className={`relative min-h-screen overflow-x-hidden transition-all duration-200 ${sidebarCollapsed ? "lg:ml-16" : "lg:ml-64"}`}>
         <img
           src="/portal-assets/logo/midland-logo-mark-deep-teal.png"
           alt=""

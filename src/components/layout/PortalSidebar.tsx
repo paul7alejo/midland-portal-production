@@ -1,9 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { useAuth } from "@/components/AuthProvider";
 
 const NAV_ITEMS: { href: string; label: string; icon: string; comingSoon?: boolean }[] = [
   { href: "/portal/dashboard",   label: "Dashboard",        icon: "home" },
@@ -38,90 +37,112 @@ function NavIcon({ name }: { name: string }) {
   );
 }
 
-export default function PortalSidebar() {
+export default function PortalSidebar({
+  collapsed,
+  onToggle,
+}: {
+  collapsed: boolean;
+  onToggle: () => void;
+}) {
   const pathname = usePathname();
-  const router = useRouter();
-  const { logout } = useAuth();
-
-  async function handleLogout() {
-    await logout();
-    router.push("/login");
-  }
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 w-64 bg-navy flex flex-col">
+    <aside
+      className={cn(
+        "fixed inset-y-0 left-0 z-30 bg-navy flex flex-col overflow-hidden transition-all duration-200",
+        collapsed ? "w-16" : "w-64"
+      )}
+    >
 
       {/* Brand */}
-      <div className="flex items-center gap-3 px-4 py-5">
-        <img
-          src="/midland-logo.png"
-          alt="Midland Sleep"
-          className="h-10 w-10 object-contain rounded-lg bg-white shrink-0"
-        />
-        <div className="min-w-0">
-          <div className="text-base font-semibold text-white whitespace-nowrap">
-            Midland Sleep
+      <div className={cn("flex items-center border-b border-white/10 h-[72px] shrink-0", collapsed ? "justify-center" : "gap-3 px-4")}>
+        {collapsed ? (
+          <div className="flex flex-col items-center justify-center gap-1.5">
+            <img
+              src="/midland-logo.png"
+              alt="Midland Sleep"
+              className="h-8 w-8 object-contain rounded-lg bg-white shrink-0"
+            />
+            <button
+              type="button"
+              onClick={onToggle}
+              title="Expand sidebar"
+              aria-label="Expand sidebar"
+              className="flex h-7 w-7 items-center justify-center rounded-md text-slate-300 transition-colors hover:bg-white/5 hover:text-white"
+            >
+              <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
           </div>
-          <div className="text-xs uppercase tracking-[0.18em] text-slate-300 whitespace-nowrap">
-            Patient Portal
-          </div>
-        </div>
+        ) : (
+          <>
+            <img
+              src="/midland-logo.png"
+              alt="Midland Sleep"
+              className="h-10 w-10 object-contain rounded-lg bg-white shrink-0"
+            />
+            <div className="min-w-0 flex-1">
+              <div className="text-base font-semibold text-white whitespace-nowrap">
+                Midland Sleep
+              </div>
+              <div className="text-xs uppercase tracking-[0.18em] text-slate-300 whitespace-nowrap">
+                Patient Portal
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onToggle}
+              title="Collapse sidebar"
+              aria-label="Collapse sidebar"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-300 transition-colors hover:bg-white/5 hover:text-white"
+            >
+              <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+          </>
+        )}
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+      <nav className={cn("flex-1 py-4 space-y-1 overflow-y-auto", collapsed ? "px-2" : "px-3")}>
         {NAV_ITEMS.map((item) => {
-  const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
-  if (item.comingSoon) {
-    return (
-      <div
-        key={item.href}
-        className="flex items-center gap-3 px-4 py-3.5 text-base font-medium text-slate-400 cursor-not-allowed"
-      >
-        <NavIcon name={item.icon} />
-        <span>{item.label}</span>
-      </div>
-    );
-  }
-  return (
-    <Link
-      key={item.href}
-      href={item.href}
-      className={cn(
-        "flex items-center gap-3 px-4 py-3.5 text-base font-medium transition-colors",
-        isActive
-          ? "bg-[#0B5C6C]/25 text-white border-l-4 border-[#0B5C6C]"
-          : "text-slate-300 hover:bg-white/5 hover:text-white"
-      )}
-    >
-      <NavIcon name={item.icon} />
-      {item.label}
-    </Link>
-  );
-})}
+          const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+          if (item.comingSoon) {
+            return (
+              <div
+                key={item.href}
+                title={collapsed ? item.label : undefined}
+                className={cn(
+                  "flex items-center py-3.5 text-base font-medium text-slate-400 cursor-not-allowed rounded-lg",
+                  collapsed ? "justify-center px-0" : "gap-3 px-4"
+                )}
+              >
+                <NavIcon name={item.icon} />
+                {!collapsed && <span>{item.label}</span>}
+              </div>
+            );
+          }
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              title={collapsed ? item.label : undefined}
+              className={cn(
+                "flex items-center py-3.5 text-base font-medium transition-colors rounded-lg",
+                collapsed ? "justify-center px-0" : "gap-3 px-4",
+                isActive
+                  ? "bg-[#0B5C6C]/25 text-white border-l-4 border-[#0B5C6C]"
+                  : "text-slate-300 hover:bg-white/5 hover:text-white"
+              )}
+            >
+              <NavIcon name={item.icon} />
+              {!collapsed && <span>{item.label}</span>}
+            </Link>
+          );
+        })}
       </nav>
-
-      {/* Logout */}
-      <div className="px-3 py-4 border-t border-white/10">
-        <button
-          type="button"
-          onClick={handleLogout}
-          className="flex w-full items-center gap-3 px-4 py-3.5 text-base font-medium text-slate-300 hover:bg-white/5 hover:text-white transition-colors rounded-lg"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-5 w-5 shrink-0"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={1.5}
-            aria-hidden="true"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-          </svg>
-          Log out
-        </button>
-      </div>
     </aside>
   );
 }
