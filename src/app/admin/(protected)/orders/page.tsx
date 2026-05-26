@@ -253,7 +253,10 @@ function EmptyState({ filtered }: { filtered: boolean }) {
         {filtered ? "No orders match the current filters." : "No orders here yet."}
       </p>
       {!filtered && (
-        <p className="text-sm leading-6 text-gray-500 mt-1">Supply requests will appear here once they reach this stage.</p>
+        <p className="text-sm leading-6 text-gray-500 mt-1">
+          Patient supply requests submitted via the patient portal will appear here. Checkout,
+          fulfilment, and payment processing are Phase 3.
+        </p>
       )}
     </div>
   );
@@ -398,11 +401,16 @@ export default function AdminOrdersPage() {
   const selectedVisible = visibleOrders.filter((o) => selected.has(o.id));
 
   function handleApproveSelected() {
-    console.log("approve selected", selectedVisible);
+    setOrders((prev) =>
+      prev.map((o) => (selected.has(o.id) ? { ...o, status: "Approved" } : o))
+    );
+    setSelected(new Set());
   }
 
   function handleApprove(order: Order) {
-    console.log("approve", order);
+    setOrders((prev) =>
+      prev.map((o) => (o.id === order.id ? { ...o, status: "Approved" } : o))
+    );
   }
 
   function handleViewPatient(order: Order) {
@@ -412,7 +420,9 @@ export default function AdminOrdersPage() {
   }
 
   function handleDecline(order: Order) {
-    console.log("decline", order);
+    setOrders((prev) =>
+      prev.map((o) => (o.id === order.id ? { ...o, status: "Declined" } : o))
+    );
   }
 
   const isFiltered = activeFilterCount > 0;
@@ -425,8 +435,8 @@ export default function AdminOrdersPage() {
           <p className="text-sm font-semibold uppercase tracking-wide text-deep-teal">
             Patient operations
           </p>
-          <h1 className="text-3xl font-bold text-navy">Orders</h1>
-          <p className="text-base leading-6 text-gray-600">Supply request worklist for staff review.</p>
+          <h1 className="text-3xl font-bold text-navy">Patient Requests</h1>
+          <p className="text-base leading-6 text-gray-600">Supply request worklist for staff review and tracking.</p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           {selectedVisible.length > 0 && (
@@ -453,6 +463,15 @@ export default function AdminOrdersPage() {
             )}
           </button>
         </div>
+      </div>
+
+      {/* Phase 3 boundary notice */}
+      <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-3">
+        <p className="text-sm text-amber-800">
+          <span className="font-semibold">Request tracking only.</span> Checkout, payment, inventory
+          reservation, fulfilment, and automatic entitlement deduction are Phase 3. Status changes
+          made here are local only and do not trigger fulfilment, payment, or inventory actions.
+        </p>
       </div>
 
       {/* Tab bar */}

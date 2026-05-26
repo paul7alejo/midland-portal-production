@@ -1172,16 +1172,46 @@ function EntitlementTab({ patient }: { patient: DrawerPatient }) {
 
   return (
     <div className="space-y-5">
+      {/* Phase 2 scope notice */}
+      <div className="rounded-lg border border-[#0B5C6C]/20 bg-[#0B5C6C]/[0.05] px-4 py-3">
+        <p className="text-xs font-semibold text-[#0B5C6C] uppercase tracking-wide">Phase 2 — Visibility only</p>
+        <p className="text-xs text-[#0B5C6C]/80 mt-0.5">
+          No checkout, deduction, payment, or inventory action is applied in this phase. Amounts shown are informational only.
+        </p>
+      </div>
+
       {pendingReview ? (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-2">
-          <p className="text-sm font-semibold text-amber-900 uppercase tracking-wide">Funding review required</p>
-          <p className="text-sm text-amber-800">
-            Entitlement data is not yet available for this record. Staff review is required before funding amounts can be confirmed.
-          </p>
-          <p className="text-sm text-amber-700">
-            Default Midland/Biomed allowance is $250 per eligible patient. Deduction and store ordering are Phase 3 — no amounts are applied automatically in this phase.
-          </p>
-        </div>
+        <>
+          {/* Concept funding summary for pending-review patients */}
+          <div className="bg-gray-50 rounded-xl p-4 space-y-4">
+            <dl className="grid gap-4 sm:grid-cols-3">
+              <div>
+                <dt className="text-sm font-medium text-gray-500 uppercase tracking-wide">Annual allowance</dt>
+                <dd className="text-base font-semibold text-gray-400 mt-0.5">$250 (concept)</dd>
+              </div>
+              <div>
+                <dt className="text-sm font-medium text-gray-500 uppercase tracking-wide">Used to date</dt>
+                <dd className="text-sm italic text-gray-400 mt-0.5">Not yet tracked</dd>
+              </div>
+              <div>
+                <dt className="text-sm font-medium text-gray-500 uppercase tracking-wide">Remaining</dt>
+                <dd className="text-sm italic text-gray-400 mt-0.5">Not yet calculated</dd>
+              </div>
+            </dl>
+            {patient.fundedBy && (
+              <FieldRow label="Funding source" value={safeValue(patient.fundedBy)} />
+            )}
+          </div>
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-2">
+            <p className="text-sm font-semibold text-amber-900 uppercase tracking-wide">Funding review required</p>
+            <p className="text-sm text-amber-800">
+              Entitlement data is not yet available for this record. Staff review is required before funding amounts can be confirmed.
+            </p>
+            <p className="text-sm text-amber-700">
+              Default Midland/Biomed allowance is $250 per eligible patient. Deduction and store ordering are Phase 3 — no amounts are applied automatically in this phase.
+            </p>
+          </div>
+        </>
       ) : (
         /* Funding summary */
         <div className="bg-gray-50 rounded-xl p-4 space-y-4">
@@ -1203,6 +1233,9 @@ function EntitlementTab({ patient }: { patient: DrawerPatient }) {
             label="Funding period"
             value={`${funding.fundingPeriodStart} – ${funding.fundingPeriodEnd}`}
           />
+          {patient.fundedBy && (
+            <FieldRow label="Funding source" value={safeValue(patient.fundedBy)} />
+          )}
         </div>
       )}
 
