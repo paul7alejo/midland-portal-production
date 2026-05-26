@@ -18,7 +18,6 @@ import {
   Upload,
   Shield,
   PanelLeftClose,
-  PanelLeftOpen,
   LogOut,
 } from "lucide-react";
 import {
@@ -100,30 +99,35 @@ export default function AdminSidebar({ collapsed, onToggle }: AdminSidebarProps)
     }
   }
 
+  function expandIfCollapsed() {
+    if (collapsed) onToggle();
+  }
+
   return (
     <aside
+      aria-label={collapsed ? "Collapsed admin sidebar. Click to expand." : "Admin sidebar"}
+      tabIndex={collapsed ? 0 : undefined}
+      onClick={expandIfCollapsed}
+      onKeyDown={(event) => {
+        if (!collapsed || event.currentTarget !== event.target) return;
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onToggle();
+        }
+      }}
       className={`fixed left-0 top-0 z-30 h-screen bg-navy flex flex-col overflow-hidden transition-all duration-200 ${
-        collapsed ? "w-16" : "w-64"
+        collapsed ? "w-16 cursor-pointer" : "w-64"
       }`}
     >
       {/* Logo / brand */}
       <div className="flex items-center border-b border-white/10 shrink-0 h-[72px]">
         {collapsed ? (
-          <div className="flex w-full flex-col items-center justify-center gap-1.5">
+          <div className="flex w-full items-center justify-center">
             <img
               src="/midland-logo.png"
               alt="Midland Sleep"
               className="h-8 w-8 rounded-md"
             />
-            <button
-              type="button"
-              onClick={onToggle}
-              title="Expand sidebar"
-              aria-label="Expand sidebar"
-              className="flex h-7 w-7 items-center justify-center rounded-md text-white/60 transition-colors hover:bg-white/5 hover:text-white"
-            >
-              <PanelLeftOpen className="h-4 w-4" />
-            </button>
           </div>
         ) : (
           <div className="flex items-center gap-3 px-4 w-full">
@@ -213,26 +217,22 @@ export default function AdminSidebar({ collapsed, onToggle }: AdminSidebarProps)
         </div>
       </nav>
 
-      {/* Staff info + logout */}
-      <div className="p-4 border-t border-white/10 shrink-0">
-        {!collapsed && (
+      {!collapsed && (
+        <div className="p-4 border-t border-white/10 shrink-0">
           <div className="text-white/70 text-sm mb-2">
             <p className="font-medium text-white text-base">Staff User</p>
             <p className="text-xs">admin@midlandsleep.co.nz</p>
           </div>
-        )}
-        <button
-          type="button"
-          onClick={handleLogout}
-          title={collapsed ? "Log out" : undefined}
-          className={`flex items-center text-white/70 hover:text-white transition-colors ${
-            collapsed ? "justify-center w-full" : "gap-2 text-base"
-          }`}
-        >
-          <LogOut className="h-4 w-4 shrink-0" />
-          {!collapsed && <span>Log out</span>}
-        </button>
-      </div>
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="flex items-center gap-2 text-base text-white/70 transition-colors hover:text-white"
+          >
+            <LogOut className="h-4 w-4 shrink-0" />
+            <span>Log out</span>
+          </button>
+        </div>
+      )}
     </aside>
   );
 }

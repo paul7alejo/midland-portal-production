@@ -46,35 +46,36 @@ export default function PortalSidebar({
 }) {
   const pathname = usePathname();
 
+  function expandIfCollapsed() {
+    if (collapsed) onToggle();
+  }
+
   return (
     <aside
+      aria-label={collapsed ? "Collapsed patient sidebar. Click to expand." : "Patient sidebar"}
+      tabIndex={collapsed ? 0 : undefined}
+      onClick={expandIfCollapsed}
+      onKeyDown={(event) => {
+        if (!collapsed || event.currentTarget !== event.target) return;
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onToggle();
+        }
+      }}
       className={cn(
         "fixed inset-y-0 left-0 z-30 bg-navy flex flex-col overflow-hidden transition-all duration-200",
-        collapsed ? "w-16" : "w-64"
+        collapsed ? "w-16 cursor-pointer" : "w-64"
       )}
     >
 
       {/* Brand */}
       <div className={cn("flex items-center border-b border-white/10 h-[72px] shrink-0", collapsed ? "justify-center" : "gap-3 px-4")}>
         {collapsed ? (
-          <div className="flex flex-col items-center justify-center gap-1.5">
-            <img
-              src="/midland-logo.png"
-              alt="Midland Sleep"
-              className="h-8 w-8 object-contain rounded-lg bg-white shrink-0"
-            />
-            <button
-              type="button"
-              onClick={onToggle}
-              title="Expand sidebar"
-              aria-label="Expand sidebar"
-              className="flex h-7 w-7 items-center justify-center rounded-md text-slate-300 transition-colors hover:bg-white/5 hover:text-white"
-            >
-              <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
-          </div>
+          <img
+            src="/midland-logo.png"
+            alt="Midland Sleep"
+            className="h-8 w-8 object-contain rounded-lg bg-white shrink-0"
+          />
         ) : (
           <>
             <img
