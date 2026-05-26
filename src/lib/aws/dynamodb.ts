@@ -797,7 +797,14 @@ export async function setSafetyCautionDetails(params: {
   }))
 }
 
-// ── Reorder requests (Phase 1F) ───────────────────────────────────────────────
+// ── Reorder requests (Phase 1F / Phase 2D) ───────────────────────────────────
+
+export type ReorderStatus =
+  | 'pending_review'
+  | 'reviewing'
+  | 'approved'
+  | 'sent'
+  | 'cancelled'
 
 export interface ReorderDeliveryAddress {
   line1: string
@@ -816,6 +823,12 @@ export interface ReorderRequest {
   items: string[]
   delivery_address: ReorderDeliveryAddress
   created_by: string  // Cognito sub of submitting patient
+  // Estimate fields — Phase 2 only, no deduction applied
+  estimated_amount?: number
+  estimated_funded_amount?: number
+  estimated_patient_copay?: number
+  estimated_remaining_after?: number
+  note?: string
 }
 
 export interface ReorderRecord {
@@ -829,10 +842,20 @@ export interface ReorderRecord {
   org_id: string
   items: string[]
   delivery_address: ReorderDeliveryAddress
-  status: 'pending_review'
+  status: ReorderStatus
   source: 'patient_portal_reorder'
   created_by: string
   created_at: string
+  // Status update tracking
+  updated_at?: string
+  updated_by?: string
+  updated_by_email?: string
+  // Estimate fields — Phase 2 only, no deduction applied
+  estimated_amount?: number
+  estimated_funded_amount?: number
+  estimated_patient_copay?: number
+  estimated_remaining_after?: number
+  note?: string
 }
 
 function createRequestReference(createdAt: string): string {
@@ -935,6 +958,88 @@ export async function getPendingReorderRequest(
 
   results.sort((a, b) => b.created_at.localeCompare(a.created_at))
   return results[0] ?? null
+}
+
+export async function getLatestReorderRequest(
+  patientId: string,
+  orgId: string
+): Promise<ReorderRecord | null> {
+  const results: ReorderRecord[] = []
+  let ExclusiveStartKey: Record<string, NativeAttributeValue> | undefined
+
+  do {
+    const res = await docClient.send(new ScanCommand({
+      TableName: TABLES.ORDERS,
+      FilterExpression: 'patient_id = :patientId AND org_id = :orgId AND #src = :source',
+      ExpressionAttributeNames: { '#src': 'source' },
+      ExpressionAttributeValues: {
+        ':patientId': patientId,
+        ':orgId': orgId,
+        ':source': 'patient_portal_reorder',
+      },
+      ExclusiveStartKey,
+    }))
+    for (const item of res.Items ?? []) {
+      results.push(item as ReorderRecord)
+    }
+    ExclusiveStartKey = res.LastEvaluatedKey
+  } while (ExclusiveStartKey)
+
+  results.sort((a, b) => b.created_at.localeCompare(a.created_at))
+  return results[0] ?? null
+}
+
+export async function listReorderRequestsByMsid(
+  msid: string,
+  orgId: string
+): Promise<ReorderRecord[]> {
+  const results: ReorderRecord[] = []
+  let ExclusiveStartKey: Record<string, NativeAttributeValue> | undefined
+
+  do {
+    const res = await docClient.send(new ScanCommand({
+      TableName: TABLES.ORDERS,
+      FilterExpression: 'patient_msid = :msid AND org_id = :orgId AND #src = :source',
+      ExpressionAttributeNames: { '#src': 'source' },
+      ExpressionAttributeValues: {
+        ':msid': msid,
+        ':orgId': orgId,
+        ':source': 'patient_portal_reorder',
+      },
+      ExclusiveStartKey,
+    }))
+    for (const item of res.Items ?? []) {
+      results.push(item as ReorderRecord)
+    }
+    ExclusiveStartKey = res.LastEvaluatedKey
+  } while (ExclusiveStartKey)
+
+  results.sort((a, b) => b.created_at.localeCompare(a.created_at))
+  return results
+}
+
+export async function updateReorderStatus(params: {
+  id: string
+  status: ReorderStatus
+  orgId: string
+  adminSub: string
+  adminEmail: string
+}): Promise<void> {
+  const now = new Date().toISOString()
+  await docClient.send(new UpdateCommand({
+    TableName: TABLES.ORDERS,
+    Key: { pk: `ORDER#${params.id}`, sk: 'REORDER' },
+    ConditionExpression: 'attribute_exists(pk) AND org_id = :orgId',
+    UpdateExpression: 'SET #status = :status, updated_at = :now, updated_by = :sub, updated_by_email = :email',
+    ExpressionAttributeNames: { '#status': 'status' },
+    ExpressionAttributeValues: {
+      ':status': params.status,
+      ':orgId': params.orgId,
+      ':now': now,
+      ':sub': params.adminSub,
+      ':email': params.adminEmail,
+    },
+  }))
 }
 
 export async function createCommsRecord(record: CommsRecord): Promise<void> {
