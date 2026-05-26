@@ -126,6 +126,26 @@ export default function AdminConfigPage() {
           </ul>
         </Section>
 
+        {/* Entitlement & request rules */}
+        <Section title="Entitlement &amp; Request Rules">
+          <dl className="space-y-2">
+            <Row label="Default annual allowance" value="$250" />
+            <Row label="Request categories" value="Mask, Headgear, Filters, Tubing, Cleaning supplies, Support request" />
+            <Row label="Funding estimate mode" value="Estimate only" />
+            <Row label="Entitlement deduction" value="Not active in Phase 2" />
+            <Row label="Payment" value="Not active in Phase 2" />
+            <Row label="Inventory reservation" value="Not active in Phase 2" />
+            <Row label="Patient-facing checkout" value="Phase 3" />
+            <Row label="Approval statuses" value="New, Reviewing, Approved, Sent, Cancelled" />
+          </dl>
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+            <p className="text-sm text-amber-800">
+              These rules support admin-side testing only. Requests estimate funding impact, but do
+              not deduct entitlement, take payment, reserve stock, or trigger fulfilment in Phase 2.
+            </p>
+          </div>
+        </Section>
+
         {/* Support & Help */}
         <Section title="Support &amp; help">
           <div className="grid gap-3 sm:grid-cols-2">

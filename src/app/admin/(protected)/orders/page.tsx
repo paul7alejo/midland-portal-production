@@ -4,11 +4,12 @@ import { useState, useMemo, useEffect } from "react";
 import { PatientDrawer } from "@/components/admin/PatientDrawer";
 import { cn } from "@/lib/utils";
 
-type OrderStatus   = "Pending" | "Approved" | "Dispatched" | "Completed" | "Declined";
+type OrderStatus   = "New" | "Reviewing" | "Approved" | "Sent" | "Cancelled";
 type TabKey        = OrderStatus;
 type OrderType     = "ENTITLEMENT" | "PRIVATE" | "MIXED";
 type DateRange     = "week" | "month" | "older";
 type OrderSortOpt  = "newest" | "oldest" | "name_az" | "status";
+type RequestCategory = "Mask" | "Headgear" | "Filters" | "Tubing" | "Cleaning supplies" | "Support request";
 
 interface Order {
   id: string;
@@ -16,14 +17,30 @@ interface Order {
   patient: string;
   msid: string;
   date: string;
+  updatedDate: string;
   items: string;
+  category: RequestCategory;
   type: OrderType;
   status: OrderStatus;
-  estimatedItemAmount?: number;
-  estimatedFundedAmount?: number;
-  estimatedRemainingAfter?: number;
+  estimatedItemAmount: number;
+  estimatedFundedAmount: number;
+  estimatedPatientCopay: number;
+  estimatedRemainingAfter: number;
+  adminNote?: string;
   isDemo?: boolean;
+  localOnly?: boolean;
 }
+
+interface TestRequestForm {
+  msid: string;
+  patient: string;
+  category: RequestCategory;
+  item: string;
+  amount: string;
+  note: string;
+}
+
+const DEFAULT_ANNUAL_ALLOWANCE = 250;
 
 const MONTH_NUM: Record<string, number> = {
   Jan: 1, Feb: 2, Mar: 3, Apr: 4, May: 5, Jun: 6,
@@ -42,27 +59,78 @@ function parseToDate(s: string): Date | null {
   return new Date(parseInt(y), mo - 1, parseInt(d));
 }
 
+function formatCurrency(value: number): string {
+  return new Intl.NumberFormat("en-NZ", {
+    style: "currency",
+    currency: "NZD",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function formatToday(): string {
+  return new Intl.DateTimeFormat("en-NZ", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "Pacific/Auckland",
+  }).format(new Date());
+}
+
+function calculateEstimate(itemAmount: number, remainingAllowance = DEFAULT_ANNUAL_ALLOWANCE) {
+  const fundedAmount = Math.min(itemAmount, remainingAllowance);
+  return {
+    estimatedFundedAmount: fundedAmount,
+    estimatedPatientCopay: Math.max(0, itemAmount - fundedAmount),
+    estimatedRemainingAfter: Math.max(0, remainingAllowance - fundedAmount),
+  };
+}
+
+function normalizeStatus(value?: string): OrderStatus {
+  if (value === "Approved" || value === "Reviewing" || value === "Sent" || value === "Cancelled" || value === "New") {
+    return value;
+  }
+  if (value === "Dispatched" || value === "Completed") return "Sent";
+  if (value === "Declined") return "Cancelled";
+  return "New";
+}
+
+function normalizeOrder(order: Partial<Order> & Pick<Order, "id" | "requestId" | "patient" | "msid" | "date" | "items" | "type"> & { status?: string }): Order {
+  const amount = order.estimatedItemAmount ?? 0;
+  const estimate = calculateEstimate(amount);
+  return {
+    ...order,
+    updatedDate: order.updatedDate ?? order.date,
+    category: order.category ?? "Support request",
+    estimatedItemAmount: amount,
+    estimatedFundedAmount: order.estimatedFundedAmount ?? estimate.estimatedFundedAmount,
+    estimatedPatientCopay: order.estimatedPatientCopay ?? estimate.estimatedPatientCopay,
+    estimatedRemainingAfter: order.estimatedRemainingAfter ?? estimate.estimatedRemainingAfter,
+    status: normalizeStatus(order.status),
+  };
+}
+
 const TABS: { key: TabKey }[] = [
-  { key: "Pending"    },
-  { key: "Approved"   },
-  { key: "Dispatched" },
-  { key: "Completed"  },
-  { key: "Declined"   },
+  { key: "New"       },
+  { key: "Reviewing" },
+  { key: "Approved"  },
+  { key: "Sent"      },
+  { key: "Cancelled" },
 ];
 
-const STATUS_OPTIONS: OrderStatus[] = ["Pending", "Approved", "Dispatched", "Completed", "Declined"];
+const STATUS_OPTIONS: OrderStatus[] = ["New", "Reviewing", "Approved", "Sent", "Cancelled"];
 const TYPE_OPTIONS:   OrderType[]   = ["ENTITLEMENT", "PRIVATE", "MIXED"];
+const REQUEST_CATEGORIES: RequestCategory[] = ["Mask", "Headgear", "Filters", "Tubing", "Cleaning supplies", "Support request"];
 const TYPE_LABEL: Record<OrderType, string> = {
   ENTITLEMENT: "Entitlement",
   PRIVATE:     "Private",
   MIXED:       "Mixed",
 };
 const STATUS_BADGE: Record<OrderStatus, string> = {
-  Pending:    "bg-amber-100 text-amber-800 border border-amber-200",
-  Approved:   "bg-emerald-100 text-emerald-800 border border-emerald-200",
-  Dispatched: "bg-blue-100 text-blue-800 border border-blue-200",
-  Completed:  "bg-gray-100 text-gray-700 border border-gray-200",
-  Declined:   "bg-red-100 text-red-700 border border-red-200",
+  New:       "bg-amber-100 text-amber-800 border border-amber-200",
+  Reviewing: "bg-blue-100 text-blue-800 border border-blue-200",
+  Approved:  "bg-emerald-100 text-emerald-800 border border-emerald-200",
+  Sent:      "bg-purple-100 text-purple-800 border border-purple-200",
+  Cancelled: "bg-red-100 text-red-700 border border-red-200",
 };
 const TYPE_BADGE: Record<OrderType, string> = {
   ENTITLEMENT: "bg-[#0B5C6C]/10 text-[#0B5C6C]",
@@ -77,13 +145,17 @@ const DEMO_REQUESTS: Order[] = [
     patient: "Demo Patient A",
     msid: "MS-900001",
     date: "26 May 2026",
+    updatedDate: "26 May 2026",
     items: "Mask replacement (AirFit F30i)",
+    category: "Mask",
     type: "ENTITLEMENT",
-    status: "Pending",
+    status: "New",
     estimatedItemAmount: 85,
     estimatedFundedAmount: 85,
+    estimatedPatientCopay: 0,
     estimatedRemainingAfter: 165,
     isDemo: true,
+    localOnly: true,
   },
   {
     id: "demo-2",
@@ -91,13 +163,17 @@ const DEMO_REQUESTS: Order[] = [
     patient: "Demo Patient B",
     msid: "MS-900002",
     date: "24 May 2026",
+    updatedDate: "24 May 2026",
     items: "Filters × 2 + Replacement tubing",
+    category: "Filters",
     type: "ENTITLEMENT",
-    status: "Pending",
+    status: "Reviewing",
     estimatedItemAmount: 45,
     estimatedFundedAmount: 45,
+    estimatedPatientCopay: 0,
     estimatedRemainingAfter: 205,
     isDemo: true,
+    localOnly: true,
   },
   {
     id: "demo-3",
@@ -105,13 +181,17 @@ const DEMO_REQUESTS: Order[] = [
     patient: "Demo Patient C",
     msid: "MS-900003",
     date: "20 May 2026",
+    updatedDate: "20 May 2026",
     items: "Headgear replacement",
+    category: "Headgear",
     type: "ENTITLEMENT",
     status: "Approved",
     estimatedItemAmount: 65,
     estimatedFundedAmount: 65,
+    estimatedPatientCopay: 0,
     estimatedRemainingAfter: 185,
     isDemo: true,
+    localOnly: true,
   },
   {
     id: "demo-4",
@@ -119,10 +199,17 @@ const DEMO_REQUESTS: Order[] = [
     patient: "Demo Patient D",
     msid: "MS-900004",
     date: "18 May 2026",
+    updatedDate: "18 May 2026",
     items: "General CPAP support enquiry",
+    category: "Support request",
     type: "PRIVATE",
-    status: "Pending",
+    status: "New",
+    estimatedItemAmount: 0,
+    estimatedFundedAmount: 0,
+    estimatedPatientCopay: 0,
+    estimatedRemainingAfter: 250,
     isDemo: true,
+    localOnly: true,
   },
 ];
 
@@ -322,12 +409,89 @@ function EmptyState({ filtered }: { filtered: boolean }) {
   );
 }
 
+function CreateTestRequestPanel({
+  form,
+  onChange,
+  onCreate,
+}: {
+  form: TestRequestForm;
+  onChange: (patch: Partial<TestRequestForm>) => void;
+  onCreate: () => void;
+}) {
+  const amount = Number(form.amount) || 0;
+  const estimate = calculateEstimate(amount);
+  const inputCls = "rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0B5C6C]/30";
+
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+      <div className="border-b border-gray-200 bg-gray-50 px-5 py-4">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <h2 className="text-base font-semibold text-gray-800">Create test request</h2>
+            <p className="mt-1 text-sm text-gray-500">
+              Demo request only — not persisted after refresh.
+            </p>
+          </div>
+          <span className="inline-flex rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-blue-700">
+            Local only
+          </span>
+        </div>
+      </div>
+      <div className="grid gap-4 px-5 py-5 lg:grid-cols-6">
+        <label className="space-y-1 lg:col-span-1">
+          <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Patient MSID</span>
+          <input value={form.msid} onChange={(e) => onChange({ msid: e.target.value })} className={inputCls} placeholder="MS-900005" />
+        </label>
+        <label className="space-y-1 lg:col-span-1">
+          <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Patient name</span>
+          <input value={form.patient} onChange={(e) => onChange({ patient: e.target.value })} className={inputCls} placeholder="Demo Patient" />
+        </label>
+        <label className="space-y-1 lg:col-span-1">
+          <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Category</span>
+          <select value={form.category} onChange={(e) => onChange({ category: e.target.value as RequestCategory })} className={inputCls}>
+            {REQUEST_CATEGORIES.map((category) => (
+              <option key={category} value={category}>{category}</option>
+            ))}
+          </select>
+        </label>
+        <label className="space-y-1 lg:col-span-1">
+          <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Requested item</span>
+          <input value={form.item} onChange={(e) => onChange({ item: e.target.value })} className={inputCls} placeholder="Mask cushion" />
+        </label>
+        <label className="space-y-1 lg:col-span-1">
+          <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Estimated amount</span>
+          <input type="number" min="0" step="1" value={form.amount} onChange={(e) => onChange({ amount: e.target.value })} className={inputCls} placeholder="85" />
+        </label>
+        <label className="space-y-1 lg:col-span-1">
+          <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Admin note</span>
+          <input value={form.note} onChange={(e) => onChange({ note: e.target.value })} className={inputCls} placeholder="Optional" />
+        </label>
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-4 border-t border-gray-100 px-5 py-4">
+        <div className="grid gap-x-5 gap-y-1 text-xs text-gray-600 sm:grid-cols-4">
+          <p><span className="text-gray-400">Default allowance:</span> {formatCurrency(DEFAULT_ANNUAL_ALLOWANCE)}</p>
+          <p><span className="text-gray-400">Funded:</span> {formatCurrency(estimate.estimatedFundedAmount)}</p>
+          <p><span className="text-gray-400">Patient co-pay:</span> {formatCurrency(estimate.estimatedPatientCopay)}</p>
+          <p><span className="text-gray-400">Remaining after:</span> {formatCurrency(estimate.estimatedRemainingAfter)}</p>
+        </div>
+        <button
+          type="button"
+          onClick={onCreate}
+          className="rounded-lg bg-[#0B5C6C] px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#0B5C6C]/90"
+        >
+          Create test request
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function AdminOrdersPage() {
   const [orders,        setOrders]        = useState<Order[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
-  const [activeTab,     setActiveTab]     = useState<TabKey>("Pending");
+  const [activeTab,     setActiveTab]     = useState<TabKey>("New");
   const [selected,      setSelected]      = useState<Set<string>>(new Set());
   const [drawerOpen,    setDrawerOpen]    = useState(false);
   const [drawerMsid,    setDrawerMsid]    = useState<string | null>(null);
@@ -337,12 +501,22 @@ export default function AdminOrdersPage() {
   const [typeFilters,   setTypeFilters]   = useState<Set<OrderType>>(new Set());
   const [dateRange,     setDateRange]     = useState<DateRange | null>(null);
   const [sortOpt,       setSortOpt]       = useState<OrderSortOpt | null>(null);
+  const [testForm,      setTestForm]      = useState<TestRequestForm>({
+    msid: "MS-900005",
+    patient: "Demo Patient",
+    category: "Mask",
+    item: "Mask cushion",
+    amount: "85",
+    note: "",
+  });
 
   useEffect(() => {
     fetch("/api/admin/orders")
       .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
       .then((data) => {
-        const real: Order[] = data.orders ?? [];
+        const real: Order[] = (data.orders ?? []).map((order: Partial<Order> & Pick<Order, "id" | "requestId" | "patient" | "msid" | "date" | "items" | "type">) =>
+          normalizeOrder(order)
+        );
         setOrders(real.length > 0 ? real : DEMO_REQUESTS);
       })
       .catch(() => { /* orders stays empty; EmptyState renders */ })
@@ -350,7 +524,7 @@ export default function AdminOrdersPage() {
   }, []);
 
   const pendingCount = useMemo(
-    () => orders.filter((o) => o.status === "Pending").length,
+    () => orders.filter((o) => o.status === "New").length,
     [orders]
   );
 
@@ -465,14 +639,14 @@ export default function AdminOrdersPage() {
 
   function handleApproveSelected() {
     setOrders((prev) =>
-      prev.map((o) => (selected.has(o.id) ? { ...o, status: "Approved" } : o))
+      prev.map((o) => (selected.has(o.id) ? { ...o, status: "Approved", updatedDate: formatToday(), localOnly: o.localOnly ?? true } : o))
     );
     setSelected(new Set());
   }
 
-  function handleApprove(order: Order) {
+  function handleStatusChange(order: Order, status: OrderStatus) {
     setOrders((prev) =>
-      prev.map((o) => (o.id === order.id ? { ...o, status: "Approved" } : o))
+      prev.map((o) => (o.id === order.id ? { ...o, status, updatedDate: formatToday(), localOnly: o.localOnly ?? true } : o))
     );
   }
 
@@ -482,10 +656,38 @@ export default function AdminOrdersPage() {
     setDrawerOpen(true);
   }
 
-  function handleDecline(order: Order) {
-    setOrders((prev) =>
-      prev.map((o) => (o.id === order.id ? { ...o, status: "Declined" } : o))
-    );
+  function handleCreateTestRequest() {
+    const amount = Math.max(0, Number(testForm.amount) || 0);
+    const estimate = calculateEstimate(amount);
+    const now = formatToday();
+    const id = `local-${Date.now()}`;
+    const msid = testForm.msid.trim() || "MS-LOCAL";
+    const request: Order = {
+      id,
+      requestId: `REQ-LOCAL-${String(Date.now()).slice(-6)}`,
+      patient: testForm.patient.trim() || "Demo Patient",
+      msid,
+      date: now,
+      updatedDate: now,
+      items: testForm.item.trim() || testForm.category,
+      category: testForm.category,
+      type: testForm.category === "Support request" ? "PRIVATE" : "ENTITLEMENT",
+      status: "New",
+      estimatedItemAmount: amount,
+      ...estimate,
+      adminNote: testForm.note.trim() || undefined,
+      isDemo: true,
+      localOnly: true,
+    };
+    setOrders((prev) => [request, ...prev]);
+    setActiveTab("New");
+    setStatusFilters(new Set());
+    setTestForm((prev) => ({
+      ...prev,
+      item: "",
+      amount: "85",
+      note: "",
+    }));
   }
 
   const isFiltered = activeFilterCount > 0;
@@ -531,11 +733,17 @@ export default function AdminOrdersPage() {
       {/* Phase 3 boundary notice */}
       <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-3">
         <p className="text-sm text-amber-800">
-          <span className="font-semibold">Request tracking only.</span> Checkout, payment, inventory
-          reservation, fulfilment, and automatic entitlement deduction are Phase 3. Status changes
-          made here are local only and do not trigger fulfilment, payment, or inventory actions.
+          <span className="font-semibold">Estimates only.</span> No entitlement is deducted, no payment is taken,
+          and no inventory is reserved in Phase 2. Checkout, payment, inventory reservation, fulfilment,
+          and automatic entitlement deduction are Phase 3.
         </p>
       </div>
+
+      <CreateTestRequestPanel
+        form={testForm}
+        onChange={(patch) => setTestForm((prev) => ({ ...prev, ...patch }))}
+        onCreate={handleCreateTestRequest}
+      />
 
       {/* Demo data notice */}
       {orders.some((o) => o.isDemo) && (
@@ -554,7 +762,7 @@ export default function AdminOrdersPage() {
         <nav className="flex gap-0 min-w-max">
           {TABS.map((tab) => {
             const isActive = activeTab === tab.key && statusFilters.size === 0;
-            const badge = tab.key === "Pending" ? pendingCount : undefined;
+            const badge = tab.key === "New" ? pendingCount : undefined;
             return (
               <button
                 key={tab.key}
@@ -569,7 +777,7 @@ export default function AdminOrdersPage() {
                 `}
               >
                 {tab.key}
-                {badge !== undefined && badge > 0 && (
+                {tab.key === "New" && badge !== undefined && badge > 0 && (
                   <span
                     className={`inline-flex items-center justify-center rounded-full text-xs font-semibold px-2 py-0.5 min-w-[22px] ${
                       isActive ? "bg-[#0B5C6C] text-white" : "bg-gray-100 text-gray-600"
@@ -629,7 +837,7 @@ export default function AdminOrdersPage() {
           <EmptyState filtered={isFiltered} />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1100px] border-collapse">
+            <table className="w-full min-w-[1500px] border-collapse">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
                   <th className="px-4 py-3 w-10">
@@ -641,7 +849,7 @@ export default function AdminOrdersPage() {
                       aria-label="Select all"
                     />
                   </th>
-                  {["Request ID", "Patient", "MSID", "Date", "Items", "Type", "Status", "Estimate", "Actions"].map((col) => (
+                  {["Request ID", "MSID", "Patient", "Category", "Item", "Est. amount", "Funded", "Co-pay", "Remaining", "Status", "Created", "Updated", "Actions"].map((col) => (
                     <th
                       key={col}
                       className="text-left px-4 py-3 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap"
@@ -679,51 +887,56 @@ export default function AdminOrdersPage() {
                         </div>
                       </td>
                       <td className="px-4 py-4">
+                        <span className="text-sm font-mono text-gray-700 whitespace-nowrap">{order.msid}</span>
+                      </td>
+                      <td className="px-4 py-4">
                         <span className="text-base font-semibold text-navy whitespace-nowrap">{order.patient}</span>
                       </td>
                       <td className="px-4 py-4">
-                        <span className="text-sm font-mono text-gray-700">{order.msid.replace(/^MS-/, "")}</span>
-                      </td>
-                      <td className="px-4 py-4">
-                        <span className="text-sm text-gray-700 whitespace-nowrap">{order.date}</span>
+                        <span className={`inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${TYPE_BADGE[order.type]}`}>
+                          {order.category}
+                        </span>
                       </td>
                       <td className="px-4 py-4">
                         <span className="text-sm text-gray-700">{order.items}</span>
                       </td>
                       <td className="px-4 py-4">
-                        <span className={`inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${TYPE_BADGE[order.type]}`}>
-                          {TYPE_LABEL[order.type]}
-                        </span>
+                        <span className="text-sm text-gray-700 whitespace-nowrap">{formatCurrency(order.estimatedItemAmount)}</span>
                       </td>
                       <td className="px-4 py-4">
-                        <span className={`inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${STATUS_BADGE[order.status]}`}>
-                          {order.status}
-                        </span>
+                        <span className="text-sm font-semibold text-emerald-700 whitespace-nowrap">{formatCurrency(order.estimatedFundedAmount)}</span>
                       </td>
                       <td className="px-4 py-4">
-                        {order.estimatedItemAmount !== undefined ? (
-                          <div className="text-xs text-gray-700 space-y-0.5 whitespace-nowrap">
-                            <p><span className="text-gray-500">Est.</span> ${order.estimatedItemAmount}</p>
-                            {order.estimatedFundedAmount !== undefined && (
-                              <p><span className="text-gray-500">Funded:</span> ${order.estimatedFundedAmount}</p>
-                            )}
-                            {order.estimatedRemainingAfter !== undefined && (
-                              <p><span className="text-gray-500">Rem.:</span> ${order.estimatedRemainingAfter}</p>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-sm text-gray-400">—</span>
-                        )}
+                        <span className="text-sm font-semibold text-gray-700 whitespace-nowrap">{formatCurrency(order.estimatedPatientCopay)}</span>
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className="text-sm font-semibold text-[#0B5C6C] whitespace-nowrap">{formatCurrency(order.estimatedRemainingAfter)}</span>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="space-y-1">
+                          <select
+                            value={order.status}
+                            onChange={(e) => handleStatusChange(order, e.target.value as OrderStatus)}
+                            className={`rounded-full px-2.5 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#0B5C6C]/30 ${STATUS_BADGE[order.status]}`}
+                            aria-label={`Change status for ${order.requestId}`}
+                          >
+                            {STATUS_OPTIONS.map((status) => (
+                              <option key={status} value={status}>{status}</option>
+                            ))}
+                          </select>
+                          {order.localOnly && (
+                            <p className="text-[10px] font-medium uppercase tracking-wide text-blue-600">Local-only</p>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className="text-sm text-gray-700 whitespace-nowrap">{order.date}</span>
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className="text-sm text-gray-700 whitespace-nowrap">{order.updatedDate}</span>
                       </td>
                       <td className="px-4 py-4">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <button
-                            type="button"
-                            onClick={() => handleApprove(order)}
-                            className="bg-[#0B5C6C] text-white text-sm font-medium px-3 py-2 rounded-lg min-h-[40px] hover:bg-[#0B5C6C]/90 transition-colors whitespace-nowrap"
-                          >
-                            Approve
-                          </button>
                           <button
                             type="button"
                             onClick={() => handleViewPatient(order)}
@@ -731,13 +944,11 @@ export default function AdminOrdersPage() {
                           >
                             View patient
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDecline(order)}
-                            className="text-sm font-medium text-red-500 hover:text-red-700 px-2 py-2 min-h-[40px] transition-colors"
-                          >
-                            Decline
-                          </button>
+                          {order.adminNote && (
+                            <span className="max-w-[180px] truncate text-xs text-gray-500" title={order.adminNote}>
+                              Note: {order.adminNote}
+                            </span>
+                          )}
                         </div>
                       </td>
                     </tr>

@@ -1163,13 +1163,23 @@ function EquipmentTab({ patient }: { patient: DrawerPatient }) {
 function RequestReadinessCard({ remainingAllowance }: { remainingAllowance: number }) {
   const exampleAmount = 85;
   const fundedAmount = Math.min(exampleAmount, remainingAllowance);
+  const patientCopay = Math.max(0, exampleAmount - fundedAmount);
   const remainingAfter = Math.max(0, remainingAllowance - fundedAmount);
   const remainingCls =
     remainingAfter > 75 ? "text-emerald-700" : remainingAfter > 0 ? "text-amber-700" : "text-gray-500";
   return (
     <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-3">
-      <p className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Example request impact</p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Request estimate / ordering readiness</p>
+        <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-blue-700">
+          Example
+        </span>
+      </div>
       <dl className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <dt className="text-xs font-medium text-gray-500 uppercase tracking-wide">Default allowance</dt>
+          <dd className="text-sm font-semibold text-gray-800 mt-0.5">$250</dd>
+        </div>
         <div>
           <dt className="text-xs font-medium text-gray-500 uppercase tracking-wide">Example item</dt>
           <dd className="text-sm font-semibold text-gray-800 mt-0.5">Mask replacement</dd>
@@ -1183,8 +1193,16 @@ function RequestReadinessCard({ remainingAllowance }: { remainingAllowance: numb
           <dd className="text-sm font-semibold text-emerald-700 mt-0.5">${fundedAmount}</dd>
         </div>
         <div>
+          <dt className="text-xs font-medium text-gray-500 uppercase tracking-wide">Est. patient co-pay</dt>
+          <dd className="text-sm font-semibold text-gray-800 mt-0.5">${patientCopay}</dd>
+        </div>
+        <div>
           <dt className="text-xs font-medium text-gray-500 uppercase tracking-wide">Remaining after</dt>
           <dd className={`text-sm font-semibold mt-0.5 ${remainingCls}`}>${remainingAfter}</dd>
+        </div>
+        <div>
+          <dt className="text-xs font-medium text-gray-500 uppercase tracking-wide">Status</dt>
+          <dd className="text-sm font-semibold text-amber-700 mt-0.5">Review required before checkout</dd>
         </div>
       </dl>
       <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-gray-200">
