@@ -36,7 +36,7 @@ export default function AccountMenu() {
   };
 
   return (
-    <div ref={menuRef} className="relative">
+    <div ref={menuRef} className="relative z-[100]">
       <button
         onClick={() => setOpen((o) => !o)}
         className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-sand/30 transition-colors"
@@ -67,7 +67,7 @@ export default function AccountMenu() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-56 rounded-xl border border-sand bg-white shadow-lg z-50 overflow-hidden">
+        <div className="absolute right-0 top-full z-[110] mt-2 w-56 rounded-xl border border-sand bg-white shadow-xl overflow-hidden">
           <div className="px-4 py-3 border-b border-sand bg-sand-pale/60">
             <p className="text-sm font-semibold text-charcoal truncate">{patient.name}</p>
             <p className="text-xs text-charcoal/50 font-mono truncate">{patient.msid}</p>

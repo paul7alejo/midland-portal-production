@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getAdminUser, isAuthorizedAdmin } from "@/lib/security";
-import AdminSidebar from "@/components/admin/AdminSidebar";
+import AdminLayoutShell from "@/components/admin/AdminLayoutShell";
 
 export default async function AdminLayout({
   children,
@@ -13,30 +13,5 @@ export default async function AdminLayout({
     redirect("/admin/login?reason=unauthorized");
   }
 
-  return (
-    <div className="min-h-screen bg-cream">
-      <div className="hidden lg:block">
-        <AdminSidebar />
-      </div>
-
-      {/* Amber banner */}
-      <div className="bg-amber text-white font-medium py-2 px-4 text-sm leading-6 sm:text-base lg:ml-64">
-        Admin View — Staff Only | Midland Sleep
-      </div>
-
-      {/* Staging banner — shown only when NEXT_PUBLIC_APP_ENV=staging */}
-      {process.env.NEXT_PUBLIC_APP_ENV === 'staging' && (
-        <div className="bg-purple-700 text-white font-semibold py-1.5 px-4 text-sm text-center lg:ml-64">
-          STAGING — Demo data only · Not connected to production
-        </div>
-      )}
-
-      {/* Main content */}
-      <main className="min-h-screen lg:ml-64">
-        <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-          {children}
-        </div>
-      </main>
-    </div>
-  );
+  return <AdminLayoutShell>{children}</AdminLayoutShell>;
 }
