@@ -4,6 +4,7 @@ import {
   getPatientByMSID,
   createReorderRequest,
   getPendingReorderRequest,
+  getLatestReorderRequest,
   appendAuditLog,
   type ReorderRecord,
   type ReorderDeliveryAddress,
@@ -11,13 +12,43 @@ import {
 
 const VALID_ITEM_TYPES = new Set(['cushion', 'headgear', 'mask_kit', 'filter'])
 
+const ITEM_PRICES: Record<string, number> = {
+  cushion:   45,
+  headgear:  65,
+  mask_kit: 120,
+  filter:    25,
+}
+
+const ANNUAL_ALLOWANCE = 250
+
+function calcEstimates(items: string[]): {
+  estimated_amount: number
+  estimated_funded_amount: number
+  estimated_patient_copay: number
+  estimated_remaining_after: number
+} {
+  const total = items.reduce((sum, i) => sum + (ITEM_PRICES[i] ?? 0), 0)
+  const funded = Math.min(total, ANNUAL_ALLOWANCE)
+  return {
+    estimated_amount:          total,
+    estimated_funded_amount:   funded,
+    estimated_patient_copay:   Math.max(0, total - funded),
+    estimated_remaining_after: Math.max(0, ANNUAL_ALLOWANCE - funded),
+  }
+}
+
 function toPatientReorderResponse(record: ReorderRecord) {
   return {
-    id: record.id,
+    id:               record.id,
     requestReference: record.request_reference ?? 'Request pending',
-    status: record.status,
-    createdAt: record.created_at,
-    items: record.items,
+    status:           record.status,
+    createdAt:        record.created_at,
+    updatedAt:        record.updated_at,
+    items:            record.items,
+    estimatedAmount:          record.estimated_amount,
+    estimatedFundedAmount:    record.estimated_funded_amount,
+    estimatedPatientCopay:    record.estimated_patient_copay,
+    estimatedRemainingAfter:  record.estimated_remaining_after,
   }
 }
 
@@ -42,7 +73,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Patient record not found' }, { status: 404 })
     }
 
-    const existing = await getPendingReorderRequest(patient.patient_id, orgId)
+    const existing = await getLatestReorderRequest(patient.patient_id, orgId)
     return NextResponse.json({
       request: existing ? toPatientReorderResponse(existing) : null,
     })
@@ -136,6 +167,8 @@ export async function POST(request: NextRequest) {
       orgId,
     })
 
+    const estimates = calcEstimates(validatedItems)
+
     const reorder = await createReorderRequest({
       patient_id:   patient.patient_id,
       patient_msid: patient.portal_id,
@@ -144,12 +177,13 @@ export async function POST(request: NextRequest) {
       items:        validatedItems,
       delivery_address,
       created_by: sub,
+      ...estimates,
     })
 
     // Audit log: written after successful persist, no patient data in metadata
     await appendAuditLog({
       userId:     sub,
-      event_type: 'REORDER_REQUEST',
+      event_type: 'PATIENT_REQUEST_CREATED',
       patient_id: patient.patient_id,
       order_id:   reorder.id,
       org_id:     orgId,

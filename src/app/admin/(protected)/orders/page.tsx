@@ -501,6 +501,8 @@ export default function AdminOrdersPage() {
   const [typeFilters,   setTypeFilters]   = useState<Set<OrderType>>(new Set());
   const [dateRange,     setDateRange]     = useState<DateRange | null>(null);
   const [sortOpt,       setSortOpt]       = useState<OrderSortOpt | null>(null);
+  const [statusLoading, setStatusLoading] = useState<Set<string>>(new Set());
+  const [statusError,   setStatusError]   = useState<string | null>(null);
   const [testForm,      setTestForm]      = useState<TestRequestForm>({
     msid: "MS-900005",
     patient: "Demo Patient",
@@ -644,10 +646,44 @@ export default function AdminOrdersPage() {
     setSelected(new Set());
   }
 
-  function handleStatusChange(order: Order, status: OrderStatus) {
-    setOrders((prev) =>
-      prev.map((o) => (o.id === order.id ? { ...o, status, updatedDate: formatToday(), localOnly: o.localOnly ?? true } : o))
-    );
+  const DB_STATUS: Record<OrderStatus, string> = {
+    New:       'pending_review',
+    Reviewing: 'reviewing',
+    Approved:  'approved',
+    Sent:      'sent',
+    Cancelled: 'cancelled',
+  };
+
+  async function handleStatusChange(order: Order, status: OrderStatus) {
+    // Demo / local-only rows: local mutation only
+    if (order.isDemo || order.localOnly) {
+      setOrders((prev) =>
+        prev.map((o) => (o.id === order.id ? { ...o, status, updatedDate: formatToday() } : o))
+      );
+      return;
+    }
+
+    setStatusLoading((prev) => new Set(prev).add(order.id));
+    setStatusError(null);
+    try {
+      const res = await fetch('/api/admin/orders', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: order.id, status: DB_STATUS[status] }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      setOrders((prev) =>
+        prev.map((o) => (o.id === order.id ? { ...o, status, updatedDate: formatToday() } : o))
+      );
+    } catch {
+      setStatusError(`Failed to update status for ${order.requestId}.`);
+    } finally {
+      setStatusLoading((prev) => {
+        const next = new Set(prev);
+        next.delete(order.id);
+        return next;
+      });
+    }
   }
 
   function handleViewPatient(order: Order) {
@@ -754,6 +790,14 @@ export default function AdminOrdersPage() {
             request tracking only — estimates do not deduct entitlement, reserve inventory, create
             fulfilment tasks, or trigger payment.
           </p>
+        </div>
+      )}
+
+      {/* Status update error */}
+      {statusError && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-3 flex items-center justify-between gap-3">
+          <p className="text-sm text-red-800">{statusError}</p>
+          <button type="button" onClick={() => setStatusError(null)} className="text-red-600 hover:text-red-800 text-lg leading-none">&times;</button>
         </div>
       )}
 
@@ -917,14 +961,18 @@ export default function AdminOrdersPage() {
                           <select
                             value={order.status}
                             onChange={(e) => handleStatusChange(order, e.target.value as OrderStatus)}
-                            className={`rounded-full px-2.5 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#0B5C6C]/30 ${STATUS_BADGE[order.status]}`}
+                            disabled={statusLoading.has(order.id)}
+                            className={`rounded-full px-2.5 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#0B5C6C]/30 disabled:opacity-60 ${STATUS_BADGE[order.status]}`}
                             aria-label={`Change status for ${order.requestId}`}
                           >
                             {STATUS_OPTIONS.map((status) => (
                               <option key={status} value={status}>{status}</option>
                             ))}
                           </select>
-                          {order.localOnly && (
+                          {statusLoading.has(order.id) && (
+                            <p className="text-[10px] font-medium uppercase tracking-wide text-gray-400">Saving…</p>
+                          )}
+                          {(order.isDemo || order.localOnly) && !statusLoading.has(order.id) && (
                             <p className="text-[10px] font-medium uppercase tracking-wide text-blue-600">Local-only</p>
                           )}
                         </div>

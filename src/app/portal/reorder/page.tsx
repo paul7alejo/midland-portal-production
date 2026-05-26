@@ -71,17 +71,48 @@ const ITEM_ICONS: Record<string, React.ReactNode> = {
 const REQUEST_TIMING_NOTE =
   "Please allow 5–7 business days from your request for Midland Sleep staff to review and arrange supply delivery.";
 
+const ITEM_PRICES: Record<string, number> = {
+  cushion:   45,
+  headgear:  65,
+  mask_kit: 120,
+  filter:    25,
+};
+
+const CATALOG_ITEMS = ["cushion", "headgear", "mask_kit", "filter"];
+
+type ReorderStatus = "pending_review" | "reviewing" | "approved" | "sent" | "cancelled";
+
 interface CurrentReorderRequest {
   id: string;
   requestReference: string;
-  status: "pending_review";
+  status: ReorderStatus;
   createdAt: string;
+  updatedAt?: string;
   items: string[];
+  estimatedAmount?: number;
+  estimatedFundedAmount?: number;
+  estimatedPatientCopay?: number;
+  estimatedRemainingAfter?: number;
 }
 
-function formatStatus(status: CurrentReorderRequest["status"]): string {
-  if (status === "pending_review") return "Pending review";
-  return status;
+const STATUS_LABELS: Record<ReorderStatus, string> = {
+  pending_review: "Pending review",
+  reviewing:      "Being reviewed",
+  approved:       "Approved",
+  sent:           "Sent",
+  cancelled:      "Cancelled",
+};
+
+const STATUS_BADGE_CLS: Record<ReorderStatus, string> = {
+  pending_review: "border-amber-200 bg-amber-100 text-amber-800",
+  reviewing:      "border-blue-200 bg-blue-100 text-blue-800",
+  approved:       "border-emerald-200 bg-emerald-100 text-emerald-800",
+  sent:           "border-purple-200 bg-purple-100 text-purple-800",
+  cancelled:      "border-red-200 bg-red-100 text-red-700",
+};
+
+function formatStatus(status: ReorderStatus): string {
+  return STATUS_LABELS[status] ?? status;
 }
 
 function formatDate(iso: string): string {
@@ -247,6 +278,15 @@ export default function ReorderPage() {
   const mask = DEMO_MASKS[patient.userId];
   const eligibleItems = items.filter((item) => item.status === "ELIGIBLE");
   const notYetItems = items.filter((item) => item.status === "NOT_YET");
+  // Newly imported patients with no entitlement record yet see the full catalog
+  const showCatalogFallback = eligibleItems.length === 0 && !entitlement;
+  const selectableItems = showCatalogFallback
+    ? CATALOG_ITEMS.map((type) => ({ item_type: type, status: "ELIGIBLE" as const }))
+    : eligibleItems;
+
+  const liveEstimatedTotal = selectedItems.reduce((sum, i) => sum + (ITEM_PRICES[i] ?? 0), 0);
+  const liveEstimatedFunded = Math.min(liveEstimatedTotal, 250);
+  const liveEstimatedRemaining = Math.max(0, 250 - liveEstimatedFunded);
   const hasSavedAddress = Boolean(savedAddress);
   const showAddressForm = !hasSavedAddress || !useSavedAddress;
   const activeDeliveryAddress =
@@ -456,7 +496,7 @@ export default function ReorderPage() {
                 Midland Sleep is reviewing your request
               </h2>
             </div>
-            <span className="inline-flex w-fit rounded-full border border-amber-200 bg-amber-100 px-3 py-1 text-sm font-semibold text-amber-800">
+            <span className={`inline-flex w-fit rounded-full border px-3 py-1 text-sm font-semibold ${STATUS_BADGE_CLS[currentRequest.status]}`}>
               {formatStatus(currentRequest.status)}
             </span>
           </div>
@@ -485,7 +525,24 @@ export default function ReorderPage() {
                 {currentRequest.items.map((itemType) => ITEM_LABELS[itemType] ?? itemType).join(", ")}
               </dd>
             </div>
+            {currentRequest.estimatedAmount !== undefined && (
+              <>
+                <div>
+                  <dt className="font-mono text-sm uppercase tracking-wide text-charcoal/70">Est. total</dt>
+                  <dd className="mt-1 text-lg font-semibold text-charcoal">${currentRequest.estimatedAmount}</dd>
+                </div>
+                <div>
+                  <dt className="font-mono text-sm uppercase tracking-wide text-charcoal/70">Est. funded</dt>
+                  <dd className="mt-1 text-lg font-semibold text-emerald-700">${currentRequest.estimatedFundedAmount ?? 0}</dd>
+                </div>
+              </>
+            )}
           </dl>
+          {currentRequest.estimatedAmount !== undefined && (
+            <p className="mt-3 text-sm text-charcoal/65">
+              Estimate only — no entitlement is deducted, no payment is taken, and no inventory is reserved in Phase 2.
+            </p>
+          )}
           <div className="mt-5 space-y-2 text-base leading-6 text-charcoal/85">
             <p>Midland Sleep is reviewing your request. Please allow 5–7 business days.</p>
             <p>If you need to change this request, contact Midland Sleep.</p>
@@ -499,7 +556,7 @@ export default function ReorderPage() {
             A supply request is already pending review.
           </p>
         </div>
-      ) : eligibleItems.length === 0 ? (
+      ) : selectableItems.length === 0 ? (
         <div className="bg-sand-pale border border-sand rounded-2xl p-6 md:p-7 text-center">
           <p className="text-lg leading-7 text-charcoal font-medium mb-2">
             No supplies are available to request right now
@@ -533,7 +590,7 @@ export default function ReorderPage() {
               </div>
             </div>
             <div className="grid gap-4 md:grid-cols-2">
-              {eligibleItems.map((item) => {
+              {selectableItems.map((item) => {
                 const isSelected = selectedItems.includes(item.item_type);
                 return (
                   <button
@@ -583,13 +640,33 @@ export default function ReorderPage() {
               })}
             </div>
             {selectedItems.length > 0 && (
-              <div className="mt-5 rounded-xl border border-deep-teal/15 bg-deep-teal/5 p-4">
-                <p className="text-base font-semibold text-charcoal">
-                  Selected for staff review
-                </p>
-                <p className="mt-1 text-base leading-6 text-charcoal/75">
-                  {selectedItems.map((itemType) => ITEM_LABELS[itemType]).join(", ")}
-                </p>
+              <div className="mt-5 space-y-3">
+                <div className="rounded-xl border border-deep-teal/15 bg-deep-teal/5 p-4">
+                  <p className="text-base font-semibold text-charcoal">Selected for staff review</p>
+                  <p className="mt-1 text-base leading-6 text-charcoal/75">
+                    {selectedItems.map((itemType) => ITEM_LABELS[itemType]).join(", ")}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-sand bg-sand-pale/40 p-4">
+                  <p className="mb-3 font-mono text-sm uppercase tracking-wide text-charcoal/70">Funding estimate</p>
+                  <div className="grid gap-x-6 gap-y-2 sm:grid-cols-3 text-base">
+                    <div>
+                      <p className="text-charcoal/60 text-sm">Est. total</p>
+                      <p className="font-semibold text-charcoal">${liveEstimatedTotal}</p>
+                    </div>
+                    <div>
+                      <p className="text-charcoal/60 text-sm">Est. funded</p>
+                      <p className="font-semibold text-emerald-700">${liveEstimatedFunded}</p>
+                    </div>
+                    <div>
+                      <p className="text-charcoal/60 text-sm">Remaining allowance after</p>
+                      <p className="font-semibold text-charcoal">${liveEstimatedRemaining}</p>
+                    </div>
+                  </div>
+                  <p className="mt-3 text-sm text-charcoal/60">
+                    Estimate only — no entitlement is deducted, no payment is taken, and no inventory is reserved in Phase 2.
+                  </p>
+                </div>
               </div>
             )}
           </section>

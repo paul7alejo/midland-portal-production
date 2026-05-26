@@ -1215,6 +1215,110 @@ function RequestReadinessCard({ remainingAllowance }: { remainingAllowance: numb
   );
 }
 
+interface LinkedOrder {
+  id: string;
+  requestId: string;
+  items: string;
+  status: string;
+  date: string;
+  updatedDate?: string;
+  estimatedItemAmount?: number;
+  estimatedFundedAmount?: number;
+  estimatedPatientCopay?: number;
+  estimatedRemainingAfter?: number;
+  source: string;
+}
+
+const LINKED_STATUS_CLS: Record<string, string> = {
+  New:       "border-amber-200 bg-amber-50 text-amber-800",
+  Reviewing: "border-blue-200 bg-blue-50 text-blue-800",
+  Approved:  "border-emerald-200 bg-emerald-50 text-emerald-800",
+  Sent:      "border-purple-200 bg-purple-50 text-purple-800",
+  Cancelled: "border-red-200 bg-red-50 text-red-700",
+};
+
+function LinkedRequestsCard({ msid }: { msid: string }) {
+  const [order, setOrder]   = useState<LinkedOrder | null | undefined>(undefined);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]   = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!msid) return;
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    fetch(`/api/admin/orders?msid=${encodeURIComponent(msid)}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+      .then((d) => {
+        if (!cancelled) {
+          const orders: LinkedOrder[] = d.orders ?? [];
+          setOrder(orders[0] ?? null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setError("Unable to load linked requests.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [msid]);
+
+  return (
+    <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-3">
+      <p className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Linked supply requests</p>
+
+      {loading && (
+        <p className="text-sm text-gray-500">Loading…</p>
+      )}
+
+      {!loading && error && (
+        <p className="text-sm text-red-600">{error}</p>
+      )}
+
+      {!loading && !error && order === null && (
+        <p className="text-sm text-gray-500">No linked supply requests yet.</p>
+      )}
+
+      {!loading && !error && order && (
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-mono text-sm font-semibold text-gray-800">{order.requestId}</span>
+            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${LINKED_STATUS_CLS[order.status] ?? "border-gray-200 bg-gray-100 text-gray-700"}`}>
+              {order.status}
+            </span>
+          </div>
+
+          <dl className="grid gap-3 sm:grid-cols-2">
+            <FieldRow label="Items" value={order.items || "—"} />
+            <FieldRow label="Submitted" value={order.date} />
+            {order.updatedDate && (
+              <FieldRow label="Last updated" value={order.updatedDate} />
+            )}
+            {order.estimatedItemAmount !== undefined && (
+              <FieldRow label="Est. amount" value={`$${order.estimatedItemAmount}`} />
+            )}
+            {order.estimatedFundedAmount !== undefined && (
+              <FieldRow label="Est. funded" value={<span className="text-emerald-700 font-semibold">${order.estimatedFundedAmount}</span>} />
+            )}
+            {order.estimatedPatientCopay !== undefined && (
+              <FieldRow label="Est. co-pay" value={`$${order.estimatedPatientCopay}`} />
+            )}
+            {order.estimatedRemainingAfter !== undefined && (
+              <FieldRow label="Remaining after" value={`$${order.estimatedRemainingAfter}`} />
+            )}
+            <FieldRow label="Source" value={safeValue(order.source)} />
+          </dl>
+        </div>
+      )}
+
+      <p className="text-xs text-gray-400 pt-1 border-t border-gray-200">
+        Estimate only — no entitlement is deducted, no payment is taken, and no inventory is reserved in Phase 2.
+      </p>
+    </div>
+  );
+}
+
 function EntitlementTab({ patient }: { patient: DrawerPatient }) {
   const { funding } = patient;
   const pendingReview = funding.annualAllowance === 0 && patient.entitlement.length === 0;
@@ -1355,6 +1459,9 @@ function EntitlementTab({ patient }: { patient: DrawerPatient }) {
           </div>
         </>
       )}
+
+      <hr className="border-gray-200" />
+      <LinkedRequestsCard msid={patient.msid} />
     </div>
   );
 }
