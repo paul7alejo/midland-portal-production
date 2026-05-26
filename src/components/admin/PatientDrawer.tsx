@@ -1160,6 +1160,43 @@ function EquipmentTab({ patient }: { patient: DrawerPatient }) {
   );
 }
 
+function RequestReadinessCard({ remainingAllowance }: { remainingAllowance: number }) {
+  const exampleAmount = 85;
+  const fundedAmount = Math.min(exampleAmount, remainingAllowance);
+  const remainingAfter = Math.max(0, remainingAllowance - fundedAmount);
+  const remainingCls =
+    remainingAfter > 75 ? "text-emerald-700" : remainingAfter > 0 ? "text-amber-700" : "text-gray-500";
+  return (
+    <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-3">
+      <p className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Example request impact</p>
+      <dl className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <dt className="text-xs font-medium text-gray-500 uppercase tracking-wide">Example item</dt>
+          <dd className="text-sm font-semibold text-gray-800 mt-0.5">Mask replacement</dd>
+        </div>
+        <div>
+          <dt className="text-xs font-medium text-gray-500 uppercase tracking-wide">Estimated amount</dt>
+          <dd className="text-sm font-semibold text-gray-800 mt-0.5">${exampleAmount}</dd>
+        </div>
+        <div>
+          <dt className="text-xs font-medium text-gray-500 uppercase tracking-wide">Est. funded from allowance</dt>
+          <dd className="text-sm font-semibold text-emerald-700 mt-0.5">${fundedAmount}</dd>
+        </div>
+        <div>
+          <dt className="text-xs font-medium text-gray-500 uppercase tracking-wide">Remaining after</dt>
+          <dd className={`text-sm font-semibold mt-0.5 ${remainingCls}`}>${remainingAfter}</dd>
+        </div>
+      </dl>
+      <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-gray-200">
+        <span className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium border border-amber-200 bg-amber-50 text-amber-800">
+          Review required before checkout
+        </span>
+        <p className="text-xs text-gray-500">Estimate only — no deduction is applied in Phase 2.</p>
+      </div>
+    </div>
+  );
+}
+
 function EntitlementTab({ patient }: { patient: DrawerPatient }) {
   const { funding } = patient;
   const pendingReview = funding.annualAllowance === 0 && patient.entitlement.length === 0;
@@ -1211,6 +1248,7 @@ function EntitlementTab({ patient }: { patient: DrawerPatient }) {
               Default Midland/Biomed allowance is $250 per eligible patient. Deduction and store ordering are Phase 3 — no amounts are applied automatically in this phase.
             </p>
           </div>
+          <RequestReadinessCard remainingAllowance={250} />
         </>
       ) : (
         /* Funding summary */
@@ -1273,6 +1311,10 @@ function EntitlementTab({ patient }: { patient: DrawerPatient }) {
             Store deduction and checkout are Phase 3 — no amounts are applied automatically in this phase.
           </p>
         </div>
+      )}
+
+      {!pendingReview && (
+        <RequestReadinessCard remainingAllowance={funding.remainingAmount} />
       )}
 
       {!pendingReview && patient.entitlement.length > 0 && (

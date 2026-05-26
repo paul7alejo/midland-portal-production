@@ -19,6 +19,10 @@ interface Order {
   items: string;
   type: OrderType;
   status: OrderStatus;
+  estimatedItemAmount?: number;
+  estimatedFundedAmount?: number;
+  estimatedRemainingAfter?: number;
+  isDemo?: boolean;
 }
 
 const MONTH_NUM: Record<string, number> = {
@@ -65,6 +69,62 @@ const TYPE_BADGE: Record<OrderType, string> = {
   PRIVATE:     "bg-purple-100 text-purple-700",
   MIXED:       "bg-orange-100 text-orange-700",
 };
+
+const DEMO_REQUESTS: Order[] = [
+  {
+    id: "demo-1",
+    requestId: "REQ-900001-A",
+    patient: "Demo Patient A",
+    msid: "MS-900001",
+    date: "26 May 2026",
+    items: "Mask replacement (AirFit F30i)",
+    type: "ENTITLEMENT",
+    status: "Pending",
+    estimatedItemAmount: 85,
+    estimatedFundedAmount: 85,
+    estimatedRemainingAfter: 165,
+    isDemo: true,
+  },
+  {
+    id: "demo-2",
+    requestId: "REQ-900002-A",
+    patient: "Demo Patient B",
+    msid: "MS-900002",
+    date: "24 May 2026",
+    items: "Filters × 2 + Replacement tubing",
+    type: "ENTITLEMENT",
+    status: "Pending",
+    estimatedItemAmount: 45,
+    estimatedFundedAmount: 45,
+    estimatedRemainingAfter: 205,
+    isDemo: true,
+  },
+  {
+    id: "demo-3",
+    requestId: "REQ-900003-A",
+    patient: "Demo Patient C",
+    msid: "MS-900003",
+    date: "20 May 2026",
+    items: "Headgear replacement",
+    type: "ENTITLEMENT",
+    status: "Approved",
+    estimatedItemAmount: 65,
+    estimatedFundedAmount: 65,
+    estimatedRemainingAfter: 185,
+    isDemo: true,
+  },
+  {
+    id: "demo-4",
+    requestId: "REQ-900004-A",
+    patient: "Demo Patient D",
+    msid: "MS-900004",
+    date: "18 May 2026",
+    items: "General CPAP support enquiry",
+    type: "PRIVATE",
+    status: "Pending",
+    isDemo: true,
+  },
+];
 
 // ─── FilterPanel ──────────────────────────────────────────────────────────────
 
@@ -281,7 +341,10 @@ export default function AdminOrdersPage() {
   useEffect(() => {
     fetch("/api/admin/orders")
       .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
-      .then((data) => setOrders(data.orders ?? []))
+      .then((data) => {
+        const real: Order[] = data.orders ?? [];
+        setOrders(real.length > 0 ? real : DEMO_REQUESTS);
+      })
       .catch(() => { /* orders stays empty; EmptyState renders */ })
       .finally(() => setOrdersLoading(false));
   }, []);
@@ -474,6 +537,18 @@ export default function AdminOrdersPage() {
         </p>
       </div>
 
+      {/* Demo data notice */}
+      {orders.some((o) => o.isDemo) && (
+        <div className="rounded-xl border border-blue-200 bg-blue-50 px-5 py-3">
+          <p className="text-sm text-blue-800">
+            <span className="font-semibold">Demo request data.</span> No real patient requests have
+            been received yet. These rows show what staff request tracking will look like. Demo
+            request tracking only — estimates do not deduct entitlement, reserve inventory, create
+            fulfilment tasks, or trigger payment.
+          </p>
+        </div>
+      )}
+
       {/* Tab bar */}
       <div className="border-b border-gray-200 overflow-x-auto">
         <nav className="flex gap-0 min-w-max">
@@ -554,7 +629,7 @@ export default function AdminOrdersPage() {
           <EmptyState filtered={isFiltered} />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[980px] border-collapse">
+            <table className="w-full min-w-[1100px] border-collapse">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
                   <th className="px-4 py-3 w-10">
@@ -566,7 +641,7 @@ export default function AdminOrdersPage() {
                       aria-label="Select all"
                     />
                   </th>
-                  {["Request ID", "Patient", "MSID", "Date", "Items", "Type", "Status", "Actions"].map((col) => (
+                  {["Request ID", "Patient", "MSID", "Date", "Items", "Type", "Status", "Estimate", "Actions"].map((col) => (
                     <th
                       key={col}
                       className="text-left px-4 py-3 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap"
@@ -594,7 +669,14 @@ export default function AdminOrdersPage() {
                         />
                       </td>
                       <td className="px-4 py-4">
-                        <span className="font-mono text-sm font-semibold text-gray-800 whitespace-nowrap">{order.requestId}</span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-mono text-sm font-semibold text-gray-800 whitespace-nowrap">{order.requestId}</span>
+                          {order.isDemo && (
+                            <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 border border-blue-200 uppercase tracking-wide whitespace-nowrap">
+                              Demo
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-4">
                         <span className="text-base font-semibold text-navy whitespace-nowrap">{order.patient}</span>
@@ -617,6 +699,21 @@ export default function AdminOrdersPage() {
                         <span className={`inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${STATUS_BADGE[order.status]}`}>
                           {order.status}
                         </span>
+                      </td>
+                      <td className="px-4 py-4">
+                        {order.estimatedItemAmount !== undefined ? (
+                          <div className="text-xs text-gray-700 space-y-0.5 whitespace-nowrap">
+                            <p><span className="text-gray-500">Est.</span> ${order.estimatedItemAmount}</p>
+                            {order.estimatedFundedAmount !== undefined && (
+                              <p><span className="text-gray-500">Funded:</span> ${order.estimatedFundedAmount}</p>
+                            )}
+                            {order.estimatedRemainingAfter !== undefined && (
+                              <p><span className="text-gray-500">Rem.:</span> ${order.estimatedRemainingAfter}</p>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-sm text-gray-400">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-4">
                         <div className="flex items-center gap-2 flex-wrap">
