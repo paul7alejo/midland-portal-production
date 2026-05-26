@@ -95,7 +95,7 @@ function categorize(action: string): Exclude<CategoryTab, "All" | "Failed"> {
   const a = action.toUpperCase();
   if (PORTAL_ACCOUNT_ACTIONS.has(a)) return "Portal Accounts";
   if (PATIENT_ACTIONS.has(a))        return "Patients";
-  if (a.startsWith("ORDER_") || a.startsWith("REQUEST_")) return "Orders";
+  if (a.includes("ORDER_") || a.includes("REQUEST_")) return "Orders";
   if (a.startsWith("IMPORT_") || a.startsWith("CSV_"))    return "Import";
   if (a.startsWith("ENTITLEMENT_") || a.startsWith("FUNDING_")) return "Entitlement";
   return "System";
@@ -131,7 +131,7 @@ function applyKpiFilter(events: AuditEvent[], kpi: KpiFilter): AuditEvent[] {
   if (kpi === "failed")     return events.filter((e) => isFailed(e.result));
   return events.filter((e) => {
     const a = e.action.toUpperCase();
-    return a.startsWith("ORDER_") || a.startsWith("REQUEST_");
+    return a.includes("ORDER_") || a.includes("REQUEST_");
   });
 }
 
@@ -420,7 +420,7 @@ export default function AdminAuditPage() {
     failed:     events.filter((e) => isFailed(e.result)).length,
     orders:     events.filter((e) => {
       const a = e.action.toUpperCase();
-      return a.startsWith("ORDER_") || a.startsWith("REQUEST_");
+      return a.includes("ORDER_") || a.includes("REQUEST_");
     }).length,
   }), [events]);
 

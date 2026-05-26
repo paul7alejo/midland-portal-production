@@ -30,6 +30,13 @@ const ITEM_LABELS: Record<string, string> = {
   filter:   'Filters',
 }
 
+const ITEM_CATEGORY: Record<string, string> = {
+  cushion:  'Mask',
+  headgear: 'Headgear',
+  mask_kit: 'Mask',
+  filter:   'Filters',
+}
+
 function formatDateForDisplay(iso: string): string {
   const d = new Date(iso)
   if (isNaN(d.getTime())) return iso
@@ -44,6 +51,7 @@ function toAdminOrder(r: ReorderRecord) {
     msid:      r.patient_msid,
     date:      formatDateForDisplay(r.created_at),
     items:     r.items.map((t) => ITEM_LABELS[t] ?? t).join(', '),
+    category:  r.items.map((t) => ITEM_CATEGORY[t] ?? 'Support request')[0] ?? 'Support request',
     type:      'ENTITLEMENT' as const,
     status:    STATUS_DISPLAY[r.status] ?? 'New',
     source:    r.source,
@@ -106,10 +114,17 @@ export async function PATCH(request: NextRequest) {
   try {
     await appendAuditLog({
       userId:     admin.sub,
-      event_type: 'ADMIN_REQUEST_STATUS_UPDATED',
+      event_type: 'REQUEST_STATUS_UPDATED',
+      action:     'REQUEST_STATUS_UPDATED',
       order_id:   id,
       org_id:     ORG_ID,
-      metadata:   { new_status: status, admin_email: admin.email },
+      timestamp:  new Date().toISOString(),
+      result:     'success',
+      details:    `Request status updated to ${status}.`,
+      admin_email: admin.email,
+      status,
+      category:   'Orders',
+      source:     'admin_orders',
     })
   } catch (err) {
     console.error('admin/orders PATCH: audit failed', err instanceof Error ? err.message : String(err))

@@ -816,6 +816,8 @@ export interface ReorderDeliveryAddress {
 }
 
 export interface ReorderRequest {
+  id?: string
+  request_reference?: string
   patient_id: string
   patient_msid: string
   patient_name: string
@@ -858,7 +860,7 @@ export interface ReorderRecord {
   note?: string
 }
 
-function createRequestReference(createdAt: string): string {
+export function createRequestReference(createdAt: string): string {
   const date = new Date(createdAt)
   const parts = new Intl.DateTimeFormat('en-NZ', {
     timeZone: 'Pacific/Auckland',
@@ -874,13 +876,13 @@ function createRequestReference(createdAt: string): string {
 }
 
 export async function createReorderRequest(req: ReorderRequest): Promise<ReorderRecord> {
-  const id = randomUUID()
+  const id = req.id ?? randomUUID()
   const created_at = new Date().toISOString()
   const item: ReorderRecord = {
     pk: `ORDER#${id}`,
     sk: 'REORDER',
     id,
-    request_reference: createRequestReference(created_at),
+    request_reference: req.request_reference ?? createRequestReference(created_at),
     patient_id: req.patient_id,
     patient_msid: req.patient_msid,
     patient_name: req.patient_name,
@@ -891,6 +893,11 @@ export async function createReorderRequest(req: ReorderRequest): Promise<Reorder
     source: 'patient_portal_reorder',
     created_by: req.created_by,
     created_at,
+    ...(req.estimated_amount !== undefined && { estimated_amount: req.estimated_amount }),
+    ...(req.estimated_funded_amount !== undefined && { estimated_funded_amount: req.estimated_funded_amount }),
+    ...(req.estimated_patient_copay !== undefined && { estimated_patient_copay: req.estimated_patient_copay }),
+    ...(req.estimated_remaining_after !== undefined && { estimated_remaining_after: req.estimated_remaining_after }),
+    ...(req.note !== undefined && { note: req.note }),
   }
   await docClient.send(new PutCommand({
     TableName: TABLES.ORDERS,

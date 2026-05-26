@@ -3,12 +3,14 @@ import { getVerifiedUser, safeLog, HttpError } from '@/lib/security'
 import {
   getPatientByMSID,
   createReorderRequest,
+  createRequestReference,
   getPendingReorderRequest,
   getLatestReorderRequest,
   appendAuditLog,
   type ReorderRecord,
   type ReorderDeliveryAddress,
 } from '@/lib/aws/dynamodb'
+import { randomUUID } from 'crypto'
 
 const VALID_ITEM_TYPES = new Set(['cushion', 'headgear', 'mask_kit', 'filter'])
 
@@ -45,10 +47,7 @@ function toPatientReorderResponse(record: ReorderRecord) {
     createdAt:        record.created_at,
     updatedAt:        record.updated_at,
     items:            record.items,
-    estimatedAmount:          record.estimated_amount,
-    estimatedFundedAmount:    record.estimated_funded_amount,
-    estimatedPatientCopay:    record.estimated_patient_copay,
-    estimatedRemainingAfter:  record.estimated_remaining_after,
+    summary:          'This request will be reviewed by Midland Sleep staff.',
   }
 }
 
@@ -87,14 +86,17 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  let stage: 'auth_session' | 'patient_lookup' | 'estimate_calculation' | 'audit_write' | 'request_write' | 'unknown' = 'unknown'
   try {
     // Identity comes entirely from server-side JWT verification + DB lookup.
     // The client never supplies patient_id, patient_msid, or org_id.
+    stage = 'auth_session'
     const user = await getVerifiedUser(request)
     const { sub, msid, orgId } = user
 
     safeLog('patient/reorder: lookup patient', { orgId })
 
+    stage = 'patient_lookup'
     const patient = await getPatientByMSID(msid, orgId)
     if (!patient) {
       return NextResponse.json({ error: 'Patient record not found' }, { status: 404 })
@@ -167,29 +169,43 @@ export async function POST(request: NextRequest) {
       orgId,
     })
 
+    stage = 'estimate_calculation'
     const estimates = calcEstimates(validatedItems)
+    const requestId = randomUUID()
+    const createdAt = new Date().toISOString()
+    const requestReference = createRequestReference(createdAt)
 
-    const reorder = await createReorderRequest({
+    stage = 'audit_write'
+    await appendAuditLog({
+      userId:       sub,
+      event_type:   'PATIENT_REQUEST_CREATED',
+      action:       'PATIENT_REQUEST_CREATED',
       patient_id:   patient.patient_id,
       patient_msid: patient.portal_id,
-      patient_name: patient.name,
+      order_id:     requestId,
+      request_id:   requestReference,
+      org_id:       orgId,
+      timestamp:    createdAt,
+      result:       'success',
+      details:      `Request ${requestReference} created for ${validatedItems.length} item(s); status pending_review.`,
+      category:     'Orders',
+      source:       'patient_portal_reorder',
+      item_names:   validatedItems,
+      status:       'pending_review',
+    })
+
+    stage = 'request_write'
+    const reorder = await createReorderRequest({
+      id:           requestId,
+      request_reference: requestReference,
+      patient_id:   patient.patient_id,
+      patient_msid: patient.portal_id,
+      patient_name: patient.name ?? 'Patient name unavailable',
       org_id:       orgId,
       items:        validatedItems,
       delivery_address,
       created_by: sub,
       ...estimates,
-    })
-
-    // Audit log: written after successful persist, no patient data in metadata
-    await appendAuditLog({
-      userId:     sub,
-      event_type: 'PATIENT_REQUEST_CREATED',
-      patient_id: patient.patient_id,
-      order_id:   reorder.id,
-      org_id:     orgId,
-    }).catch((err) => {
-      // Non-fatal: the order is already persisted; log audit failure server-side only
-      console.error('patient/reorder: audit log failed', err instanceof Error ? err.message : String(err))
     })
 
     safeLog('patient/reorder: created', { orderId: reorder.id, orgId })
@@ -204,6 +220,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: err.message }, { status: err.status })
     }
     console.error('patient/reorder ERROR:', err instanceof Error ? err.message : String(err))
-    return NextResponse.json({ error: 'Unable to submit request. Please try again.' }, { status: 500 })
+    return NextResponse.json({
+      error: 'Unable to submit request. Please try again.',
+      category: stage,
+    }, { status: 500 })
   }
 }
