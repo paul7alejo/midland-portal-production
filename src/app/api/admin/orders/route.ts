@@ -13,15 +13,14 @@ import {
 const ORG_ID = 'midland-sleep'
 
 const VALID_STATUSES = new Set<ReorderStatus>([
-  'pending_review', 'reviewing', 'approved', 'sent', 'cancelled', 'declined', 'needs_followup',
+  'new', 'reviewing', 'approved', 'sent', 'declined', 'needs_followup',
 ])
 
 const STATUS_DISPLAY: Record<ReorderStatus, string> = {
-  pending_review: 'New',
+  new:            'New',
   reviewing:      'Reviewing',
   approved:       'Approved',
   sent:           'Sent',
-  cancelled:      'Cancelled',
   declined:       'Declined',
   needs_followup: 'Needs Follow-Up',
 }
@@ -47,14 +46,18 @@ function formatDateForDisplay(iso: string): string {
 }
 
 function toAdminOrder(r: ReorderRecord) {
+  const referenceNumber = r.request_reference ?? 'Legacy request'
+  const itemNames = r.items.map((t) => ITEM_LABELS[t] ?? t)
   return {
     id:        r.id,
-    requestId: r.request_reference ?? 'Legacy request',
+    referenceNumber,
+    requestId: referenceNumber,
     patient:   r.patient_name ?? 'Patient name unavailable',
     msid:      r.patient_msid,
     date:      formatDateForDisplay(r.created_at),
-    items:     r.items.length > 0
-      ? r.items.map((t) => ITEM_LABELS[t] ?? t).join(', ')
+    itemNames,
+    items:     itemNames.length > 0
+      ? itemNames.join(', ')
       : (r.item_description ?? '—'),
     category:  r.items.map((t) => ITEM_CATEGORY[t] ?? 'Support request')[0] ?? 'Support request',
     type:      'ENTITLEMENT' as const,
@@ -67,10 +70,15 @@ function toAdminOrder(r: ReorderRecord) {
     needsFundingReview:      r.needs_funding_review ?? false,
     reviewReason:            r.review_reason,
     itemDescription:         r.item_description,
+    contactPreference:       r.contact_preference,
+    estimatedCost:           r.estimated_amount,
+    estimatedFunded:         r.estimated_funded_amount,
+    estimatedCopay:          r.estimated_patient_copay,
+    estimatedRemaining:      r.estimated_remaining_after,
     estimatedItemAmount:     r.estimated_amount,
-    estimatedFundedAmount:     r.estimated_funded_amount,
-    estimatedPatientCopay:     r.estimated_patient_copay,
-    estimatedRemainingAfter:   r.estimated_remaining_after,
+    estimatedFundedAmount:   r.estimated_funded_amount,
+    estimatedPatientCopay:   r.estimated_patient_copay,
+    estimatedRemainingAfter: r.estimated_remaining_after,
   }
 }
 

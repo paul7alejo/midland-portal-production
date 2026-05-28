@@ -24,14 +24,13 @@ const ITEM_PRICES: Record<string, number> = {
 const ANNUAL_ALLOWANCE = 250
 
 // Statuses where a new request should be blocked (non-terminal active states)
-const ACTIVE_STATUSES = new Set<ReorderStatus>(['pending_review', 'reviewing', 'needs_followup'])
+const ACTIVE_STATUSES = new Set<ReorderStatus>(['new', 'reviewing', 'needs_followup'])
 
 const PATIENT_STATUS_MESSAGES: Record<ReorderStatus, string> = {
-  pending_review: 'Awaiting review by Midland Sleep staff.',
+  new:            'Awaiting review by Midland Sleep staff.',
   reviewing:      'Your request is being reviewed by our team.',
   approved:       'Your request has been approved. We will be in touch.',
   sent:           'Your supplies have been dispatched.',
-  cancelled:      'This request has been cancelled. Please contact Midland Sleep if you have questions.',
   declined:       'Your request was not approved at this time. Please contact Midland Sleep if you have questions.',
   needs_followup: 'Our team needs to follow up with you. We will be in touch shortly.',
 }
@@ -54,16 +53,20 @@ function calcEstimates(items: string[]): {
 
 // Patient-safe response — no dollar amounts, no funding data
 function toPatientReorderResponse(record: ReorderRecord) {
+  const referenceNumber = record.request_reference ?? 'Request pending'
   return {
-    id:               record.id,
-    requestReference: record.request_reference ?? 'Request pending',
-    status:           record.status,
-    statusMessage:    PATIENT_STATUS_MESSAGES[record.status] ?? 'Your request is being reviewed by Midland Sleep staff.',
-    createdAt:        record.created_at,
-    updatedAt:        record.updated_at,
-    items:            record.items,
-    itemDescription:  record.item_description,
-    source:           record.source,
+    id:                record.id,
+    referenceNumber,
+    requestReference:  referenceNumber,
+    status:            record.status,
+    statusMessage:     PATIENT_STATUS_MESSAGES[record.status] ?? 'Your request is being reviewed by Midland Sleep staff.',
+    createdAt:         record.created_at,
+    updatedAt:         record.updated_at,
+    itemNames:         record.items,
+    items:             record.items,
+    itemDescription:   record.item_description,
+    contactPreference: record.contact_preference,
+    source:            record.source,
   }
 }
 
@@ -165,10 +168,10 @@ export async function POST(request: NextRequest) {
         org_id:       orgId,
         timestamp:    createdAt,
         result:       'success',
-        details:      `Support request ${requestReference} created; status pending_review.`,
+        details:      `Support request ${requestReference} created; status new.`,
         category:     'Orders',
         source:       'support_request',
-        status:       'pending_review',
+        status:       'new',
       })
 
       const reorder = await createReorderRequest({
@@ -194,14 +197,18 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // ── Supply request path ──────────────────────────────────────────────────
-    const { items, deliveryAddress } = b as { items?: unknown; deliveryAddress?: unknown }
+    if (requestType !== 'patient_portal') {
+      return NextResponse.json({ error: 'Unknown request type' }, { status: 400 })
+    }
 
-    if (!Array.isArray(items) || items.length === 0) {
+    // ── Supply request path ──────────────────────────────────────────────────
+    const { itemNames, deliveryAddress } = b as { itemNames?: unknown; deliveryAddress?: unknown }
+
+    if (!Array.isArray(itemNames) || itemNames.length === 0) {
       return NextResponse.json({ error: 'At least one item must be selected' }, { status: 400 })
     }
 
-    const validatedItems = items.filter(
+    const validatedItems = itemNames.filter(
       (i): i is string => typeof i === 'string' && VALID_ITEM_TYPES.has(i)
     )
     if (validatedItems.length === 0) {
@@ -248,11 +255,11 @@ export async function POST(request: NextRequest) {
       org_id:       orgId,
       timestamp:    createdAt,
       result:       'success',
-      details:      `Request ${requestReference} created for ${validatedItems.length} item(s); status pending_review.`,
+      details:      `Request ${requestReference} created for ${validatedItems.length} item(s); status new.`,
       category:     'Orders',
-      source:       'patient_portal_reorder',
+      source:       'patient_portal',
       item_names:   validatedItems,
-      status:       'pending_review',
+      status:       'new',
     })
 
     const reorder = await createReorderRequest({
@@ -262,7 +269,7 @@ export async function POST(request: NextRequest) {
       patient_msid:      patient.portal_id,
       patient_name:      patient.name ?? 'Patient name unavailable',
       org_id:            orgId,
-      source:            'patient_portal_reorder',
+      source:            'patient_portal',
       items:             validatedItems,
       delivery_address,
       created_by:        sub,

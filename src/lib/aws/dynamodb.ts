@@ -800,13 +800,17 @@ export async function setSafetyCautionDetails(params: {
 // ── Reorder requests (Phase 1F / Phase 2D) ───────────────────────────────────
 
 export type ReorderStatus =
-  | 'pending_review'
+  | 'new'
   | 'reviewing'
   | 'approved'
   | 'sent'
-  | 'cancelled'
   | 'declined'
   | 'needs_followup'
+
+export type ReorderSource =
+  | 'patient_portal'
+  | 'support_request'
+  | 'admin_created'
 
 export interface ReorderDeliveryAddress {
   line1: string
@@ -824,7 +828,7 @@ export interface ReorderRequest {
   patient_msid: string
   patient_name: string
   org_id: string
-  source?: 'patient_portal_reorder' | 'support_request'
+  source?: ReorderSource
   items?: string[]
   delivery_address?: ReorderDeliveryAddress
   created_by: string
@@ -853,7 +857,7 @@ export interface ReorderRecord {
   items: string[]
   delivery_address?: ReorderDeliveryAddress
   status: ReorderStatus
-  source: 'patient_portal_reorder' | 'support_request'
+  source: ReorderSource
   created_by: string
   created_at: string
   // Status update tracking
@@ -890,6 +894,36 @@ export function createRequestReference(createdAt: string): string {
   return `REQ-${yy}${mm}${dd}-${suffix}`
 }
 
+export function normalizeReorderStatus(status: unknown): ReorderStatus {
+  if (status === 'pending_review') return 'new'
+  if (status === 'cancelled') return 'declined'
+  if (
+    status === 'new' ||
+    status === 'reviewing' ||
+    status === 'approved' ||
+    status === 'sent' ||
+    status === 'declined' ||
+    status === 'needs_followup'
+  ) {
+    return status
+  }
+  return 'new'
+}
+
+export function normalizeReorderSource(source: unknown): ReorderSource {
+  if (source === 'patient_portal_reorder') return 'patient_portal'
+  if (source === 'support_request' || source === 'admin_created') return source
+  return 'patient_portal'
+}
+
+function normalizeReorderRecord(item: Record<string, NativeAttributeValue>): ReorderRecord {
+  return {
+    ...(item as unknown as ReorderRecord),
+    status: normalizeReorderStatus(item.status),
+    source: normalizeReorderSource(item.source),
+  }
+}
+
 export async function createReorderRequest(req: ReorderRequest): Promise<ReorderRecord> {
   const id = req.id ?? randomUUID()
   const created_at = new Date().toISOString()
@@ -903,8 +937,8 @@ export async function createReorderRequest(req: ReorderRequest): Promise<Reorder
     patient_name: req.patient_name,
     org_id: req.org_id,
     items: req.items ?? [],
-    status: 'pending_review',
-    source: req.source ?? 'patient_portal_reorder',
+    status: 'new',
+    source: req.source ?? 'patient_portal',
     created_by: req.created_by,
     created_at,
     ...(req.delivery_address !== undefined && { delivery_address: req.delivery_address }),
@@ -933,17 +967,18 @@ export async function listReorderRequests(orgId: string): Promise<ReorderRecord[
   do {
     const res = await docClient.send(new ScanCommand({
       TableName: TABLES.ORDERS,
-      FilterExpression: 'org_id = :orgId AND (#src = :src1 OR #src = :src2)',
+      FilterExpression: 'org_id = :orgId AND (#src = :src1 OR #src = :src2 OR #src = :legacySrc)',
       ExpressionAttributeNames: { '#src': 'source' },
       ExpressionAttributeValues: {
         ':orgId': orgId,
-        ':src1': 'patient_portal_reorder',
+        ':src1': 'patient_portal',
         ':src2': 'support_request',
+        ':legacySrc': 'patient_portal_reorder',
       },
       ExclusiveStartKey,
     }))
     for (const item of res.Items ?? []) {
-      results.push(item as ReorderRecord)
+      results.push(normalizeReorderRecord(item))
     }
     ExclusiveStartKey = res.LastEvaluatedKey
   } while (ExclusiveStartKey)
@@ -963,8 +998,8 @@ export async function getPendingReorderRequest(
       FilterExpression: [
         'patient_id = :patientId',
         'org_id = :orgId',
-        '#src = :source',
-        '#status = :status',
+        '(#src = :source OR #src = :legacySource)',
+        '(#status = :status OR #status = :legacyStatus)',
       ].join(' AND '),
       ExpressionAttributeNames: {
         '#src': 'source',
@@ -973,13 +1008,15 @@ export async function getPendingReorderRequest(
       ExpressionAttributeValues: {
         ':patientId': patientId,
         ':orgId': orgId,
-        ':source': 'patient_portal_reorder',
-        ':status': 'pending_review',
+        ':source': 'patient_portal',
+        ':legacySource': 'patient_portal_reorder',
+        ':status': 'new',
+        ':legacyStatus': 'pending_review',
       },
       ExclusiveStartKey,
     }))
     for (const item of res.Items ?? []) {
-      results.push(item as ReorderRecord)
+      results.push(normalizeReorderRecord(item))
     }
     ExclusiveStartKey = res.LastEvaluatedKey
   } while (ExclusiveStartKey)
@@ -998,18 +1035,19 @@ export async function getLatestReorderRequest(
   do {
     const res = await docClient.send(new ScanCommand({
       TableName: TABLES.ORDERS,
-      FilterExpression: 'patient_id = :patientId AND org_id = :orgId AND (#src = :src1 OR #src = :src2)',
+      FilterExpression: 'patient_id = :patientId AND org_id = :orgId AND (#src = :src1 OR #src = :src2 OR #src = :legacySrc)',
       ExpressionAttributeNames: { '#src': 'source' },
       ExpressionAttributeValues: {
         ':patientId': patientId,
         ':orgId': orgId,
-        ':src1': 'patient_portal_reorder',
+        ':src1': 'patient_portal',
         ':src2': 'support_request',
+        ':legacySrc': 'patient_portal_reorder',
       },
       ExclusiveStartKey,
     }))
     for (const item of res.Items ?? []) {
-      results.push(item as ReorderRecord)
+      results.push(normalizeReorderRecord(item))
     }
     ExclusiveStartKey = res.LastEvaluatedKey
   } while (ExclusiveStartKey)
@@ -1028,18 +1066,19 @@ export async function listReorderRequestsByMsid(
   do {
     const res = await docClient.send(new ScanCommand({
       TableName: TABLES.ORDERS,
-      FilterExpression: 'patient_msid = :msid AND org_id = :orgId AND (#src = :src1 OR #src = :src2)',
+      FilterExpression: 'patient_msid = :msid AND org_id = :orgId AND (#src = :src1 OR #src = :src2 OR #src = :legacySrc)',
       ExpressionAttributeNames: { '#src': 'source' },
       ExpressionAttributeValues: {
         ':msid': msid,
         ':orgId': orgId,
-        ':src1': 'patient_portal_reorder',
+        ':src1': 'patient_portal',
         ':src2': 'support_request',
+        ':legacySrc': 'patient_portal_reorder',
       },
       ExclusiveStartKey,
     }))
     for (const item of res.Items ?? []) {
-      results.push(item as ReorderRecord)
+      results.push(normalizeReorderRecord(item))
     }
     ExclusiveStartKey = res.LastEvaluatedKey
   } while (ExclusiveStartKey)

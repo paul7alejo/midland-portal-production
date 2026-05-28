@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from "react";
 import { PatientDrawer } from "@/components/admin/PatientDrawer";
 import { cn } from "@/lib/utils";
 
-type OrderStatus   = "New" | "Reviewing" | "Approved" | "Sent" | "Cancelled" | "Declined" | "Needs Follow-Up";
+type OrderStatus   = "New" | "Reviewing" | "Approved" | "Sent" | "Declined" | "Needs Follow-Up";
 type KpiFilter     = OrderStatus | "Needs Funding Review" | null;
 type OrderType     = "ENTITLEMENT" | "PRIVATE" | "MIXED";
 type DateRange     = "week" | "month" | "older";
@@ -14,6 +14,7 @@ type RequestCategory = "Mask" | "Headgear" | "Filters" | "Tubing" | "Cleaning su
 interface Order {
   id: string;
   requestId: string;
+  referenceNumber?: string;
   patient: string;
   msid: string;
   date: string;
@@ -30,6 +31,10 @@ interface Order {
   estimatedFundedAmount: number | null;
   estimatedPatientCopay: number | null;
   estimatedRemainingAfter: number | null;
+  estimatedCost?: number | null;
+  estimatedFunded?: number | null;
+  estimatedCopay?: number | null;
+  estimatedRemaining?: number | null;
   adminNote?: string;
   isDemo?: boolean;
   localOnly?: boolean;
@@ -82,7 +87,7 @@ function formatEstimate(value: number | null | undefined): string {
 
 function SourceBadge({ source }: { source: string | undefined }) {
   if (!source) return <span className="text-gray-400 text-xs">—</span>;
-  if (source === "patient_portal_reorder" || source === "patient_portal") {
+  if (source === "patient_portal") {
     return (
       <span className="inline-flex items-center text-xs font-semibold px-2.5 py-0.5 rounded-full bg-teal-100 text-teal-700 border border-teal-200 whitespace-nowrap">
         Portal
@@ -124,34 +129,41 @@ function calculateEstimate(itemAmount: number, remainingAllowance = DEFAULT_ANNU
 function normalizeStatus(value?: string): OrderStatus {
   if (
     value === "Approved" || value === "Reviewing" || value === "Sent" ||
-    value === "Cancelled" || value === "New" || value === "Declined" ||
+    value === "New" || value === "Declined" ||
     value === "Needs Follow-Up"
   ) {
     return value;
   }
+  if (value === "pending_review" || value === "new") return "New";
+  if (value === "cancelled" || value === "declined") return "Declined";
+  if (value === "reviewing") return "Reviewing";
+  if (value === "approved") return "Approved";
+  if (value === "sent") return "Sent";
+  if (value === "needs_followup") return "Needs Follow-Up";
   if (value === "Dispatched" || value === "Completed") return "Sent";
   return "New";
 }
 
 function normalizeOrder(order: Partial<Order> & Pick<Order, "id" | "requestId" | "patient" | "msid" | "date" | "items" | "type"> & { status?: string }): Order {
   // Keep null for estimate fields from real API orders; only calculate for demo rows
-  const apiAmount = order.estimatedItemAmount;
+  const apiAmount = order.estimatedCost ?? order.estimatedItemAmount;
   const isRealApiRow = !order.isDemo && !order.localOnly;
   const displayAmount = isRealApiRow ? (apiAmount ?? null) : (apiAmount ?? 0);
   const estimate = calculateEstimate(typeof displayAmount === "number" ? displayAmount : 0);
   return {
     ...order,
+    requestId: order.referenceNumber ?? order.requestId,
     updatedDate: order.updatedDate ?? order.date,
     category: order.category ?? "Support request",
     estimatedItemAmount: displayAmount,
     estimatedFundedAmount: isRealApiRow
-      ? (order.estimatedFundedAmount ?? null)
+      ? (order.estimatedFunded ?? order.estimatedFundedAmount ?? null)
       : (order.estimatedFundedAmount ?? estimate.estimatedFundedAmount),
     estimatedPatientCopay: isRealApiRow
-      ? (order.estimatedPatientCopay ?? null)
+      ? (order.estimatedCopay ?? order.estimatedPatientCopay ?? null)
       : (order.estimatedPatientCopay ?? estimate.estimatedPatientCopay),
     estimatedRemainingAfter: isRealApiRow
-      ? (order.estimatedRemainingAfter ?? null)
+      ? (order.estimatedRemaining ?? order.estimatedRemainingAfter ?? null)
       : (order.estimatedRemainingAfter ?? estimate.estimatedRemainingAfter),
     status: normalizeStatus(order.status),
   };
@@ -170,7 +182,6 @@ const STATUS_BADGE: Record<OrderStatus, string> = {
   Reviewing:        "bg-blue-100 text-blue-800 border border-blue-200",
   Approved:         "bg-emerald-100 text-emerald-800 border border-emerald-200",
   Sent:             "bg-purple-100 text-purple-800 border border-purple-200",
-  Cancelled:        "bg-red-100 text-red-700 border border-red-200",
   Declined:         "bg-red-100 text-red-700 border border-red-200",
   "Needs Follow-Up": "bg-orange-100 text-orange-700 border border-orange-200",
 };
@@ -192,7 +203,7 @@ const DEMO_REQUESTS: Order[] = [
     category: "Mask",
     type: "ENTITLEMENT",
     status: "New",
-    source: "patient_portal_reorder",
+    source: "patient_portal",
     estimatedItemAmount: 85,
     estimatedFundedAmount: 85,
     estimatedPatientCopay: 0,
@@ -211,7 +222,7 @@ const DEMO_REQUESTS: Order[] = [
     category: "Filters",
     type: "ENTITLEMENT",
     status: "Reviewing",
-    source: "patient_portal_reorder",
+    source: "patient_portal",
     estimatedItemAmount: 45,
     estimatedFundedAmount: 45,
     estimatedPatientCopay: 0,
@@ -230,7 +241,7 @@ const DEMO_REQUESTS: Order[] = [
     category: "Headgear",
     type: "ENTITLEMENT",
     status: "Approved",
-    source: "patient_portal_reorder",
+    source: "patient_portal",
     estimatedItemAmount: 65,
     estimatedFundedAmount: 65,
     estimatedPatientCopay: 0,
@@ -713,13 +724,12 @@ export default function AdminOrdersPage() {
   }
 
   const DB_STATUS: Record<string, string> = {
-    New:              'pending_review',
+    New:              'new',
     Reviewing:        'reviewing',
     Approved:         'approved',
     Sent:             'sent',
     Declined:         'declined',
     'Needs Follow-Up': 'needs_followup',
-    Cancelled:        'cancelled',
   };
 
   async function handleFundingReviewToggle(order: Order) {

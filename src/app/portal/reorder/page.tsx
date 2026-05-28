@@ -74,60 +74,58 @@ const REQUEST_TIMING_NOTE =
 const CATALOG_ITEMS = ["cushion", "headgear", "mask_kit", "filter"];
 
 type ReorderStatus =
-  | "pending_review"
+  | "new"
   | "reviewing"
   | "approved"
   | "sent"
-  | "cancelled"
   | "declined"
   | "needs_followup";
 
 type RequestAccessStatus = "eligible" | "needs_review" | "not_eligible" | "no_funds";
 
 const ACTIVE_STATUSES_PATIENT = new Set<ReorderStatus>([
-  "pending_review",
+  "new",
   "reviewing",
   "needs_followup",
 ]);
 
 const CURRENT_REQUEST_HEADING: Record<ReorderStatus, string> = {
-  pending_review: "Awaiting review by Midland Sleep staff",
+  new:            "Awaiting review by Midland Sleep staff",
   reviewing:      "Midland Sleep is reviewing your request",
   approved:       "Your request has been approved",
   sent:           "Your supplies have been dispatched",
-  cancelled:      "This request has been cancelled",
   declined:       "Your request was not approved",
   needs_followup: "Midland Sleep needs to follow up with you",
 };
 
 interface CurrentReorderRequest {
   id: string;
-  requestReference: string;
+  referenceNumber: string;
+  requestReference?: string;
   status: ReorderStatus;
   createdAt: string;
   updatedAt?: string;
-  items: string[];
+  itemNames: string[];
+  items?: string[];
   itemDescription?: string;
   statusMessage?: string;
   source?: string;
 }
 
 const STATUS_LABELS: Record<ReorderStatus, string> = {
-  pending_review: "Pending review",
+  new:            "New",
   reviewing:      "Being reviewed",
   approved:       "Approved",
   sent:           "Sent",
-  cancelled:      "Cancelled",
   declined:       "Declined",
   needs_followup: "Needs follow-up",
 };
 
 const STATUS_BADGE_CLS: Record<ReorderStatus, string> = {
-  pending_review: "border-amber-200 bg-amber-100 text-amber-800",
+  new:            "border-amber-200 bg-amber-100 text-amber-800",
   reviewing:      "border-blue-200 bg-blue-100 text-blue-800",
   approved:       "border-emerald-200 bg-emerald-100 text-emerald-800",
   sent:           "border-purple-200 bg-purple-100 text-purple-800",
-  cancelled:      "border-red-200 bg-red-100 text-red-700",
   declined:       "border-red-200 bg-red-100 text-red-700",
   needs_followup: "border-orange-200 bg-orange-100 text-orange-700",
 };
@@ -307,7 +305,7 @@ export default function ReorderPage() {
 
   // Derive access status — default to needs_review to avoid blocking new patients
   const hasEligible = eligibleItems.length > 0;
-  const requestAccessStatus: "eligible" | "needs_review" | "not_eligible" =
+  const requestAccessStatus: RequestAccessStatus =
     !entitlement      ? "needs_review"
     : items.length === 0 ? "needs_review"
     : hasEligible        ? "eligible"
@@ -365,7 +363,8 @@ export default function ReorderPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          items: selectedItems,
+          type: "patient_portal",
+          itemNames: selectedItems,
           deliveryAddress: addressSnapshot,
         }),
       });
@@ -399,7 +398,7 @@ export default function ReorderPage() {
         setUseSavedAddress(true);
       }
 
-      setConfirmationId(data.request.requestReference);
+      setConfirmationId(data.request.referenceNumber);
       setSubmittedDeliveryAddress(addressSnapshot);
       setIsSubmitted(true);
     } catch (err) {
@@ -441,7 +440,7 @@ export default function ReorderPage() {
       if (!data.request) throw new Error("Request submitted but no reference was returned. Please contact Midland Sleep.");
 
       setCurrentRequest(data.request);
-      setConfirmationId(data.request.requestReference);
+      setConfirmationId(data.request.referenceNumber);
       setSubmittedSource("support");
       setIsSubmitted(true);
     } catch (err) {
@@ -690,7 +689,7 @@ export default function ReorderPage() {
                 Reference ID
               </dt>
               <dd className="mt-1 font-mono text-xl font-semibold text-navy">
-                {currentRequest.requestReference}
+                {currentRequest.referenceNumber}
               </dd>
             </div>
             <div>
@@ -706,7 +705,7 @@ export default function ReorderPage() {
                 Items requested
               </dt>
               <dd className="mt-1 text-lg leading-7 text-charcoal">
-                {currentRequest.items.map((itemType) => ITEM_LABELS[itemType] ?? itemType).join(", ")}
+                {(currentRequest.itemNames ?? currentRequest.items ?? []).map((itemType) => ITEM_LABELS[itemType] ?? itemType).join(", ")}
               </dd>
             </div>
             <div className="md:col-span-2">
