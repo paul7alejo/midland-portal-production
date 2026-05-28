@@ -1219,6 +1219,7 @@ interface LinkedOrder {
   id: string;
   requestId: string;
   items: string;
+  itemDescription?: string;
   status: string;
   date: string;
   updatedDate?: string;
@@ -1226,15 +1227,18 @@ interface LinkedOrder {
   estimatedFundedAmount?: number;
   estimatedPatientCopay?: number;
   estimatedRemainingAfter?: number;
+  needsFundingReview?: boolean;
   source: string;
 }
 
 const LINKED_STATUS_CLS: Record<string, string> = {
-  New:       "border-amber-200 bg-amber-50 text-amber-800",
-  Reviewing: "border-blue-200 bg-blue-50 text-blue-800",
-  Approved:  "border-emerald-200 bg-emerald-50 text-emerald-800",
-  Sent:      "border-purple-200 bg-purple-50 text-purple-800",
-  Cancelled: "border-red-200 bg-red-50 text-red-700",
+  New:              "border-amber-200 bg-amber-50 text-amber-800",
+  Reviewing:        "border-blue-200 bg-blue-50 text-blue-800",
+  Approved:         "border-emerald-200 bg-emerald-50 text-emerald-800",
+  Sent:             "border-purple-200 bg-purple-50 text-purple-800",
+  Cancelled:        "border-red-200 bg-red-50 text-red-700",
+  Declined:         "border-red-200 bg-red-50 text-red-700",
+  "Needs Follow-Up": "border-orange-200 bg-orange-50 text-orange-700",
 };
 
 function LinkedRequestsCard({ msid }: { msid: string }) {
@@ -1283,14 +1287,22 @@ function LinkedRequestsCard({ msid }: { msid: string }) {
       {!loading && !error && order && (
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
+            {order.needsFundingReview && (
+              <span className="h-2 w-2 rounded-full bg-amber-400 shrink-0" title="Needs funding review" />
+            )}
             <span className="font-mono text-sm font-semibold text-gray-800">{order.requestId}</span>
             <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${LINKED_STATUS_CLS[order.status] ?? "border-gray-200 bg-gray-100 text-gray-700"}`}>
               {order.status}
             </span>
+            {order.needsFundingReview && (
+              <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">
+                Funding review
+              </span>
+            )}
           </div>
 
           <dl className="grid gap-3 sm:grid-cols-2">
-            <FieldRow label="Items" value={order.items || "—"} />
+            <FieldRow label="Items" value={order.items || order.itemDescription || "—"} />
             <FieldRow label="Submitted" value={order.date} />
             {order.updatedDate && (
               <FieldRow label="Last updated" value={order.updatedDate} />

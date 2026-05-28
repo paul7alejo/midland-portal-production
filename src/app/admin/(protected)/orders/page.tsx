@@ -4,8 +4,8 @@ import { useState, useMemo, useEffect } from "react";
 import { PatientDrawer } from "@/components/admin/PatientDrawer";
 import { cn } from "@/lib/utils";
 
-type OrderStatus   = "New" | "Reviewing" | "Approved" | "Sent" | "Cancelled";
-type TabKey        = OrderStatus;
+type OrderStatus   = "New" | "Reviewing" | "Approved" | "Sent" | "Cancelled" | "Declined" | "Needs Follow-Up";
+type KpiFilter     = OrderStatus | "Needs Funding Review" | null;
 type OrderType     = "ENTITLEMENT" | "PRIVATE" | "MIXED";
 type DateRange     = "week" | "month" | "older";
 type OrderSortOpt  = "newest" | "oldest" | "name_az" | "status";
@@ -19,13 +19,17 @@ interface Order {
   date: string;
   updatedDate: string;
   items: string;
+  itemDescription?: string;
   category: RequestCategory;
   type: OrderType;
   status: OrderStatus;
-  estimatedItemAmount: number;
-  estimatedFundedAmount: number;
-  estimatedPatientCopay: number;
-  estimatedRemainingAfter: number;
+  source?: string;
+  needsFundingReview?: boolean;
+  reviewReason?: string;
+  estimatedItemAmount: number | null;
+  estimatedFundedAmount: number | null;
+  estimatedPatientCopay: number | null;
+  estimatedRemainingAfter: number | null;
   adminNote?: string;
   isDemo?: boolean;
   localOnly?: boolean;
@@ -38,6 +42,10 @@ interface TestRequestForm {
   item: string;
   amount: string;
   note: string;
+}
+
+function isAdminRow(order: Order): boolean {
+  return Boolean(order.isDemo || order.localOnly || order.source === "admin_created");
 }
 
 const DEFAULT_ANNUAL_ALLOWANCE = 250;
@@ -67,6 +75,34 @@ function formatCurrency(value: number): string {
   }).format(value);
 }
 
+function formatEstimate(value: number | null | undefined): string {
+  if (value === null || value === undefined) return "—";
+  return formatCurrency(value);
+}
+
+function SourceBadge({ source }: { source: string | undefined }) {
+  if (!source) return <span className="text-gray-400 text-xs">—</span>;
+  if (source === "patient_portal_reorder" || source === "patient_portal") {
+    return (
+      <span className="inline-flex items-center text-xs font-semibold px-2.5 py-0.5 rounded-full bg-teal-100 text-teal-700 border border-teal-200 whitespace-nowrap">
+        Portal
+      </span>
+    );
+  }
+  if (source === "support_request") {
+    return (
+      <span className="inline-flex items-center text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[#0B5C6C]/10 text-[#0B5C6C] border border-[#0B5C6C]/20 whitespace-nowrap">
+        Support
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center text-xs font-semibold px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-600 border border-gray-200 whitespace-nowrap">
+      Admin
+    </span>
+  );
+}
+
 function formatToday(): string {
   return new Intl.DateTimeFormat("en-NZ", {
     day: "numeric",
@@ -86,38 +122,42 @@ function calculateEstimate(itemAmount: number, remainingAllowance = DEFAULT_ANNU
 }
 
 function normalizeStatus(value?: string): OrderStatus {
-  if (value === "Approved" || value === "Reviewing" || value === "Sent" || value === "Cancelled" || value === "New") {
+  if (
+    value === "Approved" || value === "Reviewing" || value === "Sent" ||
+    value === "Cancelled" || value === "New" || value === "Declined" ||
+    value === "Needs Follow-Up"
+  ) {
     return value;
   }
   if (value === "Dispatched" || value === "Completed") return "Sent";
-  if (value === "Declined") return "Cancelled";
   return "New";
 }
 
 function normalizeOrder(order: Partial<Order> & Pick<Order, "id" | "requestId" | "patient" | "msid" | "date" | "items" | "type"> & { status?: string }): Order {
-  const amount = order.estimatedItemAmount ?? 0;
-  const estimate = calculateEstimate(amount);
+  // Keep null for estimate fields from real API orders; only calculate for demo rows
+  const apiAmount = order.estimatedItemAmount;
+  const isRealApiRow = !order.isDemo && !order.localOnly;
+  const displayAmount = isRealApiRow ? (apiAmount ?? null) : (apiAmount ?? 0);
+  const estimate = calculateEstimate(typeof displayAmount === "number" ? displayAmount : 0);
   return {
     ...order,
     updatedDate: order.updatedDate ?? order.date,
     category: order.category ?? "Support request",
-    estimatedItemAmount: amount,
-    estimatedFundedAmount: order.estimatedFundedAmount ?? estimate.estimatedFundedAmount,
-    estimatedPatientCopay: order.estimatedPatientCopay ?? estimate.estimatedPatientCopay,
-    estimatedRemainingAfter: order.estimatedRemainingAfter ?? estimate.estimatedRemainingAfter,
+    estimatedItemAmount: displayAmount,
+    estimatedFundedAmount: isRealApiRow
+      ? (order.estimatedFundedAmount ?? null)
+      : (order.estimatedFundedAmount ?? estimate.estimatedFundedAmount),
+    estimatedPatientCopay: isRealApiRow
+      ? (order.estimatedPatientCopay ?? null)
+      : (order.estimatedPatientCopay ?? estimate.estimatedPatientCopay),
+    estimatedRemainingAfter: isRealApiRow
+      ? (order.estimatedRemainingAfter ?? null)
+      : (order.estimatedRemainingAfter ?? estimate.estimatedRemainingAfter),
     status: normalizeStatus(order.status),
   };
 }
 
-const TABS: { key: TabKey }[] = [
-  { key: "New"       },
-  { key: "Reviewing" },
-  { key: "Approved"  },
-  { key: "Sent"      },
-  { key: "Cancelled" },
-];
-
-const STATUS_OPTIONS: OrderStatus[] = ["New", "Reviewing", "Approved", "Sent", "Cancelled"];
+const STATUS_OPTIONS: OrderStatus[] = ["New", "Reviewing", "Approved", "Sent", "Declined", "Needs Follow-Up"];
 const TYPE_OPTIONS:   OrderType[]   = ["ENTITLEMENT", "PRIVATE", "MIXED"];
 const REQUEST_CATEGORIES: RequestCategory[] = ["Mask", "Headgear", "Filters", "Tubing", "Cleaning supplies", "Support request"];
 const TYPE_LABEL: Record<OrderType, string> = {
@@ -126,11 +166,13 @@ const TYPE_LABEL: Record<OrderType, string> = {
   MIXED:       "Mixed",
 };
 const STATUS_BADGE: Record<OrderStatus, string> = {
-  New:       "bg-amber-100 text-amber-800 border border-amber-200",
-  Reviewing: "bg-blue-100 text-blue-800 border border-blue-200",
-  Approved:  "bg-emerald-100 text-emerald-800 border border-emerald-200",
-  Sent:      "bg-purple-100 text-purple-800 border border-purple-200",
-  Cancelled: "bg-red-100 text-red-700 border border-red-200",
+  New:              "bg-amber-100 text-amber-800 border border-amber-200",
+  Reviewing:        "bg-blue-100 text-blue-800 border border-blue-200",
+  Approved:         "bg-emerald-100 text-emerald-800 border border-emerald-200",
+  Sent:             "bg-purple-100 text-purple-800 border border-purple-200",
+  Cancelled:        "bg-red-100 text-red-700 border border-red-200",
+  Declined:         "bg-red-100 text-red-700 border border-red-200",
+  "Needs Follow-Up": "bg-orange-100 text-orange-700 border border-orange-200",
 };
 const TYPE_BADGE: Record<OrderType, string> = {
   ENTITLEMENT: "bg-[#0B5C6C]/10 text-[#0B5C6C]",
@@ -150,6 +192,7 @@ const DEMO_REQUESTS: Order[] = [
     category: "Mask",
     type: "ENTITLEMENT",
     status: "New",
+    source: "patient_portal_reorder",
     estimatedItemAmount: 85,
     estimatedFundedAmount: 85,
     estimatedPatientCopay: 0,
@@ -168,6 +211,7 @@ const DEMO_REQUESTS: Order[] = [
     category: "Filters",
     type: "ENTITLEMENT",
     status: "Reviewing",
+    source: "patient_portal_reorder",
     estimatedItemAmount: 45,
     estimatedFundedAmount: 45,
     estimatedPatientCopay: 0,
@@ -186,6 +230,7 @@ const DEMO_REQUESTS: Order[] = [
     category: "Headgear",
     type: "ENTITLEMENT",
     status: "Approved",
+    source: "patient_portal_reorder",
     estimatedItemAmount: 65,
     estimatedFundedAmount: 65,
     estimatedPatientCopay: 0,
@@ -201,13 +246,15 @@ const DEMO_REQUESTS: Order[] = [
     date: "18 May 2026",
     updatedDate: "18 May 2026",
     items: "General CPAP support enquiry",
+    itemDescription: "General CPAP support enquiry",
     category: "Support request",
     type: "PRIVATE",
     status: "New",
-    estimatedItemAmount: 0,
-    estimatedFundedAmount: 0,
-    estimatedPatientCopay: 0,
-    estimatedRemainingAfter: 250,
+    source: "support_request",
+    estimatedItemAmount: null,
+    estimatedFundedAmount: null,
+    estimatedPatientCopay: null,
+    estimatedRemainingAfter: null,
     isDemo: true,
     localOnly: true,
   },
@@ -489,21 +536,23 @@ function CreateTestRequestPanel({
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function AdminOrdersPage() {
-  const [orders,        setOrders]        = useState<Order[]>([]);
-  const [ordersLoading, setOrdersLoading] = useState(true);
-  const [activeTab,     setActiveTab]     = useState<TabKey>("New");
-  const [selected,      setSelected]      = useState<Set<string>>(new Set());
-  const [drawerOpen,    setDrawerOpen]    = useState(false);
-  const [drawerMsid,    setDrawerMsid]    = useState<string | null>(null);
-  const [drawerName,    setDrawerName]    = useState<string | undefined>(undefined);
-  const [filterOpen,    setFilterOpen]    = useState(false);
-  const [statusFilters, setStatusFilters] = useState<Set<OrderStatus>>(new Set());
-  const [typeFilters,   setTypeFilters]   = useState<Set<OrderType>>(new Set());
-  const [dateRange,     setDateRange]     = useState<DateRange | null>(null);
-  const [sortOpt,       setSortOpt]       = useState<OrderSortOpt | null>(null);
-  const [statusLoading, setStatusLoading] = useState<Set<string>>(new Set());
-  const [statusError,   setStatusError]   = useState<string | null>(null);
-  const [testForm,      setTestForm]      = useState<TestRequestForm>({
+  const [orders,              setOrders]              = useState<Order[]>([]);
+  const [ordersLoading,       setOrdersLoading]       = useState(true);
+  const [kpiFilter,           setKpiFilter]           = useState<KpiFilter>(null);
+  const [selected,            setSelected]            = useState<Set<string>>(new Set());
+  const [drawerOpen,          setDrawerOpen]          = useState(false);
+  const [drawerMsid,          setDrawerMsid]          = useState<string | null>(null);
+  const [drawerName,          setDrawerName]          = useState<string | undefined>(undefined);
+  const [filterOpen,          setFilterOpen]          = useState(false);
+  const [statusFilters,       setStatusFilters]       = useState<Set<OrderStatus>>(new Set());
+  const [typeFilters,         setTypeFilters]         = useState<Set<OrderType>>(new Set());
+  const [dateRange,           setDateRange]           = useState<DateRange | null>(null);
+  const [sortOpt,             setSortOpt]             = useState<OrderSortOpt | null>(null);
+  const [statusLoading,       setStatusLoading]       = useState<Set<string>>(new Set());
+  const [fundingReviewLoading, setFundingReviewLoading] = useState<Set<string>>(new Set());
+  const [statusError,         setStatusError]         = useState<string | null>(null);
+  const [showAdminRows,       setShowAdminRows]       = useState(false);
+  const [testForm,            setTestForm]            = useState<TestRequestForm>({
     msid: "MS-900005",
     patient: "Demo Patient",
     category: "Mask",
@@ -525,10 +574,18 @@ export default function AdminOrdersPage() {
       .finally(() => setOrdersLoading(false));
   }, []);
 
-  const pendingCount = useMemo(
-    () => orders.filter((o) => o.status === "New").length,
-    [orders]
-  );
+  const kpiCounts = useMemo(() => {
+    const real = orders.filter((o) => !isAdminRow(o));
+    return {
+      New:                 real.filter((o) => o.status === "New").length,
+      Reviewing:           real.filter((o) => o.status === "Reviewing").length,
+      Approved:            real.filter((o) => o.status === "Approved").length,
+      Sent:                real.filter((o) => o.status === "Sent").length,
+      Declined:            real.filter((o) => o.status === "Declined").length,
+      "Needs Follow-Up":   real.filter((o) => o.status === "Needs Follow-Up").length,
+      "Needs Funding Review": real.filter((o) => o.needsFundingReview).length,
+    };
+  }, [orders]);
 
   function clearAllFilters() {
     setStatusFilters(new Set());
@@ -537,21 +594,17 @@ export default function AdminOrdersPage() {
     setSortOpt(null);
   }
 
-  function handleTabClick(key: TabKey) {
-    setActiveTab(key);
-    setSelected(new Set());
-    // clicking a tab clears panel status filters so tab-based filtering resumes
-    setStatusFilters(new Set());
-  }
-
   const visibleOrders = useMemo(() => {
-    let result = [...orders];
+    // Apply admin/test row visibility
+    let result = orders.filter((o) => showAdminRows || !isAdminRow(o));
 
-    // Status: panel filters override tab when active
-    if (statusFilters.size > 0) {
+    // KPI card filter takes priority; panel status filters are secondary
+    if (kpiFilter === "Needs Funding Review") {
+      result = result.filter((o) => o.needsFundingReview);
+    } else if (kpiFilter) {
+      result = result.filter((o) => o.status === kpiFilter);
+    } else if (statusFilters.size > 0) {
       result = result.filter((o) => statusFilters.has(o.status));
-    } else {
-      result = result.filter((o) => o.status === activeTab);
     }
 
     if (typeFilters.size > 0) {
@@ -579,15 +632,28 @@ export default function AdminOrdersPage() {
         if (sortOpt === "status")  return a.status.localeCompare(b.status);
         return 0;
       });
+    } else {
+      // Default: real rows before admin rows, then newest first within each group
+      result.sort((a, b) => {
+        const aAdmin = isAdminRow(a);
+        const bAdmin = isAdminRow(b);
+        if (aAdmin !== bAdmin) return aAdmin ? 1 : -1;
+        return parseDateForSort(b.date) - parseDateForSort(a.date);
+      });
     }
 
     return result;
-  }, [orders, activeTab, statusFilters, typeFilters, dateRange, sortOpt]);
+  }, [orders, kpiFilter, statusFilters, typeFilters, dateRange, sortOpt, showAdminRows]);
 
   const activeFilterCount =
-    statusFilters.size + typeFilters.size + (dateRange ? 1 : 0) + (sortOpt ? 1 : 0);
+    (kpiFilter ? 1 : 0) + statusFilters.size + typeFilters.size + (dateRange ? 1 : 0) + (sortOpt ? 1 : 0);
 
   const filterChips: { key: string; label: string; onRemove: () => void }[] = [
+    ...(kpiFilter ? [{
+      key: "kpi",
+      label: kpiFilter,
+      onRemove: () => setKpiFilter(null),
+    }] : []),
     ...[...statusFilters].map((s) => ({
       key: `s-${s}`,
       label: s,
@@ -646,13 +712,46 @@ export default function AdminOrdersPage() {
     setSelected(new Set());
   }
 
-  const DB_STATUS: Record<OrderStatus, string> = {
-    New:       'pending_review',
-    Reviewing: 'reviewing',
-    Approved:  'approved',
-    Sent:      'sent',
-    Cancelled: 'cancelled',
+  const DB_STATUS: Record<string, string> = {
+    New:              'pending_review',
+    Reviewing:        'reviewing',
+    Approved:         'approved',
+    Sent:             'sent',
+    Declined:         'declined',
+    'Needs Follow-Up': 'needs_followup',
+    Cancelled:        'cancelled',
   };
+
+  async function handleFundingReviewToggle(order: Order) {
+    const newFlag = !order.needsFundingReview;
+    if (order.isDemo || order.localOnly) {
+      setOrders((prev) =>
+        prev.map((o) => o.id === order.id ? { ...o, needsFundingReview: newFlag, updatedDate: formatToday() } : o)
+      );
+      return;
+    }
+    setFundingReviewLoading((prev) => new Set(prev).add(order.id));
+    setStatusError(null);
+    try {
+      const res = await fetch('/api/admin/orders', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: order.id, needsFundingReview: newFlag }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      setOrders((prev) =>
+        prev.map((o) => o.id === order.id ? { ...o, needsFundingReview: newFlag, updatedDate: formatToday() } : o)
+      );
+    } catch {
+      setStatusError(`Failed to update funding review flag for ${order.requestId}.`);
+    } finally {
+      setFundingReviewLoading((prev) => {
+        const next = new Set(prev);
+        next.delete(order.id);
+        return next;
+      });
+    }
+  }
 
   async function handleStatusChange(order: Order, status: OrderStatus) {
     // Demo / local-only rows: local mutation only
@@ -709,6 +808,7 @@ export default function AdminOrdersPage() {
       category: testForm.category,
       type: testForm.category === "Support request" ? "PRIVATE" : "ENTITLEMENT",
       status: "New",
+      source: "admin_created",
       estimatedItemAmount: amount,
       ...estimate,
       adminNote: testForm.note.trim() || undefined,
@@ -716,7 +816,7 @@ export default function AdminOrdersPage() {
       localOnly: true,
     };
     setOrders((prev) => [request, ...prev]);
-    setActiveTab("New");
+    setKpiFilter("New");
     setStatusFilters(new Set());
     setTestForm((prev) => ({
       ...prev,
@@ -801,39 +901,65 @@ export default function AdminOrdersPage() {
         </div>
       )}
 
-      {/* Tab bar */}
-      <div className="border-b border-gray-200 overflow-x-auto">
-        <nav className="flex gap-0 min-w-max">
-          {TABS.map((tab) => {
-            const isActive = activeTab === tab.key && statusFilters.size === 0;
-            const badge = tab.key === "New" ? pendingCount : undefined;
-            return (
-              <button
-                key={tab.key}
-                type="button"
-                onClick={() => handleTabClick(tab.key)}
-                className={`
-                  flex items-center gap-2 px-5 py-3.5 text-base font-medium border-b-2 transition-colors
-                  ${isActive
-                    ? "border-[#0B5C6C] text-[#0B5C6C]"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                  }
-                `}
-              >
-                {tab.key}
-                {tab.key === "New" && badge !== undefined && badge > 0 && (
-                  <span
-                    className={`inline-flex items-center justify-center rounded-full text-xs font-semibold px-2 py-0.5 min-w-[22px] ${
-                      isActive ? "bg-[#0B5C6C] text-white" : "bg-gray-100 text-gray-600"
-                    }`}
-                  >
-                    {badge}
+      {/* KPI cards */}
+      {(() => {
+        type KpiCard = { key: KpiFilter; label: string; amber?: boolean };
+        const KPI_CARDS: KpiCard[] = [
+          { key: "New",                  label: "New",                  amber: true },
+          { key: "Reviewing",            label: "Reviewing" },
+          { key: "Approved",             label: "Approved" },
+          { key: "Sent",                 label: "Sent" },
+          { key: "Declined",             label: "Declined" },
+          { key: "Needs Follow-Up",      label: "Needs Follow-Up",      amber: true },
+          { key: "Needs Funding Review", label: "Needs Funding Review", amber: true },
+        ];
+        return (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+            {KPI_CARDS.map(({ key, label, amber }) => {
+              const count = key ? kpiCounts[key as keyof typeof kpiCounts] ?? 0 : 0;
+              const isActive = kpiFilter === key;
+              return (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => setKpiFilter(isActive ? null : key)}
+                  className={cn(
+                    "relative flex flex-col items-start rounded-xl border px-4 py-3 text-left transition-colors",
+                    isActive
+                      ? "bg-[#0B5C6C] border-[#0B5C6C] text-white shadow-sm"
+                      : "bg-white border-sand text-charcoal hover:border-[#0B5C6C]/40"
+                  )}
+                >
+                  {amber && count > 0 && !isActive && (
+                    <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-amber-400" />
+                  )}
+                  <span className={cn("text-2xl font-bold leading-none mb-1", isActive ? "text-white" : "text-navy")}>
+                    {count}
                   </span>
-                )}
-              </button>
-            );
-          })}
-        </nav>
+                  <span className={cn("text-xs font-medium leading-tight", isActive ? "text-white/80" : "text-charcoal/70")}>
+                    {label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        );
+      })()}
+
+      {/* Show admin rows toggle */}
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setShowAdminRows((v) => !v)}
+          className={cn(
+            "text-sm font-medium px-3 py-1.5 rounded-lg border transition-colors",
+            showAdminRows
+              ? "border-[#0B5C6C] bg-[#0B5C6C]/10 text-[#0B5C6C]"
+              : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
+          )}
+        >
+          {showAdminRows ? "Hide admin/test rows" : "Show admin/test rows"}
+        </button>
       </div>
 
       {/* Filter chips */}
@@ -881,7 +1007,7 @@ export default function AdminOrdersPage() {
           <EmptyState filtered={isFiltered} />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1500px] border-collapse">
+            <table className="w-full min-w-[1200px] border-collapse">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
                   <th className="px-4 py-3 w-10">
@@ -893,10 +1019,10 @@ export default function AdminOrdersPage() {
                       aria-label="Select all"
                     />
                   </th>
-                  {["Request ID", "MSID", "Patient", "Category", "Item", "Est. amount", "Funded", "Co-pay", "Remaining", "Status", "Created", "Updated", "Actions"].map((col) => (
+                  {["REF", "PATIENT", "ITEMS", "EST AMOUNT", "EST FUNDED", "EST CO-PAY", "SOURCE", "STATUS", "CREATED", "ACTION"].map((col) => (
                     <th
                       key={col}
-                      className="text-left px-4 py-3 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap"
+                      className="text-left px-4 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap"
                     >
                       {col}
                     </th>
@@ -920,8 +1046,12 @@ export default function AdminOrdersPage() {
                           aria-label={`Select ${order.patient}`}
                         />
                       </td>
+                      {/* REF */}
                       <td className="px-4 py-4">
                         <div className="flex items-center gap-1.5 flex-wrap">
+                          {order.needsFundingReview && (
+                            <span className="h-2 w-2 rounded-full bg-amber-400 shrink-0" title="Needs funding review" />
+                          )}
                           <span className="font-mono text-sm font-semibold text-gray-800 whitespace-nowrap">{order.requestId}</span>
                           {order.isDemo && (
                             <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 border border-blue-200 uppercase tracking-wide whitespace-nowrap">
@@ -929,33 +1059,35 @@ export default function AdminOrdersPage() {
                             </span>
                           )}
                         </div>
+                        <div className="mt-0.5 text-xs font-mono text-gray-400">{order.msid}</div>
                       </td>
-                      <td className="px-4 py-4">
-                        <span className="text-sm font-mono text-gray-700 whitespace-nowrap">{order.msid}</span>
-                      </td>
+                      {/* PATIENT */}
                       <td className="px-4 py-4">
                         <span className="text-base font-semibold text-navy whitespace-nowrap">{order.patient}</span>
                       </td>
-                      <td className="px-4 py-4">
-                        <span className={`inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${TYPE_BADGE[order.type]}`}>
-                          {order.category}
+                      {/* ITEMS */}
+                      <td className="px-4 py-4 max-w-[200px]">
+                        <span className="text-sm text-gray-700 line-clamp-2">
+                          {order.items || order.itemDescription || "—"}
                         </span>
                       </td>
+                      {/* EST AMOUNT */}
                       <td className="px-4 py-4">
-                        <span className="text-sm text-gray-700">{order.items}</span>
+                        <span className="text-sm text-gray-700 whitespace-nowrap">{formatEstimate(order.estimatedItemAmount)}</span>
                       </td>
+                      {/* EST FUNDED */}
                       <td className="px-4 py-4">
-                        <span className="text-sm text-gray-700 whitespace-nowrap">{formatCurrency(order.estimatedItemAmount)}</span>
+                        <span className="text-sm font-semibold text-emerald-700 whitespace-nowrap">{formatEstimate(order.estimatedFundedAmount)}</span>
                       </td>
+                      {/* EST CO-PAY */}
                       <td className="px-4 py-4">
-                        <span className="text-sm font-semibold text-emerald-700 whitespace-nowrap">{formatCurrency(order.estimatedFundedAmount)}</span>
+                        <span className="text-sm font-semibold text-gray-700 whitespace-nowrap">{formatEstimate(order.estimatedPatientCopay)}</span>
                       </td>
+                      {/* SOURCE */}
                       <td className="px-4 py-4">
-                        <span className="text-sm font-semibold text-gray-700 whitespace-nowrap">{formatCurrency(order.estimatedPatientCopay)}</span>
+                        <SourceBadge source={order.source} />
                       </td>
-                      <td className="px-4 py-4">
-                        <span className="text-sm font-semibold text-[#0B5C6C] whitespace-nowrap">{formatCurrency(order.estimatedRemainingAfter)}</span>
-                      </td>
+                      {/* STATUS */}
                       <td className="px-4 py-4">
                         <div className="space-y-1">
                           <select
@@ -977,12 +1109,11 @@ export default function AdminOrdersPage() {
                           )}
                         </div>
                       </td>
+                      {/* CREATED */}
                       <td className="px-4 py-4">
                         <span className="text-sm text-gray-700 whitespace-nowrap">{order.date}</span>
                       </td>
-                      <td className="px-4 py-4">
-                        <span className="text-sm text-gray-700 whitespace-nowrap">{order.updatedDate}</span>
-                      </td>
+                      {/* ACTION */}
                       <td className="px-4 py-4">
                         <div className="flex items-center gap-2 flex-wrap">
                           <button
@@ -992,11 +1123,20 @@ export default function AdminOrdersPage() {
                           >
                             View patient
                           </button>
-                          {order.adminNote && (
-                            <span className="max-w-[180px] truncate text-xs text-gray-500" title={order.adminNote}>
-                              Note: {order.adminNote}
-                            </span>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleFundingReviewToggle(order)}
+                            disabled={fundingReviewLoading.has(order.id)}
+                            title={order.needsFundingReview ? "Clear funding review flag" : "Flag for funding review"}
+                            className={cn(
+                              "text-sm font-medium px-3 py-2 rounded-lg min-h-[40px] border transition-colors whitespace-nowrap disabled:opacity-60",
+                              order.needsFundingReview
+                                ? "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                                : "border-gray-200 text-gray-500 hover:border-amber-300 hover:text-amber-700"
+                            )}
+                          >
+                            {fundingReviewLoading.has(order.id) ? "…" : order.needsFundingReview ? "Unflag" : "Flag funding"}
+                          </button>
                         </div>
                       </td>
                     </tr>
