@@ -255,19 +255,23 @@ export async function POST(request: NextRequest) {
         })
       } catch (createErr) {
         const awsMeta = (createErr as { $metadata?: { requestId?: string; httpStatusCode?: number } }).$metadata
+        const errName = createErr instanceof Error ? createErr.name : 'UnknownError'
         console.error('[patient/reorder] request_create failed (support_request)', {
           step,
-          msid,
-          normalizedMsid: msid.startsWith('MS-') ? msid : `MS-${msid}`,
-          cognitoSub: sub,
-          orgId,
           requestType: 'support_request',
-          errorName: createErr instanceof Error ? createErr.name : 'UnknownError',
+          source: 'support_request',
+          status: 'new',
+          hasPk: true,
+          hasSk: true,
+          hasPatientId: typeof patient.patient_id === 'string',
+          hasOrgId: typeof orgId === 'string',
+          hasReferenceNumber: typeof requestReference === 'string',
+          errorName: errName,
           errorMessage: (createErr instanceof Error ? createErr.message : String(createErr)).slice(0, 200),
           awsRequestId: awsMeta?.requestId,
           awsHttpStatus: awsMeta?.httpStatusCode,
         })
-        return NextResponse.json({ error: 'Unable to submit request. Please try again.', code: 'REORDER_SUBMISSION_FAILED', step: safeStep(step) }, { status: 500 })
+        return NextResponse.json({ error: 'Unable to submit request. Please try again.', code: 'REORDER_SUBMISSION_FAILED', step: safeStep(step), errorName: errName }, { status: 500 })
       }
 
       safeLog('patient/reorder: support request created', { orderId: reorder.id, orgId })
@@ -382,21 +386,24 @@ export async function POST(request: NextRequest) {
       })
     } catch (createErr) {
       const awsMeta = (createErr as { $metadata?: { requestId?: string; httpStatusCode?: number } }).$metadata
+      const errName = createErr instanceof Error ? createErr.name : 'UnknownError'
       console.error('[patient/reorder] request_create failed (patient_portal)', {
         step,
-        msid,
-        normalizedMsid: msid.startsWith('MS-') ? msid : `MS-${msid}`,
-        cognitoSub: sub,
-        orgId,
         requestType: 'patient_portal',
+        source: 'patient_portal',
+        status: 'new',
+        hasPk: true,
+        hasSk: true,
+        hasPatientId: typeof patient.patient_id === 'string',
+        hasOrgId: typeof orgId === 'string',
+        hasReferenceNumber: typeof requestReference === 'string',
         itemNamesCount: validatedItems.length,
-        hasDeliveryAddress: true,
-        errorName: createErr instanceof Error ? createErr.name : 'UnknownError',
+        errorName: errName,
         errorMessage: (createErr instanceof Error ? createErr.message : String(createErr)).slice(0, 200),
         awsRequestId: awsMeta?.requestId,
         awsHttpStatus: awsMeta?.httpStatusCode,
       })
-      return NextResponse.json({ error: 'Unable to submit request. Please try again.', code: 'REORDER_SUBMISSION_FAILED', step: safeStep(step) }, { status: 500 })
+      return NextResponse.json({ error: 'Unable to submit request. Please try again.', code: 'REORDER_SUBMISSION_FAILED', step: safeStep(step), errorName: errName }, { status: 500 })
     }
 
     safeLog('patient/reorder: supply request created', { orderId: reorder.id, orgId })
