@@ -153,7 +153,22 @@ export async function POST(request: NextRequest) {
 
     // Block if an active (non-terminal) request already exists
     step = 'latest_request_lookup'
-    const existing = await getLatestReorderRequest(patient.patient_id, orgId)
+    let existing: ReorderRecord | null = null
+    try {
+      existing = await getLatestReorderRequest(patient.patient_id, orgId)
+    } catch (lookupErr) {
+      const awsMeta = (lookupErr as { $metadata?: { requestId?: string; httpStatusCode?: number } }).$metadata
+      console.warn('[patient/reorder] latest_request_lookup failed — duplicate detection degraded, allowing submission', {
+        step,
+        msid,
+        orgId,
+        errorName: lookupErr instanceof Error ? lookupErr.name : 'UnknownError',
+        errorMessage: (lookupErr instanceof Error ? lookupErr.message : String(lookupErr)).slice(0, 200),
+        awsRequestId: awsMeta?.requestId,
+        awsHttpStatus: awsMeta?.httpStatusCode,
+      })
+      // existing remains null — proceed to allow the submission
+    }
     if (existing && ACTIVE_STATUSES.has(existing.status)) {
       safeLog('patient/reorder: active request exists, blocking new submission', { orgId })
       return NextResponse.json({
