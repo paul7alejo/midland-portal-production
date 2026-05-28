@@ -105,12 +105,19 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  let step = 'init'
+  let msid = ''
+  let orgId = ''
+  let sub = ''
+  let requestType: unknown = undefined
   try {
+    step = 'auth'
     const user = await getVerifiedUser(request)
-    const { sub, msid, orgId } = user
+    ;({ sub, msid, orgId } = user)
 
     safeLog('patient/reorder: lookup patient', { orgId })
 
+    step = 'patient_lookup'
     const patient = await getPatientByMSID(msid, orgId)
     if (!patient) {
       const normalizedMsid = msid.startsWith('MS-') ? msid : `MS-${msid}`
@@ -118,10 +125,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Patient record not found' }, { status: 404 })
     }
 
+    step = 'patient_validation'
     if (
       typeof patient.patient_id !== 'string' || patient.patient_id.trim().length === 0 ||
       typeof patient.portal_id !== 'string' || patient.portal_id.trim().length === 0
     ) {
+      const normalizedMsid = msid.startsWith('MS-') ? msid : `MS-${msid}`
+      console.warn('[patient/reorder] patient_id/portal_id missing on resolved record', {
+        step,
+        msid,
+        normalizedMsid,
+        cognitoSub: sub,
+        orgId,
+        hasPatientId: typeof patient.patient_id === 'string',
+        hasPortalId: typeof patient.portal_id === 'string',
+        hasPk: typeof patient.pk === 'string',
+      })
       return NextResponse.json({ error: 'Unable to submit request. Please try again.' }, { status: 500 })
     }
 
@@ -143,7 +162,7 @@ export async function POST(request: NextRequest) {
     }
 
     const b = body as Record<string, unknown>
-    const requestType = b.type
+    requestType = b.type
 
     // ── Support request path ─────────────────────────────────────────────────
     if (requestType === 'support_request') {
@@ -159,6 +178,7 @@ export async function POST(request: NextRequest) {
       const requestReference = createRequestReference(createdAt)
 
       // Audit-first
+      step = 'audit_write'
       await appendAuditLog({
         userId:       sub,
         event_type:   'PATIENT_SUPPORT_REQUEST_CREATED',
@@ -176,6 +196,7 @@ export async function POST(request: NextRequest) {
         status:       'new',
       })
 
+      step = 'request_create'
       const reorder = await createReorderRequest({
         id:                requestId,
         request_reference: requestReference,
@@ -246,6 +267,7 @@ export async function POST(request: NextRequest) {
     const requestReference = createRequestReference(createdAt)
 
     // Audit-first
+    step = 'audit_write'
     await appendAuditLog({
       userId:       sub,
       event_type:   'PATIENT_REQUEST_CREATED',
@@ -264,6 +286,7 @@ export async function POST(request: NextRequest) {
       status:       'new',
     })
 
+    step = 'request_create'
     const reorder = await createReorderRequest({
       id:                requestId,
       request_reference: requestReference,
@@ -289,7 +312,19 @@ export async function POST(request: NextRequest) {
     if (err instanceof HttpError) {
       return NextResponse.json({ error: err.message }, { status: err.status })
     }
-    console.error('patient/reorder POST ERROR:', err instanceof Error ? err.message : String(err))
+    const awsMeta = (err as { $metadata?: { requestId?: string; httpStatusCode?: number } }).$metadata
+    console.error('[patient/reorder] POST failed', {
+      step,
+      msid: msid || '(unknown)',
+      normalizedMsid: msid ? (msid.startsWith('MS-') ? msid : `MS-${msid}`) : '(unknown)',
+      cognitoSub: sub || '(unknown)',
+      orgId: orgId || '(unknown)',
+      requestType: String(requestType ?? '(unknown)'),
+      errorName: err instanceof Error ? err.name : 'UnknownError',
+      errorMessage: (err instanceof Error ? err.message : String(err)).slice(0, 200),
+      awsRequestId: awsMeta?.requestId,
+      awsHttpStatus: awsMeta?.httpStatusCode,
+    })
     return NextResponse.json({ error: 'Unable to submit request. Please try again.' }, { status: 500 })
   }
 }

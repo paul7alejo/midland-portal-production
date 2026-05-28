@@ -196,7 +196,14 @@ export async function getPatientByMSID(msid: string, orgId: string): Promise<Pat
       ExpressionAttributeValues: { ':msid': id, ':orgId': orgId },
       Limit: 1,
     }))
-    return (res.Items?.[0] as PatientRecord) ?? null
+    const item = res.Items?.[0] as PatientRecord | undefined
+    if (!item) return null
+    // If the GSI uses a non-ALL projection, patient_id may be absent.
+    // Derive it from the pk ("USER#<patient_id>") so callers always have a valid patient_id.
+    if (!item.patient_id && typeof item.pk === 'string' && item.pk.startsWith('USER#')) {
+      item.patient_id = item.pk.slice(5)
+    }
+    return item
   }
   // Try canonical "MS-XXXXXX" format first, then bare digits as fallback.
   // Cognito custom:msid may be stored without the prefix on older/manual accounts.
