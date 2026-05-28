@@ -418,6 +418,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: err.message }, { status: err.status })
     }
     const awsMeta = (err as { $metadata?: { requestId?: string; httpStatusCode?: number } }).$metadata
+    const errName = err instanceof Error ? err.name : 'UnknownError'
     console.error('[patient/reorder] POST failed', {
       step,
       msid: msid || '(unknown)',
@@ -425,11 +426,11 @@ export async function POST(request: NextRequest) {
       cognitoSub: sub || '(unknown)',
       orgId: orgId || '(unknown)',
       requestType: String(requestType ?? '(unknown)'),
-      errorName: err instanceof Error ? err.name : 'UnknownError',
+      errorName: errName,
       errorMessage: (err instanceof Error ? err.message : String(err)).slice(0, 200),
       awsRequestId: awsMeta?.requestId,
       awsHttpStatus: awsMeta?.httpStatusCode,
     })
-    return NextResponse.json({ error: 'Unable to submit request. Please try again.', code: 'REORDER_SUBMISSION_FAILED', step: safeStep(step) }, { status: 500 })
+    return NextResponse.json({ error: 'Unable to submit request. Please try again.', code: 'REORDER_SUBMISSION_FAILED', step: safeStep(step), errorName: errName }, { status: 500 })
   }
 }
