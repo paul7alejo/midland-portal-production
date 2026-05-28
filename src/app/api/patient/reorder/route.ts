@@ -113,6 +113,8 @@ export async function POST(request: NextRequest) {
 
     const patient = await getPatientByMSID(msid, orgId)
     if (!patient) {
+      const normalizedMsid = msid.startsWith('MS-') ? msid : `MS-${msid}`
+      console.warn('[patient/reorder] Patient record not found', { msid, normalizedMsid, cognitoSub: sub, orgId })
       return NextResponse.json({ error: 'Patient record not found' }, { status: 404 })
     }
 

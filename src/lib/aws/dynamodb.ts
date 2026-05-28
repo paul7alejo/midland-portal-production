@@ -187,15 +187,21 @@ export type PatientSummary = ImportedPatientSummary & Pick<PatientRecord, 'impor
 // ── Query functions ───────────────────────────────────────────────────────────
 
 export async function getPatientByMSID(msid: string, orgId: string): Promise<PatientRecord | null> {
-  const res = await docClient.send(new QueryCommand({
-    TableName: TABLES.PATIENTS,
-    IndexName: 'portal_id-index',
-    KeyConditionExpression: 'portal_id = :msid',
-    FilterExpression: 'org_id = :orgId',
-    ExpressionAttributeValues: { ':msid': msid, ':orgId': orgId },
-    Limit: 1,
-  }))
-  return (res.Items?.[0] as PatientRecord) ?? null
+  const queryById = async (id: string) => {
+    const res = await docClient.send(new QueryCommand({
+      TableName: TABLES.PATIENTS,
+      IndexName: 'portal_id-index',
+      KeyConditionExpression: 'portal_id = :msid',
+      FilterExpression: 'org_id = :orgId',
+      ExpressionAttributeValues: { ':msid': id, ':orgId': orgId },
+      Limit: 1,
+    }))
+    return (res.Items?.[0] as PatientRecord) ?? null
+  }
+  // Try canonical "MS-XXXXXX" format first, then bare digits as fallback.
+  // Cognito custom:msid may be stored without the prefix on older/manual accounts.
+  const withPrefix = msid.startsWith('MS-') ? msid : `MS-${msid}`
+  return (await queryById(withPrefix)) ?? (await queryById(withPrefix.slice(3)))
 }
 
 export async function listImportedPatients(orgId: string): Promise<ImportedPatientSummary[]> {
