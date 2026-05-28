@@ -81,6 +81,13 @@ function isValidAddress(a: unknown): a is ReorderDeliveryAddress {
   )
 }
 
+const SAFE_RESPONSE_STEPS = new Set([
+  'patient_lookup', 'patient_validation', 'latest_request_lookup', 'audit_write', 'request_create',
+])
+function safeStep(s: string): string {
+  return SAFE_RESPONSE_STEPS.has(s) ? s : 'unknown'
+}
+
 export async function GET(request: NextRequest) {
   try {
     const user = await getVerifiedUser(request)
@@ -141,11 +148,11 @@ export async function POST(request: NextRequest) {
         hasPortalId: typeof patient.portal_id === 'string',
         hasPk: typeof patient.pk === 'string',
       })
-      return NextResponse.json({ error: 'Unable to submit request. Please try again.' }, { status: 500 })
+      return NextResponse.json({ error: 'Unable to submit request. Please try again.', code: 'REORDER_SUBMISSION_FAILED', step: safeStep(step) }, { status: 500 })
     }
 
     // Block if an active (non-terminal) request already exists
-    step = 'existing_check'
+    step = 'latest_request_lookup'
     const existing = await getLatestReorderRequest(patient.patient_id, orgId)
     if (existing && ACTIVE_STATUSES.has(existing.status)) {
       safeLog('patient/reorder: active request exists, blocking new submission', { orgId })
@@ -212,7 +219,7 @@ export async function POST(request: NextRequest) {
           awsRequestId: awsMeta?.requestId,
           awsHttpStatus: awsMeta?.httpStatusCode,
         })
-        return NextResponse.json({ error: 'Unable to submit request. Please try again.' }, { status: 500 })
+        return NextResponse.json({ error: 'Unable to submit request. Please try again.', code: 'REORDER_SUBMISSION_FAILED', step: safeStep(step) }, { status: 500 })
       }
 
       step = 'request_create'
@@ -245,7 +252,7 @@ export async function POST(request: NextRequest) {
           awsRequestId: awsMeta?.requestId,
           awsHttpStatus: awsMeta?.httpStatusCode,
         })
-        return NextResponse.json({ error: 'Unable to submit request. Please try again.' }, { status: 500 })
+        return NextResponse.json({ error: 'Unable to submit request. Please try again.', code: 'REORDER_SUBMISSION_FAILED', step: safeStep(step) }, { status: 500 })
       }
 
       safeLog('patient/reorder: support request created', { orderId: reorder.id, orgId })
@@ -339,7 +346,7 @@ export async function POST(request: NextRequest) {
         awsRequestId: awsMeta?.requestId,
         awsHttpStatus: awsMeta?.httpStatusCode,
       })
-      return NextResponse.json({ error: 'Unable to submit request. Please try again.' }, { status: 500 })
+      return NextResponse.json({ error: 'Unable to submit request. Please try again.', code: 'REORDER_SUBMISSION_FAILED', step: safeStep(step) }, { status: 500 })
     }
 
     step = 'request_create'
@@ -374,7 +381,7 @@ export async function POST(request: NextRequest) {
         awsRequestId: awsMeta?.requestId,
         awsHttpStatus: awsMeta?.httpStatusCode,
       })
-      return NextResponse.json({ error: 'Unable to submit request. Please try again.' }, { status: 500 })
+      return NextResponse.json({ error: 'Unable to submit request. Please try again.', code: 'REORDER_SUBMISSION_FAILED', step: safeStep(step) }, { status: 500 })
     }
 
     safeLog('patient/reorder: supply request created', { orderId: reorder.id, orgId })
@@ -401,6 +408,6 @@ export async function POST(request: NextRequest) {
       awsRequestId: awsMeta?.requestId,
       awsHttpStatus: awsMeta?.httpStatusCode,
     })
-    return NextResponse.json({ error: 'Unable to submit request. Please try again.' }, { status: 500 })
+    return NextResponse.json({ error: 'Unable to submit request. Please try again.', code: 'REORDER_SUBMISSION_FAILED', step: safeStep(step) }, { status: 500 })
   }
 }
