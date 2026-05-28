@@ -145,6 +145,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Block if an active (non-terminal) request already exists
+    step = 'existing_check'
     const existing = await getLatestReorderRequest(patient.patient_id, orgId)
     if (existing && ACTIVE_STATUSES.has(existing.status)) {
       safeLog('patient/reorder: active request exists, blocking new submission', { orgId })
@@ -154,6 +155,7 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    step = 'body_parse'
     let body: unknown
     try {
       body = await request.json()
@@ -177,39 +179,74 @@ export async function POST(request: NextRequest) {
       const createdAt  = new Date().toISOString()
       const requestReference = createRequestReference(createdAt)
 
-      // Audit-first
+      // Audit-first — must succeed before creating the order
       step = 'audit_write'
-      await appendAuditLog({
-        userId:       sub,
-        event_type:   'PATIENT_SUPPORT_REQUEST_CREATED',
-        action:       'PATIENT_SUPPORT_REQUEST_CREATED',
-        patient_id:   patient.patient_id,
-        patient_msid: patient.portal_id,
-        order_id:     requestId,
-        request_id:   requestReference,
-        org_id:       orgId,
-        timestamp:    createdAt,
-        result:       'success',
-        details:      `Support request ${requestReference} created; status new.`,
-        category:     'Orders',
-        source:       'support_request',
-        status:       'new',
-      })
+      try {
+        await appendAuditLog({
+          userId:       sub,
+          event_type:   'PATIENT_SUPPORT_REQUEST_CREATED',
+          action:       'PATIENT_SUPPORT_REQUEST_CREATED',
+          patient_id:   patient.patient_id,
+          patient_msid: patient.portal_id,
+          order_id:     requestId,
+          request_id:   requestReference,
+          org_id:       orgId,
+          timestamp:    createdAt,
+          result:       'success',
+          details:      `Support request ${requestReference} created; status new.`,
+          category:     'Orders',
+          source:       'support_request',
+          status:       'new',
+        })
+      } catch (auditErr) {
+        const awsMeta = (auditErr as { $metadata?: { requestId?: string; httpStatusCode?: number } }).$metadata
+        console.error('[patient/reorder] audit_write failed (support_request)', {
+          step,
+          msid,
+          normalizedMsid: msid.startsWith('MS-') ? msid : `MS-${msid}`,
+          cognitoSub: sub,
+          orgId,
+          requestType: 'support_request',
+          errorName: auditErr instanceof Error ? auditErr.name : 'UnknownError',
+          errorMessage: (auditErr instanceof Error ? auditErr.message : String(auditErr)).slice(0, 200),
+          awsRequestId: awsMeta?.requestId,
+          awsHttpStatus: awsMeta?.httpStatusCode,
+        })
+        return NextResponse.json({ error: 'Unable to submit request. Please try again.' }, { status: 500 })
+      }
 
       step = 'request_create'
-      const reorder = await createReorderRequest({
-        id:                requestId,
-        request_reference: requestReference,
-        patient_id:        patient.patient_id,
-        patient_msid:      patient.portal_id,
-        patient_name:      patient.name ?? 'Patient name unavailable',
-        org_id:            orgId,
-        source:            'support_request',
-        item_description:  itemDescription.trim(),
-        reason,
-        contact_preference: contactPreference,
-        created_by:        sub,
-      })
+      let reorder: ReorderRecord
+      try {
+        reorder = await createReorderRequest({
+          id:                requestId,
+          request_reference: requestReference,
+          patient_id:        patient.patient_id,
+          patient_msid:      patient.portal_id,
+          patient_name:      patient.name ?? 'Patient name unavailable',
+          org_id:            orgId,
+          source:            'support_request',
+          item_description:  itemDescription.trim(),
+          reason,
+          contact_preference: contactPreference,
+          created_by:        sub,
+        })
+      } catch (createErr) {
+        const awsMeta = (createErr as { $metadata?: { requestId?: string; httpStatusCode?: number } }).$metadata
+        console.error('[patient/reorder] request_create failed (support_request)', {
+          step,
+          msid,
+          normalizedMsid: msid.startsWith('MS-') ? msid : `MS-${msid}`,
+          cognitoSub: sub,
+          orgId,
+          requestType: 'support_request',
+          errorName: createErr instanceof Error ? createErr.name : 'UnknownError',
+          errorMessage: (createErr instanceof Error ? createErr.message : String(createErr)).slice(0, 200),
+          awsRequestId: awsMeta?.requestId,
+          awsHttpStatus: awsMeta?.httpStatusCode,
+        })
+        return NextResponse.json({ error: 'Unable to submit request. Please try again.' }, { status: 500 })
+      }
 
       safeLog('patient/reorder: support request created', { orderId: reorder.id, orgId })
 
@@ -268,38 +305,77 @@ export async function POST(request: NextRequest) {
 
     // Audit-first
     step = 'audit_write'
-    await appendAuditLog({
-      userId:       sub,
-      event_type:   'PATIENT_REQUEST_CREATED',
-      action:       'PATIENT_REQUEST_CREATED',
-      patient_id:   patient.patient_id,
-      patient_msid: patient.portal_id,
-      order_id:     requestId,
-      request_id:   requestReference,
-      org_id:       orgId,
-      timestamp:    createdAt,
-      result:       'success',
-      details:      `Request ${requestReference} created for ${validatedItems.length} item(s); status new.`,
-      category:     'Orders',
-      source:       'patient_portal',
-      item_names:   validatedItems,
-      status:       'new',
-    })
+    try {
+      await appendAuditLog({
+        userId:       sub,
+        event_type:   'PATIENT_REQUEST_CREATED',
+        action:       'PATIENT_REQUEST_CREATED',
+        patient_id:   patient.patient_id,
+        patient_msid: patient.portal_id,
+        order_id:     requestId,
+        request_id:   requestReference,
+        org_id:       orgId,
+        timestamp:    createdAt,
+        result:       'success',
+        details:      `Request ${requestReference} created for ${validatedItems.length} item(s); status new.`,
+        category:     'Orders',
+        source:       'patient_portal',
+        item_names:   validatedItems,
+        status:       'new',
+      })
+    } catch (auditErr) {
+      const awsMeta = (auditErr as { $metadata?: { requestId?: string; httpStatusCode?: number } }).$metadata
+      console.error('[patient/reorder] audit_write failed (patient_portal)', {
+        step,
+        msid,
+        normalizedMsid: msid.startsWith('MS-') ? msid : `MS-${msid}`,
+        cognitoSub: sub,
+        orgId,
+        requestType: 'patient_portal',
+        itemNamesCount: validatedItems.length,
+        hasDeliveryAddress: true,
+        errorName: auditErr instanceof Error ? auditErr.name : 'UnknownError',
+        errorMessage: (auditErr instanceof Error ? auditErr.message : String(auditErr)).slice(0, 200),
+        awsRequestId: awsMeta?.requestId,
+        awsHttpStatus: awsMeta?.httpStatusCode,
+      })
+      return NextResponse.json({ error: 'Unable to submit request. Please try again.' }, { status: 500 })
+    }
 
     step = 'request_create'
-    const reorder = await createReorderRequest({
-      id:                requestId,
-      request_reference: requestReference,
-      patient_id:        patient.patient_id,
-      patient_msid:      patient.portal_id,
-      patient_name:      patient.name ?? 'Patient name unavailable',
-      org_id:            orgId,
-      source:            'patient_portal',
-      items:             validatedItems,
-      delivery_address,
-      created_by:        sub,
-      ...estimates,
-    })
+    let reorder: ReorderRecord
+    try {
+      reorder = await createReorderRequest({
+        id:                requestId,
+        request_reference: requestReference,
+        patient_id:        patient.patient_id,
+        patient_msid:      patient.portal_id,
+        patient_name:      patient.name ?? 'Patient name unavailable',
+        org_id:            orgId,
+        source:            'patient_portal',
+        items:             validatedItems,
+        delivery_address,
+        created_by:        sub,
+        ...estimates,
+      })
+    } catch (createErr) {
+      const awsMeta = (createErr as { $metadata?: { requestId?: string; httpStatusCode?: number } }).$metadata
+      console.error('[patient/reorder] request_create failed (patient_portal)', {
+        step,
+        msid,
+        normalizedMsid: msid.startsWith('MS-') ? msid : `MS-${msid}`,
+        cognitoSub: sub,
+        orgId,
+        requestType: 'patient_portal',
+        itemNamesCount: validatedItems.length,
+        hasDeliveryAddress: true,
+        errorName: createErr instanceof Error ? createErr.name : 'UnknownError',
+        errorMessage: (createErr instanceof Error ? createErr.message : String(createErr)).slice(0, 200),
+        awsRequestId: awsMeta?.requestId,
+        awsHttpStatus: awsMeta?.httpStatusCode,
+      })
+      return NextResponse.json({ error: 'Unable to submit request. Please try again.' }, { status: 500 })
+    }
 
     safeLog('patient/reorder: supply request created', { orderId: reorder.id, orgId })
 
