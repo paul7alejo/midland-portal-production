@@ -43,17 +43,28 @@ export default function DashboardPage() {
 
   if (dataLoading) return <div className="p-8 text-gray-700 font-body text-lg leading-7">Loading your data...</div>;
 
-  const canReorderNow = entitlement.some((item: any) => item.status === "ELIGIBLE");
-  const entitlementStatus = canReorderNow
+  const hasEligibleItems = entitlement.some((item: any) => item.status === "ELIGIBLE");
+  const hasAnyItems = entitlement.length > 0;
+  const requestAccessStatus: "eligible" | "needs_review" | "not_eligible" =
+    !entitlementData ? "needs_review"
+    : !hasAnyItems   ? "needs_review"
+    : hasEligibleItems ? "eligible"
+    : "not_eligible";
+
+  const canReorder = requestAccessStatus === "eligible" || requestAccessStatus === "needs_review";
+
+  const entitlementStatus = canReorder
     ? {
-        label: "Entitlement available",
-        detail: "You can use your entitlement for replacement supplies.",
+        label: "Supplies available for staff review",
+        detail: requestAccessStatus === "eligible"
+          ? "Midland Sleep staff will review your supply request and confirm availability."
+          : "Your request will be reviewed by Midland Sleep staff before any supply decision is confirmed.",
         cardClass: "border-seafoam/40 bg-seafoam-pale text-deep-teal",
         badgeClass: "bg-seafoam text-navy",
       }
     : {
-        label: "No funded supplies available right now",
-        detail: "Contact Midland Sleep if you have questions about your supply entitlement.",
+        label: "Funded supply requests are not currently available for your account.",
+        detail: "You are not currently eligible for funded supply requests through the portal. You can still tell Midland Sleep what you need and staff will review your options.",
         cardClass: "border-sand bg-sand-pale text-charcoal",
         badgeClass: "bg-charcoal/70 text-white",
       };
@@ -253,7 +264,7 @@ export default function DashboardPage() {
         <section className="bg-white border border-sand rounded-2xl p-6 md:p-7 space-y-5">
           <h2 className="font-display text-2xl font-semibold text-navy leading-snug">My supplies status</h2>
 
-          {canReorderNow ? (
+          {canReorder ? (
             <div className="bg-seafoam-pale rounded-lg p-5 space-y-4">
               <p className="text-charcoal font-medium flex items-center gap-2 text-lg leading-7">
                 <span className="text-seafoam">&#9989;</span>
@@ -269,11 +280,17 @@ export default function DashboardPage() {
           ) : (
             <div className="bg-sand-pale rounded-lg p-5 space-y-2">
               <p className="text-charcoal font-medium text-lg leading-7">
-                No funded supplies are available right now.
+                Funded supply requests are not currently available for your account.
               </p>
               <p className="text-base leading-6 text-charcoal/80">
-                Contact Midland Sleep if you have questions about your supply entitlement.
+                You are not currently eligible for funded supply requests through the portal. You can still tell Midland Sleep what you need and staff will review your options.
               </p>
+              <Link
+                href="/portal/reorder"
+                className="inline-flex items-center justify-center gap-2 bg-[#0B5C6C] text-white px-7 py-3.5 rounded-lg text-lg font-medium min-h-[52px] hover:bg-[#0B5C6C]/90 transition-colors mt-3"
+              >
+                Contact Midland Sleep
+              </Link>
             </div>
           )}
         </section>

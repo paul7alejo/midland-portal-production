@@ -73,32 +73,61 @@ const REQUEST_TIMING_NOTE =
 
 const CATALOG_ITEMS = ["cushion", "headgear", "mask_kit", "filter"];
 
-type ReorderStatus = "pending_review" | "reviewing" | "approved" | "sent" | "cancelled";
+type ReorderStatus =
+  | "new"
+  | "reviewing"
+  | "approved"
+  | "sent"
+  | "declined"
+  | "needs_followup";
+
+type RequestAccessStatus = "eligible" | "needs_review" | "not_eligible" | "no_funds";
+
+const ACTIVE_STATUSES_PATIENT = new Set<ReorderStatus>([
+  "new",
+  "reviewing",
+  "needs_followup",
+]);
+
+const CURRENT_REQUEST_HEADING: Record<ReorderStatus, string> = {
+  new:            "Awaiting review by Midland Sleep staff",
+  reviewing:      "Midland Sleep is reviewing your request",
+  approved:       "Your request has been approved",
+  sent:           "Your supplies have been dispatched",
+  declined:       "Your request was not approved",
+  needs_followup: "Midland Sleep needs to follow up with you",
+};
 
 interface CurrentReorderRequest {
   id: string;
-  requestReference: string;
+  referenceNumber: string;
+  requestReference?: string;
   status: ReorderStatus;
   createdAt: string;
   updatedAt?: string;
-  items: string[];
-  summary?: string;
+  itemNames: string[];
+  items?: string[];
+  itemDescription?: string;
+  statusMessage?: string;
+  source?: string;
 }
 
 const STATUS_LABELS: Record<ReorderStatus, string> = {
-  pending_review: "Pending review",
+  new:            "New",
   reviewing:      "Being reviewed",
   approved:       "Approved",
   sent:           "Sent",
-  cancelled:      "Cancelled",
+  declined:       "Declined",
+  needs_followup: "Needs follow-up",
 };
 
 const STATUS_BADGE_CLS: Record<ReorderStatus, string> = {
-  pending_review: "border-amber-200 bg-amber-100 text-amber-800",
+  new:            "border-amber-200 bg-amber-100 text-amber-800",
   reviewing:      "border-blue-200 bg-blue-100 text-blue-800",
   approved:       "border-emerald-200 bg-emerald-100 text-emerald-800",
   sent:           "border-purple-200 bg-purple-100 text-purple-800",
-  cancelled:      "border-red-200 bg-red-100 text-red-700",
+  declined:       "border-red-200 bg-red-100 text-red-700",
+  needs_followup: "border-orange-200 bg-orange-100 text-orange-700",
 };
 
 function formatStatus(status: ReorderStatus): string {
@@ -214,11 +243,16 @@ export default function ReorderPage() {
     useState<DeliveryAddress | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [submittedSource, setSubmittedSource] = useState<"supply" | "support">("supply");
   const [currentRequest, setCurrentRequest] =
     useState<CurrentReorderRequest | null>(null);
   const [currentRequestLoading, setCurrentRequestLoading] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [confirmationId, setConfirmationId] = useState<string | null>(null);
+  // Support fallback form state
+  const [supportDescription, setSupportDescription] = useState("");
+  const [supportReason, setSupportReason] = useState("");
+  const [supportContactPreference, setSupportContactPreference] = useState("either");
   const addressStorageKey = getDeliveryAddressStorageKey(patient?.userId);
 
   useEffect(() => {
@@ -268,6 +302,17 @@ export default function ReorderPage() {
   const mask = DEMO_MASKS[patient.userId];
   const eligibleItems = items.filter((item) => item.status === "ELIGIBLE");
   const notYetItems = items.filter((item) => item.status === "NOT_YET");
+
+  // Derive access status — default to needs_review to avoid blocking new patients
+  const hasEligible = eligibleItems.length > 0;
+  const requestAccessStatus: RequestAccessStatus =
+    !entitlement      ? "needs_review"
+    : items.length === 0 ? "needs_review"
+    : hasEligible        ? "eligible"
+    : "not_eligible";
+
+  const canRequestSupply = requestAccessStatus === "eligible" || requestAccessStatus === "needs_review";
+
   // Newly imported patients with no entitlement record yet see the full catalog
   const showCatalogFallback = eligibleItems.length === 0 && !entitlement;
   const selectableItems = showCatalogFallback
@@ -318,7 +363,8 @@ export default function ReorderPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          items: selectedItems,
+          type: "patient_portal",
+          itemNames: selectedItems,
           deliveryAddress: addressSnapshot,
         }),
       });
@@ -352,7 +398,7 @@ export default function ReorderPage() {
         setUseSavedAddress(true);
       }
 
-      setConfirmationId(data.request.requestReference);
+      setConfirmationId(data.request.referenceNumber);
       setSubmittedDeliveryAddress(addressSnapshot);
       setIsSubmitted(true);
     } catch (err) {
@@ -364,9 +410,50 @@ export default function ReorderPage() {
     }
   };
 
+  const handleSupportSubmit = async () => {
+    if (!supportDescription.trim()) return;
+    setIsSubmitting(true);
+    setSubmitError(null);
+    try {
+      configureCognito();
+      const token = await getIdToken();
+      if (!token) throw new Error("Session expired. Please log in again.");
+
+      const res = await fetch("/api/patient/reorder", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          type: "support_request",
+          itemDescription: supportDescription.trim(),
+          reason: supportReason.trim() || undefined,
+          contactPreference: supportContactPreference,
+        }),
+      });
+
+      let data: { request?: CurrentReorderRequest; existing?: boolean; error?: string } = {};
+      try { data = await res.json(); } catch { /* non-JSON */ }
+
+      if (!res.ok) throw new Error(data.error ?? "Unable to submit request. Please try again.");
+      if (!data.request) throw new Error("Request submitted but no reference was returned. Please contact Midland Sleep.");
+
+      setCurrentRequest(data.request);
+      setConfirmationId(data.request.referenceNumber);
+      setSubmittedSource("support");
+      setIsSubmitted(true);
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "Unable to submit request. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   // Confirmation view — shown only after the reorder record is successfully persisted
   if (isSubmitted) {
     const refDisplay = confirmationId;
+    const isSupportConfirmation = submittedSource === "support";
     return (
       <>
         <div className="max-w-2xl mx-auto text-center py-12 space-y-5">
@@ -376,9 +463,17 @@ export default function ReorderPage() {
           <h1 className="font-display text-[34px] md:text-[38px] leading-tight font-semibold text-navy">
             Your request has been received
           </h1>
-          <p className="text-lg leading-7 text-charcoal/80">
-            Midland Sleep staff will review your request and contact you if any further information is needed.
-          </p>
+          {isSupportConfirmation ? (
+            <p className="text-lg leading-7 text-charcoal/80">
+              {refDisplay
+                ? `Request received — Reference: ${refDisplay}. Midland Sleep staff will review your message and be in touch.`
+                : "Midland Sleep staff will review your message and be in touch."}
+            </p>
+          ) : (
+            <p className="text-lg leading-7 text-charcoal/80">
+              Midland Sleep staff will review your request and contact you if any further information is needed.
+            </p>
+          )}
           {refDisplay && (
             <div className="bg-white border border-sand rounded-2xl p-5 text-left">
               <p className="font-mono text-sm uppercase tracking-wide text-charcoal/70 mb-1">
@@ -390,31 +485,35 @@ export default function ReorderPage() {
               </p>
             </div>
           )}
-          <div className="bg-seafoam-pale/40 border border-seafoam/20 rounded-2xl p-5 text-left">
-            <h2 className="text-xl font-semibold text-charcoal mb-3">What happens next</h2>
-            <p className="text-lg leading-7 text-charcoal/85">
-              Please allow 5–7 business days for your request to be reviewed and supply delivery to be arranged.
-            </p>
-          </div>
-          <div className="bg-white border border-sand rounded-2xl p-5 text-left">
-            <h2 className="text-xl font-semibold text-charcoal mb-3">Items requested</h2>
-            <ul className="space-y-2">
-              {selectedItems.map((itemType) => (
-                <li key={itemType} className="text-lg leading-7 text-charcoal/85">
-                  {ITEM_LABELS[itemType]}
-                </li>
-              ))}
-            </ul>
-          </div>
-          {submittedDeliveryAddress && (
-            <div className="bg-white border border-sand rounded-2xl p-5 text-left">
-              <h2 className="text-xl font-semibold text-charcoal mb-3">Delivery address</h2>
-              <div className="space-y-1 text-lg leading-7 text-charcoal/85">
-                {formatDeliveryAddress(submittedDeliveryAddress).map((line) => (
-                  <p key={line}>{line}</p>
-                ))}
+          {!isSupportConfirmation && (
+            <>
+              <div className="bg-seafoam-pale/40 border border-seafoam/20 rounded-2xl p-5 text-left">
+                <h2 className="text-xl font-semibold text-charcoal mb-3">What happens next</h2>
+                <p className="text-lg leading-7 text-charcoal/85">
+                  Please allow 5–7 business days for your request to be reviewed and supply delivery to be arranged.
+                </p>
               </div>
-            </div>
+              <div className="bg-white border border-sand rounded-2xl p-5 text-left">
+                <h2 className="text-xl font-semibold text-charcoal mb-3">Items requested</h2>
+                <ul className="space-y-2">
+                  {selectedItems.map((itemType) => (
+                    <li key={itemType} className="text-lg leading-7 text-charcoal/85">
+                      {ITEM_LABELS[itemType]}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              {submittedDeliveryAddress && (
+                <div className="bg-white border border-sand rounded-2xl p-5 text-left">
+                  <h2 className="text-xl font-semibold text-charcoal mb-3">Delivery address</h2>
+                  <div className="space-y-1 text-lg leading-7 text-charcoal/85">
+                    {formatDeliveryAddress(submittedDeliveryAddress).map((line) => (
+                      <p key={line}>{line}</p>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           )}
           <button
             onClick={() => {
@@ -423,11 +522,108 @@ export default function ReorderPage() {
               setSaveAsDefault(false);
               setConfirmationId(null);
               setSubmitError(null);
+              setSupportDescription("");
+              setSupportReason("");
             }}
             className="text-lg text-deep-teal hover:underline mt-4 font-medium min-h-[44px]"
           >
             Back to requests
           </button>
+        </div>
+      </>
+    );
+  }
+
+  // Support fallback form — for not_eligible patients with no pending request
+  if (!canRequestSupply && !currentRequest && !currentRequestLoading) {
+    return (
+      <>
+        <h1 className="font-display text-[34px] md:text-[38px] leading-tight font-semibold text-navy mb-2">
+          Contact Midland Sleep
+        </h1>
+
+        <div className="bg-sand-pale border border-sand rounded-2xl p-6 md:p-7 mb-7 space-y-2">
+          <p className="text-lg font-semibold text-charcoal leading-snug">
+            Funded supply requests are not currently available for your account.
+          </p>
+          <p className="text-base leading-6 text-charcoal/80">
+            You are not currently eligible for funded supply requests through the portal. You can still tell Midland Sleep what you need and staff will review your options.
+          </p>
+        </div>
+
+        <div className="bg-deep-teal/5 border border-deep-teal/10 rounded-lg px-4 py-4 mb-7">
+          <p className="text-base leading-6 text-charcoal/85">
+            Your message will be reviewed by Midland Sleep staff. Your information is handled in accordance with the Health Information Privacy Code 2020.
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-sand bg-white p-5 md:p-6 space-y-5">
+          <h2 className="font-display text-2xl font-semibold text-navy leading-snug">
+            Send a message to Midland Sleep
+          </h2>
+
+          <label className="block">
+            <span className="mb-2 block text-base font-medium text-charcoal">
+              What do you need? <span className="text-deep-teal">*</span>
+            </span>
+            <textarea
+              value={supportDescription}
+              onChange={(e) => setSupportDescription(e.target.value)}
+              rows={4}
+              maxLength={1000}
+              placeholder="Describe the supplies or help you need"
+              className="w-full rounded-lg border border-sand bg-white px-4 py-3 text-lg text-charcoal
+                         placeholder:text-charcoal/45 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-deep-teal"
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-2 block text-base font-medium text-charcoal">
+              Any additional context? <span className="font-normal text-charcoal/60">(optional)</span>
+            </span>
+            <textarea
+              value={supportReason}
+              onChange={(e) => setSupportReason(e.target.value)}
+              rows={3}
+              maxLength={500}
+              placeholder="Any other details that might help staff"
+              className="w-full rounded-lg border border-sand bg-white px-4 py-3 text-lg text-charcoal
+                         placeholder:text-charcoal/45 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-deep-teal"
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-2 block text-base font-medium text-charcoal">
+              Best way to contact you
+            </span>
+            <select
+              value={supportContactPreference}
+              onChange={(e) => setSupportContactPreference(e.target.value)}
+              className="min-h-[52px] w-full rounded-lg border border-sand bg-white px-4 py-3 text-lg text-charcoal
+                         focus:border-transparent focus:outline-none focus:ring-2 focus:ring-deep-teal"
+            >
+              <option value="email">Email on file</option>
+              <option value="phone">Phone on file</option>
+              <option value="either">Either</option>
+            </select>
+          </label>
+
+          <div className="space-y-3">
+            <button
+              onClick={handleSupportSubmit}
+              disabled={!supportDescription.trim() || isSubmitting}
+              className="bg-[#0B5C6C] text-white px-7 py-3.5 rounded-lg text-lg
+                         font-medium min-h-[52px] hover:bg-[#0B5C6C]/90 transition-colors
+                         disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSubmitting ? "Sending..." : "Send request to Midland Sleep"}
+            </button>
+            {submitError && (
+              <p role="alert" className="text-base leading-6 text-[#C0392B] bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+                {submitError}
+              </p>
+            )}
+          </div>
         </div>
       </>
     );
@@ -493,7 +689,7 @@ export default function ReorderPage() {
                 Reference ID
               </dt>
               <dd className="mt-1 font-mono text-xl font-semibold text-navy">
-                {currentRequest.requestReference}
+                {currentRequest.referenceNumber}
               </dd>
             </div>
             <div>
@@ -509,13 +705,13 @@ export default function ReorderPage() {
                 Items requested
               </dt>
               <dd className="mt-1 text-lg leading-7 text-charcoal">
-                {currentRequest.items.map((itemType) => ITEM_LABELS[itemType] ?? itemType).join(", ")}
+                {(currentRequest.itemNames ?? currentRequest.items ?? []).map((itemType) => ITEM_LABELS[itemType] ?? itemType).join(", ")}
               </dd>
             </div>
             <div className="md:col-span-2">
-              <dt className="font-mono text-sm uppercase tracking-wide text-charcoal/70">Staff review</dt>
+              <dt className="font-mono text-sm uppercase tracking-wide text-charcoal/70">Status update</dt>
               <dd className="mt-1 text-lg leading-7 text-charcoal">
-                {currentRequest.summary ?? "This request will be reviewed by Midland Sleep staff."}
+                {currentRequest.statusMessage ?? "This request will be reviewed by Midland Sleep staff."}
               </dd>
             </div>
           </dl>

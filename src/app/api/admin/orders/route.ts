@@ -4,6 +4,7 @@ import {
   listReorderRequests,
   listReorderRequestsByMsid,
   updateReorderStatus,
+  updateNeedsFundingReview,
   appendAuditLog,
   type ReorderRecord,
   type ReorderStatus,
@@ -12,15 +13,16 @@ import {
 const ORG_ID = 'midland-sleep'
 
 const VALID_STATUSES = new Set<ReorderStatus>([
-  'pending_review', 'reviewing', 'approved', 'sent', 'cancelled',
+  'new', 'reviewing', 'approved', 'sent', 'declined', 'needs_followup',
 ])
 
 const STATUS_DISPLAY: Record<ReorderStatus, string> = {
-  pending_review: 'New',
+  new:            'New',
   reviewing:      'Reviewing',
   approved:       'Approved',
   sent:           'Sent',
-  cancelled:      'Cancelled',
+  declined:       'Declined',
+  needs_followup: 'Needs Follow-Up',
 }
 
 const ITEM_LABELS: Record<string, string> = {
@@ -44,25 +46,39 @@ function formatDateForDisplay(iso: string): string {
 }
 
 function toAdminOrder(r: ReorderRecord) {
+  const referenceNumber = r.request_reference ?? 'Legacy request'
+  const itemNames = r.items.map((t) => ITEM_LABELS[t] ?? t)
   return {
     id:        r.id,
-    requestId: r.request_reference ?? 'Legacy request',
+    referenceNumber,
+    requestId: referenceNumber,
     patient:   r.patient_name ?? 'Patient name unavailable',
     msid:      r.patient_msid,
     date:      formatDateForDisplay(r.created_at),
-    items:     r.items.map((t) => ITEM_LABELS[t] ?? t).join(', '),
+    itemNames,
+    items:     itemNames.length > 0
+      ? itemNames.join(', ')
+      : (r.item_description ?? '—'),
     category:  r.items.map((t) => ITEM_CATEGORY[t] ?? 'Support request')[0] ?? 'Support request',
     type:      'ENTITLEMENT' as const,
     status:    STATUS_DISPLAY[r.status] ?? 'New',
     source:    r.source,
     created_at: r.created_at,
     updated_at: r.updated_at,
-    updatedDate: r.updated_at ? formatDateForDisplay(r.updated_at) : undefined,
-    delivery_address:          r.delivery_address,
-    estimatedItemAmount:       r.estimated_amount,
-    estimatedFundedAmount:     r.estimated_funded_amount,
-    estimatedPatientCopay:     r.estimated_patient_copay,
-    estimatedRemainingAfter:   r.estimated_remaining_after,
+    updatedDate:             r.updated_at ? formatDateForDisplay(r.updated_at) : undefined,
+    delivery_address:        r.delivery_address,
+    needsFundingReview:      r.needs_funding_review ?? false,
+    reviewReason:            r.review_reason,
+    itemDescription:         r.item_description,
+    contactPreference:       r.contact_preference,
+    estimatedCost:           r.estimated_amount,
+    estimatedFunded:         r.estimated_funded_amount,
+    estimatedCopay:          r.estimated_patient_copay,
+    estimatedRemaining:      r.estimated_remaining_after,
+    estimatedItemAmount:     r.estimated_amount,
+    estimatedFundedAmount:   r.estimated_funded_amount,
+    estimatedPatientCopay:   r.estimated_patient_copay,
+    estimatedRemainingAfter: r.estimated_remaining_after,
   }
 }
 
@@ -98,11 +114,58 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
   }
 
-  const { id, status } = body as { id?: unknown; status?: unknown }
+  const b = body as Record<string, unknown>
+  const id = b.id
 
   if (typeof id !== 'string' || id.trim().length === 0) {
     return NextResponse.json({ error: 'id is required' }, { status: 400 })
   }
+
+  // Route: needsFundingReview toggle
+  if ('needsFundingReview' in b) {
+    const flag = b.needsFundingReview
+    if (typeof flag !== 'boolean') {
+      return NextResponse.json({ error: 'needsFundingReview must be boolean' }, { status: 400 })
+    }
+    const reviewReason = typeof b.reviewReason === 'string' ? b.reviewReason : undefined
+
+    try {
+      await appendAuditLog({
+        userId:      admin.sub,
+        event_type:  'REQUEST_STATUS_UPDATED',
+        action:      'REQUEST_STATUS_UPDATED',
+        order_id:    id,
+        org_id:      ORG_ID,
+        timestamp:   new Date().toISOString(),
+        result:      'success',
+        details:     `Needs funding review set to ${flag}${reviewReason ? ` — ${reviewReason}` : ''}.`,
+        admin_email: admin.email,
+        category:    'Orders',
+      })
+    } catch (err) {
+      console.error('admin/orders PATCH funding-review: audit failed', err instanceof Error ? err.message : String(err))
+      return NextResponse.json({ error: 'Unable to update funding review flag' }, { status: 500 })
+    }
+
+    try {
+      await updateNeedsFundingReview({
+        id,
+        needs_funding_review: flag,
+        review_reason:        reviewReason,
+        orgId:                ORG_ID,
+        adminSub:             admin.sub,
+        adminEmail:           admin.email,
+      })
+    } catch (err) {
+      console.error('admin/orders PATCH funding-review: update failed', err instanceof Error ? err.message : String(err))
+      return NextResponse.json({ error: 'Unable to update funding review flag' }, { status: 500 })
+    }
+
+    return NextResponse.json({ ok: true })
+  }
+
+  // Route: status update
+  const status = b.status
   if (typeof status !== 'string' || !VALID_STATUSES.has(status as ReorderStatus)) {
     return NextResponse.json(
       { error: `status must be one of: ${[...VALID_STATUSES].join(', ')}` },
@@ -113,18 +176,17 @@ export async function PATCH(request: NextRequest) {
   // Audit-first: write before mutation; abort if audit fails
   try {
     await appendAuditLog({
-      userId:     admin.sub,
-      event_type: 'REQUEST_STATUS_UPDATED',
-      action:     'REQUEST_STATUS_UPDATED',
-      order_id:   id,
-      org_id:     ORG_ID,
-      timestamp:  new Date().toISOString(),
-      result:     'success',
-      details:    `Request status updated to ${status}.`,
+      userId:      admin.sub,
+      event_type:  'REQUEST_STATUS_UPDATED',
+      action:      'REQUEST_STATUS_UPDATED',
+      order_id:    id,
+      org_id:      ORG_ID,
+      timestamp:   new Date().toISOString(),
+      result:      'success',
+      details:     `Request status updated to ${status}.`,
       admin_email: admin.email,
-      status,
-      category:   'Orders',
-      source:     'admin_orders',
+      new_status:  status,
+      category:    'Orders',
     })
   } catch (err) {
     console.error('admin/orders PATCH: audit failed', err instanceof Error ? err.message : String(err))
@@ -134,10 +196,10 @@ export async function PATCH(request: NextRequest) {
   try {
     await updateReorderStatus({
       id,
-      status:      status as ReorderStatus,
-      orgId:       ORG_ID,
-      adminSub:    admin.sub,
-      adminEmail:  admin.email,
+      status:    status as ReorderStatus,
+      orgId:     ORG_ID,
+      adminSub:  admin.sub,
+      adminEmail: admin.email,
     })
   } catch (err) {
     console.error('admin/orders PATCH: update failed', err instanceof Error ? err.message : String(err))
