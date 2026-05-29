@@ -37,17 +37,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     configureCognito();
     getCurrentUser().then((user) => {
-      // If an admin session is resident in Amplify localStorage while the
-      // browser is on a patient portal path, clear it and redirect.  The
-      // admin check only runs inside login() on the normal login flow, so
-      // a hard-refresh bypasses it; this catches that gap.
-      const onPortalPath = !window.location.pathname.startsWith('/admin')
-      const onLoginPage  = window.location.pathname.startsWith('/portal/login')
-      if (onPortalPath && !onLoginPage && isAdminIdentity(user ?? {})) {
+      // If an admin Amplify session is resident while the browser is on a
+      // portal content route, clear it and send to the real login page.
+      // Guard is intentionally narrow (/portal/ only) so this never fires
+      // on /login, /admin/*, /register, or any other non-portal path.
+      if (window.location.pathname.startsWith('/portal/') && isAdminIdentity(user ?? {})) {
         signOut().catch(() => {}).finally(() => {
           setPatient(null)
           setIsLoading(false)
-          window.location.replace('/portal/login?reason=session_conflict')
+          window.location.replace('/login?reason=session_conflict')
         })
         return
       }
