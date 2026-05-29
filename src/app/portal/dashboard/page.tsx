@@ -1,10 +1,38 @@
 "use client";
 
 import { useAuth } from "@/components/AuthProvider";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { usePatientData } from "@/hooks/usePatientData";
 import EquipmentVisual from "@/components/portal/EquipmentVisual";
+import { configureCognito, getIdToken } from "@/lib/aws/cognito";
+
+type ReorderStatus =
+  | "new"
+  | "reviewing"
+  | "approved"
+  | "sent"
+  | "delivered"
+  | "declined"
+  | "needs_followup";
+
+interface CurrentReorderRequest {
+  id: string;
+  referenceNumber: string;
+  status: ReorderStatus;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+const BLOCKING_STATUSES_PATIENT = new Set<ReorderStatus>([
+  "new",
+  "reviewing",
+  "approved",
+  "sent",
+  "declined",
+  "needs_followup",
+]);
 
 function formatDate(iso: string): string {
   const date = new Date(iso);
@@ -24,15 +52,53 @@ function addYears(iso: string, years: number): string | null {
 }
 
 
-function getGreeting(): string {
-  const hour = new Date().getHours();
-  if (hour < 12) return "Good morning";
-  if (hour < 17) return "Good afternoon";
-  return "Good evening";
+function getFirstName(name?: string): string {
+  return name?.trim().split(/\s+/)[0] || "Patient";
+}
+
+function normalizeMsid(msid?: string): string {
+  if (!msid) return "Not available";
+  return msid.startsWith("MS-") ? msid : `MS-${msid}`;
 }
 
 export default function DashboardPage() {
   const { patient } = useAuth();
+  const [currentRequest, setCurrentRequest] =
+    useState<CurrentReorderRequest | null>(null);
+  const [requestLoading, setRequestLoading] = useState(false);
+
+  useEffect(() => {
+    if (!patient?.userId) return;
+    let cancelled = false;
+
+    async function loadCurrentRequest() {
+      setRequestLoading(true);
+      try {
+        configureCognito();
+        const token = await getIdToken();
+        if (!token) throw new Error("Session expired. Please log in again.");
+
+        const res = await fetch("/api/patient/reorder", {
+          headers: { "Authorization": `Bearer ${token}` },
+        });
+        const data = await res.json().catch(() => ({})) as {
+          request?: CurrentReorderRequest | null;
+        };
+        if (!cancelled && res.ok) {
+          setCurrentRequest(data.request ?? null);
+        }
+      } catch {
+        if (!cancelled) setCurrentRequest(null);
+      } finally {
+        if (!cancelled) setRequestLoading(false);
+      }
+    }
+
+    void loadCurrentRequest();
+    return () => {
+      cancelled = true;
+    };
+  }, [patient?.userId]);
 
   // Auth guard is now in portal/layout.tsx — no need here.
   if (!patient) return null;
@@ -52,19 +118,47 @@ export default function DashboardPage() {
     : "not_eligible";
 
   const canReorder = requestAccessStatus === "eligible" || requestAccessStatus === "needs_review";
+  const msid = normalizeMsid(patient.msid);
+  const firstName = getFirstName(patient.name);
+  const isRequestBlocking =
+    currentRequest !== null && BLOCKING_STATUSES_PATIENT.has(currentRequest.status);
 
-  const entitlementStatus = canReorder
+  const supplyStatus = requestLoading
+    ? {
+        label: "Checking supply request status",
+        detail: "We are checking whether you have a request in progress.",
+        action: null,
+        cardClass: "border-sand bg-white text-charcoal",
+        badgeClass: "bg-sand-pale text-charcoal",
+      }
+    : isRequestBlocking
+    ? {
+        label: "Request in progress",
+        detail: "Midland Sleep is reviewing or preparing your current request.",
+        action: "View request",
+        cardClass: "border-seafoam/40 bg-seafoam-pale text-deep-teal",
+        badgeClass: "bg-seafoam text-navy",
+      }
+    : currentRequest?.status === "delivered"
+    ? {
+        label: "Last request complete",
+        detail: "You can submit another supply request when needed.",
+        action: "Request supplies",
+        cardClass: "border-seafoam/40 bg-seafoam-pale text-deep-teal",
+        badgeClass: "bg-seafoam text-navy",
+      }
+    : canReorder
     ? {
         label: "Supplies available for staff review",
-        detail: requestAccessStatus === "eligible"
-          ? "Midland Sleep staff will review your supply request and confirm availability."
-          : "Your request will be reviewed by Midland Sleep staff before any supply decision is confirmed.",
+        detail: "You can request supplies when needed. Midland Sleep staff will review before confirming.",
+        action: "Request supplies",
         cardClass: "border-seafoam/40 bg-seafoam-pale text-deep-teal",
         badgeClass: "bg-seafoam text-navy",
       }
     : {
-        label: "Funded supply requests are not currently available for your account.",
-        detail: "You are not currently eligible for funded supply requests through the portal. You can still tell Midland Sleep what you need and staff will review your options.",
+        label: "Supplies need staff review",
+        detail: "Contact Midland Sleep if you need supplies. Staff will review your options with you.",
+        action: "Get help",
         cardClass: "border-sand bg-sand-pale text-charcoal",
         badgeClass: "bg-charcoal/70 text-white",
       };
@@ -87,47 +181,64 @@ export default function DashboardPage() {
   return (
     <>
       {/* Hero */}
-      <div className="relative overflow-hidden rounded-2xl bg-navy px-7 py-8 md:py-10 mb-8">
-        <div className="relative grid gap-7 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-center">
+      <div className="relative mb-6 overflow-hidden rounded-xl bg-navy px-5 py-6 md:px-7 md:py-7">
+        <div className="relative grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-stretch">
           <div>
-            <p className="text-seafoam/75 font-mono text-xs uppercase tracking-[0.22em] mb-3">Patient Portal</p>
-            <h1 className="font-display text-[36px] md:text-[44px] leading-tight font-semibold text-cream mb-2">
-              {getGreeting()}, {(patient.name ?? "Patient").split(" ")[0]}.
+            <p className="mb-2 font-mono text-xs uppercase tracking-[0.18em] text-seafoam/75">Patient Portal</p>
+            <h1 className="mb-4 font-display text-[34px] font-semibold leading-tight text-cream md:text-[42px]">
+              Good morning, {firstName}
             </h1>
-            <p className="text-cream/55 text-base leading-6">Your sleep care, made simple.</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-lg border border-cream/15 bg-white/8 p-4">
+                <p className="mb-1 font-mono text-xs uppercase tracking-wide text-cream/55">Patient name</p>
+                <p className="text-xl font-semibold leading-7 text-cream">{patient.name ?? "Patient"}</p>
+              </div>
+              <div className="rounded-lg border border-cream/15 bg-white/8 p-4">
+                <p className="mb-1 font-mono text-xs uppercase tracking-wide text-cream/55">Midland Sleep ID</p>
+                <p className="font-mono text-xl font-semibold leading-7 text-cream">Midland Sleep ID: {msid}</p>
+              </div>
+            </div>
           </div>
 
           <section
             className={cn(
-              "rounded-xl border p-5 shadow-sm md:p-6",
-              entitlementStatus.cardClass
+              "rounded-xl border p-5 shadow-sm",
+              supplyStatus.cardClass
             )}
-            aria-label="Entitlement status"
+            aria-label="Supply request status"
           >
-            <div className="mb-4">
+            <div className="mb-3">
               <span
                 className={cn(
                   "inline-flex rounded-full px-3 py-1 text-xs font-bold uppercase tracking-[0.16em]",
-                  entitlementStatus.badgeClass
+                  supplyStatus.badgeClass
                 )}
               >
                 Supplies
               </span>
             </div>
-            <p className="font-display text-[34px] font-semibold leading-[1.05] md:text-[40px]">
-              {entitlementStatus.label}
+            <p className="font-display text-[28px] font-semibold leading-tight md:text-[32px]">
+              {supplyStatus.label}
             </p>
-            <p className="mt-2 text-base leading-6">
-              {entitlementStatus.detail}
+            <p className="mt-2 text-lg leading-7">
+              {supplyStatus.detail}
             </p>
+            {supplyStatus.action && (
+              <Link
+                href="/portal/reorder"
+                className="mt-4 inline-flex min-h-[48px] items-center justify-center rounded-lg bg-[#0B5C6C] px-5 py-3 text-base font-semibold text-white transition-colors hover:bg-[#0B5C6C]/90"
+              >
+                {supplyStatus.action}
+              </Link>
+            )}
           </section>
         </div>
       </div>
 
-      <div className="space-y-7">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.75fr)]">
 
         {/* CARD 1 — MY EQUIPMENT */}
-        <section className="bg-white border border-sand rounded-2xl p-6 md:p-7 space-y-5">
+        <section className="space-y-4 rounded-xl border border-sand bg-white p-5 md:p-6">
           <div className="flex flex-wrap justify-between items-start gap-3">
             <h2 className="font-display text-2xl font-semibold text-navy leading-snug">My equipment</h2>
             <Link
@@ -139,17 +250,17 @@ export default function DashboardPage() {
           </div>
 
           {(device || mask) && (
-            <div className="grid gap-4 pb-5 border-b border-sand md:grid-cols-2">
+            <div className="grid gap-4 border-b border-sand pb-4 md:grid-cols-2">
               {device && (
-                <div className="rounded-xl border border-sand bg-sand-pale/40 p-4">
+                <div className="rounded-lg border border-sand bg-sand-pale/40 p-4">
                   <Link
                     href="/portal/equipment"
                     aria-label={`View equipment details for ${device.name}`}
                     className="block rounded-lg transition-colors hover:bg-white/50 focus:outline-none focus:ring-2 focus:ring-deep-teal"
                   >
-                    <EquipmentVisual type="machine" className="h-32 w-full min-w-0 sm:h-36" />
+                    <EquipmentVisual type="machine" className="h-24 w-full min-w-0 sm:h-28" />
                   </Link>
-                  <div className="mt-4 min-w-0">
+                  <div className="mt-3 min-w-0">
                     <p className="text-xs uppercase tracking-wide text-charcoal/60 font-mono">Machine</p>
                     <Link
                       href="/portal/equipment"
@@ -166,15 +277,15 @@ export default function DashboardPage() {
                 </div>
               )}
               {mask && (
-                <div className="rounded-xl border border-sand bg-sand-pale/40 p-4">
+                <div className="rounded-lg border border-sand bg-sand-pale/40 p-4">
                   <Link
                     href="/portal/equipment"
                     aria-label={`View equipment details for ${mask.name}`}
                     className="block rounded-lg transition-colors hover:bg-white/50 focus:outline-none focus:ring-2 focus:ring-deep-teal"
                   >
-                    <EquipmentVisual type="mask" className="h-32 w-full min-w-0 sm:h-36" />
+                    <EquipmentVisual type="mask" className="h-24 w-full min-w-0 sm:h-28" />
                   </Link>
-                  <div className="mt-4 min-w-0">
+                  <div className="mt-3 min-w-0">
                     <p className="text-xs uppercase tracking-wide text-charcoal/60 font-mono">Mask</p>
                     <Link
                       href="/portal/equipment"
@@ -188,7 +299,7 @@ export default function DashboardPage() {
             </div>
           )}
 
-          <div className="grid gap-x-8 gap-y-5 md:grid-cols-2 text-lg leading-7">
+          <div className="grid gap-x-8 gap-y-4 text-lg leading-7 md:grid-cols-2">
             {!device && (
               <div>
                 <p className="text-sm uppercase tracking-wide text-charcoal/80 font-mono mb-1.5">Machine</p>
@@ -260,94 +371,78 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* CARD 2 — MY SUPPLIES STATUS */}
-        <section className="bg-white border border-sand rounded-2xl p-6 md:p-7 space-y-5">
-          <h2 className="font-display text-2xl font-semibold text-navy leading-snug">My supplies status</h2>
-
-          {canReorder ? (
-            <div className="bg-seafoam-pale rounded-lg p-5 space-y-4">
-              <p className="text-charcoal font-medium flex items-center gap-2 text-lg leading-7">
-                <span className="text-seafoam">&#9989;</span>
-                You can request mask supplies
-              </p>
+        <div className="space-y-5">
+          {/* CARD 2 — MY SUPPLIES STATUS */}
+          <section className={cn("space-y-4 rounded-xl border p-5 md:p-6", supplyStatus.cardClass)}>
+            <h2 className="font-display text-2xl font-semibold leading-snug text-navy">My supplies status</h2>
+            <div>
+              <p className="text-xl font-semibold leading-7">{supplyStatus.label}</p>
+              <p className="mt-2 text-lg leading-7">{supplyStatus.detail}</p>
+            </div>
+            {supplyStatus.action && (
               <Link
                 href="/portal/reorder"
-                className="inline-flex items-center justify-center gap-2 bg-[#0B5C6C] text-white px-7 py-3.5 rounded-lg text-lg font-medium min-h-[52px] hover:bg-[#0B5C6C]/90 transition-colors"
+                className="inline-flex min-h-[52px] items-center justify-center rounded-lg bg-[#0B5C6C] px-6 py-3 text-lg font-medium text-white transition-colors hover:bg-[#0B5C6C]/90"
               >
-                Request Supplies
+                {supplyStatus.action}
               </Link>
-            </div>
-          ) : (
-            <div className="bg-sand-pale rounded-lg p-5 space-y-2">
-              <p className="text-charcoal font-medium text-lg leading-7">
-                Funded supply requests are not currently available for your account.
-              </p>
-              <p className="text-base leading-6 text-charcoal/80">
-                You are not currently eligible for funded supply requests through the portal. You can still tell Midland Sleep what you need and staff will review your options.
-              </p>
-              <Link
-                href="/portal/reorder"
-                className="inline-flex items-center justify-center gap-2 bg-[#0B5C6C] text-white px-7 py-3.5 rounded-lg text-lg font-medium min-h-[52px] hover:bg-[#0B5C6C]/90 transition-colors mt-3"
-              >
-                Contact Midland Sleep
-              </Link>
-            </div>
-          )}
-        </section>
-
-        {/* CARD 3 — SAFETY AND MAINTENANCE */}
-        {(overdueChecks.length > 0 || dueSoonChecks.length > 0) && (
-          <section className="bg-white border border-sand rounded-2xl p-6 md:p-7 space-y-5">
-            <h2 className="font-display text-2xl font-semibold text-navy leading-snug">
-              Safety and maintenance
-            </h2>
-
-            <div className="space-y-4">
-              {overdueChecks.map((check: any) => (
-                <div
-                  key={check.check_type}
-                  className="border border-amber/40 bg-sand-pale rounded-md p-4 flex items-start gap-3"
-                >
-                  <span className="mt-1.5 h-2 w-2 rounded-full bg-amber shrink-0" />
-                  <div className="flex-1">
-                    <p className="text-lg font-medium text-charcoal leading-7">
-                      {check.label} - Overdue
-                    </p>
-                    <p className="text-base text-charcoal/80 mt-1 leading-6">
-                      Due {formatDate(check.due_date)}. Please call Midland Sleep on{" "}
-                      {phoneLink} to arrange this.
-                    </p>
-                  </div>
-                </div>
-              ))}
-
-              {dueSoonChecks.map((check: any) => (
-                <div
-                  key={check.check_type}
-                  className="border border-sand rounded-md p-4 flex items-start gap-3"
-                >
-                  <span className="mt-1.5 h-2 w-2 rounded-full bg-sand shrink-0" />
-                  <div className="flex-1">
-                    <p className="text-lg font-medium text-charcoal leading-7">
-                      {check.label} - Due soon
-                    </p>
-                    <p className="text-base text-charcoal/80 mt-1 leading-6">
-                      Due {formatDate(check.due_date)}. Contact Midland Sleep if you have questions.
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
+            )}
           </section>
-        )}
 
-        {/* CARD 4 — NEED HELP */}
-        <section className="bg-sand-pale border border-sand rounded-2xl p-6 md:p-7">
-          <h2 className="font-display text-2xl font-semibold text-navy mb-3 leading-snug">Need help?</h2>
-          <p className="text-lg leading-7 text-charcoal/80">
-            Call Midland Sleep on {phoneLink} or email {emailLink}. We are open Monday to Friday, 8:30am to 5pm.
-          </p>
-        </section>
+          {/* CARD 3 — SAFETY AND MAINTENANCE */}
+          {(overdueChecks.length > 0 || dueSoonChecks.length > 0) && (
+            <section className="space-y-4 rounded-xl border border-sand bg-white p-5 md:p-6">
+              <h2 className="font-display text-2xl font-semibold text-navy leading-snug">
+                Safety and maintenance
+              </h2>
+
+              <div className="space-y-3">
+                {overdueChecks.map((check: any) => (
+                  <div
+                    key={check.check_type}
+                    className="border border-amber/40 bg-sand-pale rounded-md p-4 flex items-start gap-3"
+                  >
+                    <span className="mt-1.5 h-2 w-2 rounded-full bg-amber shrink-0" />
+                    <div className="flex-1">
+                      <p className="text-lg font-medium text-charcoal leading-7">
+                        {check.label} - Overdue
+                      </p>
+                      <p className="text-base text-charcoal/80 mt-1 leading-6">
+                        Due {formatDate(check.due_date)}. Please call Midland Sleep on{" "}
+                        {phoneLink} to arrange this.
+                      </p>
+                    </div>
+                  </div>
+                ))}
+
+                {dueSoonChecks.map((check: any) => (
+                  <div
+                    key={check.check_type}
+                    className="border border-sand rounded-md p-4 flex items-start gap-3"
+                  >
+                    <span className="mt-1.5 h-2 w-2 rounded-full bg-sand shrink-0" />
+                    <div className="flex-1">
+                      <p className="text-lg font-medium text-charcoal leading-7">
+                        {check.label} - Due soon
+                      </p>
+                      <p className="text-base text-charcoal/80 mt-1 leading-6">
+                        Due {formatDate(check.due_date)}. Contact Midland Sleep if you have questions.
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* CARD 4 — NEED HELP */}
+          <section className="rounded-xl border border-sand bg-sand-pale p-5 md:p-6">
+            <h2 className="font-display text-2xl font-semibold text-navy mb-3 leading-snug">Need help?</h2>
+            <p className="text-lg leading-7 text-charcoal/80">
+              Call Midland Sleep on {phoneLink} or email {emailLink}. We are open Monday to Friday, 8:30am to 5pm.
+            </p>
+          </section>
+        </div>
 
       </div>
     </>
