@@ -89,7 +89,23 @@ their request status.
 etc.), unsubscribe handling, template management, and compliance review. These are out of scope for
 Phase 2. Manual follow-up by clinic staff is the operating model for Phase 2.
 
-**Future scope:** Patient notification on status change is explicitly a Phase 3 item.
+**Future scope:** Patient notification on status change is scoped as Phase 2E. See
+`phase-2e-delayed-notification-spec.md`.
+
+---
+
+## Phase 2E deferred to spec — not yet approved for implementation
+
+**Decision:** Phase 2E (delayed patient notification) is documented as a product/technical spec
+and is not yet approved for implementation. Implementation begins only after Midland confirms
+the seven pre-implementation decisions listed in Section 12 of the spec.
+
+**Rationale:** Email notifications involve patient contact, SES domain verification, NZ Spam Act
+obligations, and patient data handling (email address capture). These require explicit product
+owner sign-off before a line of implementation code is written.
+
+**Architecture locked:** EventBridge Scheduler + Notification Lambda + DynamoDB notifications
+table + SES. DynamoDB TTL approach is explicitly rejected due to timing unreliability.
 
 ---
 

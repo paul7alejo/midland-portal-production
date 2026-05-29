@@ -73,7 +73,10 @@ Phase 1 and Phase 2A together deliver an admin portal, controlled CSV import, po
 ## Patient Supply Requests (Phase 2D)
 
 - No patient notification is sent when request status changes. The patient must manually refresh
-  their portal to see a status update. Email or SMS automation is explicitly out of scope for Phase 2.
+  their portal to see a status update. Delayed email notification is scoped as Phase 2E but is not
+  yet implemented — it requires Midland product owner sign-off on seven pre-implementation decisions
+  before any code is written. See `midland-os/02-product/phase-2e-delayed-notification-spec.md`.
+  SMS is explicitly out of scope unless separately approved.
 - No inventory is reserved or decremented when a request is submitted or approved.
 - No payment or checkout step exists. The "approved" status means admin intends to fulfil; it does
   not capture payment or confirm stock.
