@@ -86,16 +86,27 @@ type RequestAccessStatus = "eligible" | "needs_review" | "not_eligible" | "no_fu
 const ACTIVE_STATUSES_PATIENT = new Set<ReorderStatus>([
   "new",
   "reviewing",
+  "approved",
+  "sent",
   "needs_followup",
 ]);
 
 const CURRENT_REQUEST_HEADING: Record<ReorderStatus, string> = {
-  new:            "Awaiting review by Midland Sleep staff",
+  new:            "Midland Sleep is reviewing your request",
   reviewing:      "Midland Sleep is reviewing your request",
   approved:       "Your request has been approved",
   sent:           "Your supplies have been dispatched",
-  declined:       "Your request was not approved",
+  declined:       "Your request could not be approved through the portal",
   needs_followup: "Midland Sleep needs to follow up with you",
+};
+
+const CURRENT_REQUEST_MESSAGE: Record<ReorderStatus, string> = {
+  new:            "Your request has been received and will be reviewed by Midland Sleep staff. Please allow 5–7 business days.",
+  reviewing:      "Your request has been received and will be reviewed by Midland Sleep staff. Please allow 5–7 business days.",
+  approved:       "Midland Sleep has approved your supply request. Our team will prepare your items and contact you if anything else is needed.",
+  sent:           "Your supplies have been dispatched. Please allow 2–3 business days for delivery.",
+  declined:       "Please contact Midland Sleep to discuss your options or get help with your equipment.",
+  needs_followup: "Our team needs to confirm a few details before this request can proceed. Midland Sleep will contact you.",
 };
 
 interface CurrentReorderRequest {
@@ -676,7 +687,7 @@ export default function ReorderPage() {
                 Current request
               </p>
               <h2 className="font-display text-2xl font-semibold leading-snug text-navy">
-                Midland Sleep is reviewing your request
+                {CURRENT_REQUEST_HEADING[currentRequest.status]}
               </h2>
             </div>
             <span className={`inline-flex w-fit rounded-full border px-3 py-1 text-sm font-semibold ${STATUS_BADGE_CLS[currentRequest.status]}`}>
@@ -708,29 +719,33 @@ export default function ReorderPage() {
                 {(currentRequest.itemNames ?? currentRequest.items ?? []).map((itemType) => ITEM_LABELS[itemType] ?? itemType).join(", ")}
               </dd>
             </div>
-            <div className="md:col-span-2">
-              <dt className="font-mono text-sm uppercase tracking-wide text-charcoal/70">Status update</dt>
-              <dd className="mt-1 text-lg leading-7 text-charcoal">
-                {currentRequest.statusMessage ?? "This request will be reviewed by Midland Sleep staff."}
-              </dd>
-            </div>
           </dl>
-          <p className="mt-3 text-sm text-charcoal/65">
-            No entitlement is deducted, no payment is taken, and no inventory is reserved in this phase.
+          <p className="mt-5 text-base leading-6 text-charcoal/85">
+            {CURRENT_REQUEST_MESSAGE[currentRequest.status]}
           </p>
-          <div className="mt-5 space-y-2 text-base leading-6 text-charcoal/85">
-            <p>Midland Sleep is reviewing your request. Please allow 5–7 business days.</p>
-            <p>If you need to change this request, contact Midland Sleep.</p>
-          </div>
         </section>
       )}
 
       {currentRequest ? (
-        <div className="rounded-2xl border border-sand bg-white p-6 md:p-7 text-center">
-          <p className="text-lg font-medium leading-7 text-charcoal">
-            A supply request is already pending review.
-          </p>
-        </div>
+        currentRequest.status === "declined" ? (
+          <div className="rounded-2xl border border-sand bg-white p-6 md:p-7 space-y-3">
+            <p className="text-lg font-medium leading-7 text-charcoal">
+              To discuss your options, please contact Midland Sleep.
+            </p>
+            <a
+              href="tel:0800000000"
+              className="inline-flex items-center text-lg text-deep-teal font-medium hover:underline min-h-[44px]"
+            >
+              Call 0800 000 000
+            </a>
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-sand bg-white p-6 md:p-7">
+            <p className="text-lg font-medium leading-7 text-charcoal">
+              Contact Midland Sleep if you need to make changes to this request.
+            </p>
+          </div>
+        )
       ) : selectableItems.length === 0 ? (
         <div className="bg-sand-pale border border-sand rounded-2xl p-6 md:p-7 text-center">
           <p className="text-lg leading-7 text-charcoal font-medium mb-2">
