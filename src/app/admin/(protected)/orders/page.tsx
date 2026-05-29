@@ -196,6 +196,23 @@ const TYPE_BADGE: Record<OrderType, string> = {
 
 const ACTIVE_TAB_STATUSES    = new Set<OrderStatus>(["New", "Reviewing", "Approved", "Sent", "Needs Follow-Up"]);
 const COMPLETED_TAB_STATUSES = new Set<OrderStatus>(["Delivered", "Declined"]);
+const TAB_STATUS_GROUPS: Record<ViewTab, Set<OrderStatus> | null> = {
+  active: ACTIVE_TAB_STATUSES,
+  completed: COMPLETED_TAB_STATUSES,
+  all: null,
+};
+
+function isOrderInTab(order: Order, tab: ViewTab): boolean {
+  const statuses = TAB_STATUS_GROUPS[tab];
+  return statuses ? statuses.has(order.status) : true;
+}
+
+function getTabForKpiFilter(filter: KpiFilter): ViewTab | null {
+  if (!filter) return null;
+  if (filter === "Declined") return "completed";
+  if (filter === "Needs Funding Review") return "all";
+  return "active";
+}
 
 const DEMO_REQUESTS: Order[] = [
   {
@@ -595,21 +612,25 @@ export default function AdminOrdersPage() {
 
   const kpiCounts = useMemo(() => {
     const real = orders.filter((o) => !isAdminRow(o));
-    const scoped = viewTab === "active"
-      ? real.filter((o) => ACTIVE_TAB_STATUSES.has(o.status))
-      : viewTab === "completed"
-      ? real.filter((o) => COMPLETED_TAB_STATUSES.has(o.status))
-      : real;
     return {
-      New:                 scoped.filter((o) => o.status === "New").length,
-      Reviewing:           scoped.filter((o) => o.status === "Reviewing").length,
-      Approved:            scoped.filter((o) => o.status === "Approved").length,
-      Sent:                scoped.filter((o) => o.status === "Sent").length,
-      Declined:            scoped.filter((o) => o.status === "Declined").length,
-      "Needs Follow-Up":   scoped.filter((o) => o.status === "Needs Follow-Up").length,
-      "Needs Funding Review": scoped.filter((o) => o.needsFundingReview).length,
+      New:                 real.filter((o) => o.status === "New").length,
+      Reviewing:           real.filter((o) => o.status === "Reviewing").length,
+      Approved:            real.filter((o) => o.status === "Approved").length,
+      Sent:                real.filter((o) => o.status === "Sent").length,
+      Declined:            real.filter((o) => o.status === "Declined").length,
+      "Needs Follow-Up":   real.filter((o) => o.status === "Needs Follow-Up").length,
+      "Needs Funding Review": real.filter((o) => o.needsFundingReview).length,
     };
-  }, [orders, viewTab]);
+  }, [orders]);
+
+  const tabCounts = useMemo(() => {
+    const rows = orders.filter((o) => showAdminRows || !isAdminRow(o));
+    return {
+      active: rows.filter((o) => isOrderInTab(o, "active")).length,
+      completed: rows.filter((o) => isOrderInTab(o, "completed")).length,
+      all: rows.length,
+    };
+  }, [orders, showAdminRows]);
 
   function clearAllFilters() {
     setStatusFilters(new Set());
@@ -624,16 +645,23 @@ export default function AdminOrdersPage() {
     setStatusFilters(new Set());
   }
 
+  function handleKpiClick(filter: KpiFilter, isActive: boolean) {
+    if (isActive) {
+      setKpiFilter(null);
+      return;
+    }
+    const targetTab = getTabForKpiFilter(filter);
+    if (targetTab) setViewTab(targetTab);
+    setStatusFilters(new Set());
+    setKpiFilter(filter);
+  }
+
   const visibleOrders = useMemo(() => {
     // Apply admin/test row visibility
     let result = orders.filter((o) => showAdminRows || !isAdminRow(o));
 
     // Tab pre-filter
-    if (viewTab === "active") {
-      result = result.filter((o) => ACTIVE_TAB_STATUSES.has(o.status));
-    } else if (viewTab === "completed") {
-      result = result.filter((o) => COMPLETED_TAB_STATUSES.has(o.status));
-    }
+    result = result.filter((o) => isOrderInTab(o, viewTab));
 
     // KPI card filter takes priority; panel status filters are secondary
     if (kpiFilter === "Needs Funding Review") {
@@ -917,6 +945,7 @@ export default function AdminOrdersPage() {
         {(["active", "completed", "all"] as ViewTab[]).map((tab) => {
           const label = tab === "active" ? "Active" : tab === "completed" ? "Completed" : "All";
           const isActive = viewTab === tab;
+          const count = tabCounts[tab];
           return (
             <button
               key={tab}
@@ -929,7 +958,7 @@ export default function AdminOrdersPage() {
                   : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
               )}
             >
-              {label}
+              {label} <span className="ml-1 text-xs font-medium opacity-70">({count})</span>
             </button>
           );
         })}
@@ -956,7 +985,7 @@ export default function AdminOrdersPage() {
                 <button
                   key={label}
                   type="button"
-                  onClick={() => setKpiFilter(isActive ? null : key)}
+                  onClick={() => handleKpiClick(key, isActive)}
                   className={cn(
                     "relative flex flex-col items-start rounded-xl border px-4 py-3 text-left transition-colors",
                     isActive
