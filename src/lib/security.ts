@@ -134,14 +134,20 @@ export async function getAdminUser(): Promise<AdminClaims | null> {
 
 export async function getVerifiedUser(request: NextRequest): Promise<VerifiedUser> {
   const auth = request.headers.get('Authorization')
-  if (!auth?.startsWith('Bearer ')) {
-    throw new HttpError(401, 'Missing or malformed Authorization header')
+  // Accept a Bearer header (the normal client path) or the portal_token
+  // httpOnly cookie set by POST /api/auth/session for same-origin requests.
+  const token = auth?.startsWith('Bearer ')
+    ? auth.slice(7)
+    : request.cookies.get('portal_token')?.value
+
+  if (!token) {
+    throw new HttpError(401, 'Missing credentials')
   }
 
   let payload: CognitoIdPayload
   try {
     const { JWKS, issuer, clientId } = getJWKS()
-    const result = await jwtVerify<CognitoIdPayload>(auth.slice(7), JWKS, {
+    const result = await jwtVerify<CognitoIdPayload>(token, JWKS, {
       issuer,
       audience: clientId,
     })
