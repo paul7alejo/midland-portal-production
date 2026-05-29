@@ -25,13 +25,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid token' }, { status });
   }
 
-  // Patient tokens carry custom:msid + custom:org_id; admin tokens do not.
-  // Route each to its own cookie so they cannot overwrite each other.
+  // Determine cookie name by detecting admin identity — mirroring
+  // isAuthorizedAdmin() in src/lib/security.ts (keep in sync if lists change).
+  // Cannot use presence of custom:msid/custom:org_id because the admin account
+  // also carries those Cognito attributes (custom:msid = 'MS-000000').
   const claims = decodeTokenClaims(token)
-  const isPatient =
-    typeof claims['custom:msid'] === 'string' &&
-    typeof claims['custom:org_id'] === 'string'
-  const cookieName = isPatient ? 'portal_token' : 'id_token'
+  const ADMIN_ROLES     = new Set(['clinic-staff', 'admin', 'staff'])
+  const ADMIN_USERNAMES = new Set(['midland-admin'])
+  const ADMIN_EMAILS    = new Set(['admin@midlandsleep.co.nz'])
+  const isAdmin =
+    ADMIN_ROLES.has(String(claims['custom:role'] ?? '')) ||
+    claims['custom:is_dev'] === 'true' ||
+    ADMIN_USERNAMES.has(String(claims['cognito:username'] ?? '')) ||
+    ADMIN_EMAILS.has(String(claims['email'] ?? ''))
+  const cookieName = isAdmin ? 'id_token' : 'portal_token'
 
   const response = NextResponse.json({ success: true });
   response.cookies.set({
