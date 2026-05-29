@@ -74,9 +74,10 @@ Phase 1 and Phase 2A together deliver an admin portal, controlled CSV import, po
 
 - No patient notification is sent when request status changes. The patient must manually refresh
   their portal to see a status update. Delayed email notification is scoped as Phase 2E but is not
-  yet implemented — it requires Midland product owner sign-off on seven pre-implementation decisions
-  before any code is written. See `midland-os/02-product/phase-2e-delayed-notification-spec.md`.
-  SMS is explicitly out of scope unless separately approved.
+  yet approved for implementation. All gate items in `midland-os/02-product/phase-2e-release-gate.md`
+  must be confirmed before implementation begins — particularly business approval (gates 1.1–1.5)
+  and NZ privacy / Spam Act compliance (gates 9.5–9.7). SMS is explicitly out of scope unless
+  separately approved.
 - No inventory is reserved or decremented when a request is submitted or approved.
 - No payment or checkout step exists. The "approved" status means admin intends to fulfil; it does
   not capture payment or confirm stock.

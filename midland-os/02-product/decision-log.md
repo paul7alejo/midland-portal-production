@@ -97,8 +97,9 @@ Phase 2. Manual follow-up by clinic staff is the operating model for Phase 2.
 ## Phase 2E deferred to spec — not yet approved for implementation
 
 **Decision:** Phase 2E (delayed patient notification) is documented as a product/technical spec
-and is not yet approved for implementation. Implementation begins only after Midland confirms
-the seven pre-implementation decisions listed in Section 12 of the spec.
+and is not yet approved for implementation. Implementation begins only after all gates in
+`phase-2e-release-gate.md` are confirmed, especially the business approval gates (1.1–1.5) and
+the NZ privacy / Spam Act gates (9.5–9.7).
 
 **Rationale:** Email notifications involve patient contact, SES domain verification, NZ Spam Act
 obligations, and patient data handling (email address capture). These require explicit product
@@ -106,6 +107,9 @@ owner sign-off before a line of implementation code is written.
 
 **Architecture locked:** EventBridge Scheduler + Notification Lambda + DynamoDB notifications
 table + SES. DynamoDB TTL approach is explicitly rejected due to timing unreliability.
+
+**Longest lead time item:** SES sandbox exit (AWS Support request, 24–48 hours). Must be initiated
+as soon as Midland confirms the sending domain and address (gates 3.1–3.3).
 
 ---
 
