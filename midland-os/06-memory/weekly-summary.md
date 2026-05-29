@@ -88,8 +88,21 @@ Day 50 completed:
 - Final demo, handover, and operational readiness checklists are documented for Midland review.
 - HANDOVER-INDEX now links to the Day 50 final closeout checkpoint.
 
+Phase 2D completed (29 May 2026):
+
+- Full patient request lifecycle proven end-to-end with real patient MS-749418.
+- Patient submits supply request via portal; request appears in Admin Orders under Active tab.
+- Admin progresses status through New → Reviewing → Approved → Sent → Delivered.
+- Patient sees status-specific copy at each stage (not a generic "reviewing" message for all states).
+- Delivered status is non-blocking: patient can submit a new request after delivery confirmation.
+- Declined status remains blocking: patient must contact the clinic.
+- Audit events now capture patient_msid, request_id, previous_status, and new_status on every admin status change.
+- Admin Orders view tabs (Active / Completed / All) separate in-progress work from historical records.
+- Four auth/session regressions fixed: admin-identity stale session in patient portal, cookie collision between admin and patient sessions, invalid redirect target, admin-login loop caused by misclassified Cognito identity.
+- TypeScript clean on branch phase-2a-admin-ops.
+
 Next work:
 
-- Midland review of SOPs.
-- Support model confirmation.
-- Editable admin review status later.
+- Phase 2D Amplify deploy and smoke test confirmation.
+- Midland demo of full request lifecycle.
+- Phase 3 scoping: email notifications, inventory reservation, checkout/payment.

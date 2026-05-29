@@ -70,6 +70,25 @@ Phase 1 and Phase 2A together deliver an admin portal, controlled CSV import, po
 - Audit events are written before each action. Actions fail closed if the audit write fails.
 - Portal account management does not extend to creating new accounts outside the import workflow, removing accounts, or changing patient email addresses. These are out of scope unless separately approved.
 
+## Patient Supply Requests (Phase 2D)
+
+- No patient notification is sent when request status changes. The patient must manually refresh
+  their portal to see a status update. Email or SMS automation is explicitly out of scope for Phase 2.
+- No inventory is reserved or decremented when a request is submitted or approved.
+- No payment or checkout step exists. The "approved" status means admin intends to fulfil; it does
+  not capture payment or confirm stock.
+- No entitlement balance is deducted from DynamoDB at any stage of the request lifecycle.
+- Patient request history is not available. The patient portal shows only the most recent request.
+  Multiple historical requests are not listed for the patient.
+- The admin funding review flag and estimated cost fields on orders are internal staff aids only.
+  Dollar estimates are not shown to the patient.
+- Legacy requests created before the `request_reference` field was introduced show "Legacy request"
+  as the reference number in the admin orders table.
+- The "Flag funding" action button is visible on completed (Delivered/Declined) requests. This is
+  cosmetic only; flagging a completed request has no workflow impact.
+- The `delivered` status is set manually by admin. There is no automatic delivery confirmation,
+  tracking number integration, or courier webhook.
+
 ## UI and Operations
 
 - Some admin pages remain lightweight operational placeholders or management views.
