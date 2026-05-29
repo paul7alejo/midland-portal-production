@@ -8,6 +8,7 @@ type OrderStatus   = "New" | "Reviewing" | "Approved" | "Sent" | "Delivered" | "
 type KpiFilter     = OrderStatus | "Needs Funding Review" | null;
 type OrderType     = "ENTITLEMENT" | "PRIVATE" | "MIXED";
 type DateRange     = "week" | "month" | "older";
+type ViewTab       = "active" | "completed" | "all";
 type OrderSortOpt  = "newest" | "oldest" | "name_az" | "status";
 type RequestCategory = "Mask" | "Headgear" | "Filters" | "Tubing" | "Cleaning supplies" | "Support request";
 
@@ -129,7 +130,7 @@ function calculateEstimate(itemAmount: number, remainingAllowance = DEFAULT_ANNU
 function normalizeStatus(value?: string): OrderStatus {
   if (
     value === "Approved" || value === "Reviewing" || value === "Sent" ||
-    value === "New" || value === "Declined" ||
+    value === "New" || value === "Declined" || value === "Delivered" ||
     value === "Needs Follow-Up"
   ) {
     return value;
@@ -139,6 +140,7 @@ function normalizeStatus(value?: string): OrderStatus {
   if (value === "reviewing") return "Reviewing";
   if (value === "approved") return "Approved";
   if (value === "sent") return "Sent";
+  if (value === "delivered") return "Delivered";
   if (value === "needs_followup") return "Needs Follow-Up";
   if (value === "Dispatched" || value === "Completed") return "Sent";
   return "New";
@@ -191,6 +193,9 @@ const TYPE_BADGE: Record<OrderType, string> = {
   PRIVATE:     "bg-purple-100 text-purple-700",
   MIXED:       "bg-orange-100 text-orange-700",
 };
+
+const ACTIVE_TAB_STATUSES    = new Set<OrderStatus>(["New", "Reviewing", "Approved", "Sent", "Needs Follow-Up"]);
+const COMPLETED_TAB_STATUSES = new Set<OrderStatus>(["Delivered", "Declined"]);
 
 const DEMO_REQUESTS: Order[] = [
   {
@@ -564,6 +569,7 @@ export default function AdminOrdersPage() {
   const [fundingReviewLoading, setFundingReviewLoading] = useState<Set<string>>(new Set());
   const [statusError,         setStatusError]         = useState<string | null>(null);
   const [showAdminRows,       setShowAdminRows]       = useState(false);
+  const [viewTab,             setViewTab]             = useState<ViewTab>("active");
   const [testForm,            setTestForm]            = useState<TestRequestForm>({
     msid: "MS-900005",
     patient: "Demo Patient",
@@ -588,16 +594,21 @@ export default function AdminOrdersPage() {
 
   const kpiCounts = useMemo(() => {
     const real = orders.filter((o) => !isAdminRow(o));
+    const scoped = viewTab === "active"
+      ? real.filter((o) => ACTIVE_TAB_STATUSES.has(o.status))
+      : viewTab === "completed"
+      ? real.filter((o) => COMPLETED_TAB_STATUSES.has(o.status))
+      : real;
     return {
-      New:                 real.filter((o) => o.status === "New").length,
-      Reviewing:           real.filter((o) => o.status === "Reviewing").length,
-      Approved:            real.filter((o) => o.status === "Approved").length,
-      Sent:                real.filter((o) => o.status === "Sent").length,
-      Declined:            real.filter((o) => o.status === "Declined").length,
-      "Needs Follow-Up":   real.filter((o) => o.status === "Needs Follow-Up").length,
-      "Needs Funding Review": real.filter((o) => o.needsFundingReview).length,
+      New:                 scoped.filter((o) => o.status === "New").length,
+      Reviewing:           scoped.filter((o) => o.status === "Reviewing").length,
+      Approved:            scoped.filter((o) => o.status === "Approved").length,
+      Sent:                scoped.filter((o) => o.status === "Sent").length,
+      Declined:            scoped.filter((o) => o.status === "Declined").length,
+      "Needs Follow-Up":   scoped.filter((o) => o.status === "Needs Follow-Up").length,
+      "Needs Funding Review": scoped.filter((o) => o.needsFundingReview).length,
     };
-  }, [orders]);
+  }, [orders, viewTab]);
 
   function clearAllFilters() {
     setStatusFilters(new Set());
@@ -606,9 +617,22 @@ export default function AdminOrdersPage() {
     setSortOpt(null);
   }
 
+  function handleTabChange(tab: ViewTab) {
+    setViewTab(tab);
+    setKpiFilter(null);
+    setStatusFilters(new Set());
+  }
+
   const visibleOrders = useMemo(() => {
     // Apply admin/test row visibility
     let result = orders.filter((o) => showAdminRows || !isAdminRow(o));
+
+    // Tab pre-filter
+    if (viewTab === "active") {
+      result = result.filter((o) => ACTIVE_TAB_STATUSES.has(o.status));
+    } else if (viewTab === "completed") {
+      result = result.filter((o) => COMPLETED_TAB_STATUSES.has(o.status));
+    }
 
     // KPI card filter takes priority; panel status filters are secondary
     if (kpiFilter === "Needs Funding Review") {
@@ -655,7 +679,7 @@ export default function AdminOrdersPage() {
     }
 
     return result;
-  }, [orders, kpiFilter, statusFilters, typeFilters, dateRange, sortOpt, showAdminRows]);
+  }, [orders, kpiFilter, statusFilters, typeFilters, dateRange, sortOpt, showAdminRows, viewTab]);
 
   const activeFilterCount =
     (kpiFilter ? 1 : 0) + statusFilters.size + typeFilters.size + (dateRange ? 1 : 0) + (sortOpt ? 1 : 0);
@@ -828,6 +852,7 @@ export default function AdminOrdersPage() {
       localOnly: true,
     };
     setOrders((prev) => [request, ...prev]);
+    setViewTab("active");
     setKpiFilter("New");
     setStatusFilters(new Set());
     setTestForm((prev) => ({
@@ -912,6 +937,29 @@ export default function AdminOrdersPage() {
           <button type="button" onClick={() => setStatusError(null)} className="text-red-600 hover:text-red-800 text-lg leading-none">&times;</button>
         </div>
       )}
+
+      {/* View tabs */}
+      <div className="flex items-center gap-0 border-b border-gray-200">
+        {(["active", "completed", "all"] as ViewTab[]).map((tab) => {
+          const label = tab === "active" ? "Active" : tab === "completed" ? "Completed" : "All";
+          const isActive = viewTab === tab;
+          return (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => handleTabChange(tab)}
+              className={cn(
+                "px-5 py-2.5 text-sm font-semibold -mb-px border-b-2 transition-colors",
+                isActive
+                  ? "border-[#0B5C6C] text-[#0B5C6C]"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              )}
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
 
       {/* KPI cards */}
       {(() => {
