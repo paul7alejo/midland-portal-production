@@ -28,14 +28,16 @@ interface CurrentReorderRequest {
   itemDescription?: string;
 }
 
-const BLOCKING_STATUSES_PATIENT = new Set<ReorderStatus>([
-  "new",
-  "reviewing",
-  "approved",
-  "sent",
-  "declined",
-  "needs_followup",
-]);
+const SUPPLY_STAGES = [
+  "Available",
+  "Requested",
+  "Reviewing",
+  "Approved",
+  "Sent",
+  "Complete",
+] as const;
+
+type SupplyStage = typeof SUPPLY_STAGES[number];
 
 function formatDate(iso: string): string {
   const date = new Date(iso);
@@ -57,6 +59,20 @@ function addYears(iso: string, years: number): string | null {
 
 function getFirstName(name?: string): string {
   return name?.trim().split(/\s+/)[0] || "Patient";
+}
+
+function getNzGreeting(): string {
+  const nzHour = Number(
+    new Intl.DateTimeFormat("en-NZ", {
+      hour: "numeric",
+      hour12: false,
+      timeZone: "Pacific/Auckland",
+    }).format(new Date())
+  );
+
+  if (nzHour < 12) return "Good morning";
+  if (nzHour < 18) return "Good afternoon";
+  return "Good evening";
 }
 
 function normalizeMsid(msid?: string): string {
@@ -130,25 +146,69 @@ export default function DashboardPage() {
   const canReorder = requestAccessStatus === "eligible" || requestAccessStatus === "needs_review";
   const msid = normalizeMsid(patient.msid);
   const firstName = getFirstName(patient.name);
-  const isRequestBlocking =
-    currentRequest !== null && BLOCKING_STATUSES_PATIENT.has(currentRequest.status);
+  const greeting = getNzGreeting();
   const requestedItems = formatRequestedItems(currentRequest);
 
-  const supplyStatus = requestLoading
+  const supplyStatus: {
+    label: string;
+    detail: string;
+    action: string | null;
+    requestedLabel: string | null;
+    activeStage: SupplyStage | null;
+    cardClass: string;
+  } = requestLoading
     ? {
         label: "Checking supply request status",
         detail: "We are checking whether you have a request in progress.",
         action: null,
         requestedLabel: null,
+        activeStage: null,
         cardClass: "border-sand bg-white text-charcoal",
       }
-    : isRequestBlocking
+    : currentRequest?.status === "new" || currentRequest?.status === "reviewing"
     ? {
-        label: "Request in progress",
-        detail: "Midland Sleep is reviewing or preparing your current supply request.",
+        label: "Request received",
+        detail: "Midland Sleep staff are reviewing your supply request.",
         action: "View request",
         requestedLabel: requestedItems ? "Requested" : null,
+        activeStage: currentRequest.status === "new" ? "Requested" : "Reviewing",
         cardClass: "border-seafoam/40 bg-seafoam-pale text-deep-teal",
+      }
+    : currentRequest?.status === "approved"
+    ? {
+        label: "Request approved",
+        detail: "Midland Sleep has approved your supply request and will prepare your items.",
+        action: "View request",
+        requestedLabel: requestedItems ? "Requested" : null,
+        activeStage: "Approved",
+        cardClass: "border-seafoam/40 bg-seafoam-pale text-deep-teal",
+      }
+    : currentRequest?.status === "sent"
+    ? {
+        label: "Supplies dispatched",
+        detail: "Your supplies have been dispatched. Please allow 2-3 business days for delivery.",
+        action: "View request",
+        requestedLabel: requestedItems ? "Requested" : null,
+        activeStage: "Sent",
+        cardClass: "border-seafoam/40 bg-seafoam-pale text-deep-teal",
+      }
+    : currentRequest?.status === "needs_followup"
+    ? {
+        label: "Follow-up needed",
+        detail: "Midland Sleep needs to confirm a few details before this request can proceed.",
+        action: "View request",
+        requestedLabel: requestedItems ? "Requested" : null,
+        activeStage: "Reviewing",
+        cardClass: "border-sand bg-sand-pale text-charcoal",
+      }
+    : currentRequest?.status === "declined"
+    ? {
+        label: "Please contact Midland Sleep",
+        detail: "Your request could not be approved through the portal. Please contact Midland Sleep to discuss your options.",
+        action: "View request",
+        requestedLabel: requestedItems ? "Requested" : null,
+        activeStage: "Complete",
+        cardClass: "border-sand bg-sand-pale text-charcoal",
       }
     : currentRequest?.status === "delivered"
     ? {
@@ -156,6 +216,7 @@ export default function DashboardPage() {
         detail: "Your last request is complete. You can request replacement supplies when needed.",
         action: "Request supplies",
         requestedLabel: requestedItems ? "Last requested" : null,
+        activeStage: "Complete",
         cardClass: "border-seafoam/40 bg-seafoam-pale text-deep-teal",
       }
     : canReorder
@@ -164,6 +225,7 @@ export default function DashboardPage() {
         detail: "You can request replacement supplies when needed. Midland Sleep staff will review your request.",
         action: "Request supplies",
         requestedLabel: null,
+        activeStage: "Available",
         cardClass: "border-seafoam/40 bg-seafoam-pale text-deep-teal",
       }
     : {
@@ -171,6 +233,7 @@ export default function DashboardPage() {
         detail: "Contact Midland Sleep if you need supplies. Staff will review your options with you.",
         action: "Get help",
         requestedLabel: requestedItems ? "Requested" : null,
+        activeStage: "Available",
         cardClass: "border-sand bg-sand-pale text-charcoal",
       };
   const overdueChecks = maintenance.filter((c: any) => c.status === "OVERDUE");
@@ -196,12 +259,9 @@ export default function DashboardPage() {
         <div className="relative">
           <p className="mb-2 font-mono text-xs uppercase tracking-[0.18em] text-seafoam/75">Patient Portal</p>
           <h1 className="mb-4 font-display text-[34px] font-semibold leading-tight text-cream md:text-[42px]">
-            Good morning, {firstName}
+            {greeting}, {firstName}
           </h1>
-          <div className="rounded-lg border border-cream/15 bg-white/8 p-4 sm:inline-flex sm:flex-wrap sm:items-center sm:gap-x-8 sm:gap-y-2">
-            <p className="text-xl font-semibold leading-7 text-cream">{patient.name ?? "Patient"}</p>
-            <p className="font-mono text-lg font-semibold leading-7 text-cream">Midland Sleep ID: {msid}</p>
-          </div>
+          <p className="font-mono text-xl font-semibold leading-7 text-cream">Midland Sleep ID: {msid}</p>
         </div>
       </div>
 
@@ -348,6 +408,41 @@ export default function DashboardPage() {
             <div>
               <p className="text-xl font-semibold leading-7">{supplyStatus.label}</p>
               <p className="mt-2 text-lg leading-7">{supplyStatus.detail}</p>
+            </div>
+            <div aria-label="Supply request progress" className="space-y-2">
+              <div className="grid grid-cols-6 gap-1.5">
+                {SUPPLY_STAGES.map((stage) => {
+                  const activeIndex = supplyStatus.activeStage
+                    ? SUPPLY_STAGES.indexOf(supplyStatus.activeStage)
+                    : -1;
+                  const stageIndex = SUPPLY_STAGES.indexOf(stage);
+                  const isActive = stage === supplyStatus.activeStage;
+                  const isComplete = activeIndex >= 0 && stageIndex < activeIndex;
+
+                  return (
+                    <div
+                      key={stage}
+                      className={cn(
+                        "h-2 rounded-full",
+                        isActive || isComplete ? "bg-[#0B5C6C]" : "bg-white/70"
+                      )}
+                    />
+                  );
+                })}
+              </div>
+              <div className="grid grid-cols-3 gap-x-2 gap-y-1 text-xs font-semibold text-charcoal/65 sm:grid-cols-6">
+                {SUPPLY_STAGES.map((stage) => (
+                  <span
+                    key={stage}
+                    className={cn(
+                      "leading-4",
+                      stage === supplyStatus.activeStage && "text-deep-teal"
+                    )}
+                  >
+                    {stage}
+                  </span>
+                ))}
+              </div>
             </div>
             {supplyStatus.requestedLabel && requestedItems && (
               <div className="rounded-lg border border-white/60 bg-white/60 p-4 text-charcoal">
