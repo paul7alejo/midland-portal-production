@@ -817,6 +817,7 @@ export type ReorderStatus =
   | 'reviewing'
   | 'approved'
   | 'sent'
+  | 'delivered'
   | 'declined'
   | 'needs_followup'
 
@@ -915,6 +916,7 @@ export function normalizeReorderStatus(status: unknown): ReorderStatus {
     status === 'reviewing' ||
     status === 'approved' ||
     status === 'sent' ||
+    status === 'delivered' ||
     status === 'declined' ||
     status === 'needs_followup'
   ) {

@@ -78,16 +78,20 @@ type ReorderStatus =
   | "reviewing"
   | "approved"
   | "sent"
+  | "delivered"
   | "declined"
   | "needs_followup";
 
 type RequestAccessStatus = "eligible" | "needs_review" | "not_eligible" | "no_funds";
 
-const ACTIVE_STATUSES_PATIENT = new Set<ReorderStatus>([
+// Statuses that block the new-request form. delivered is intentionally absent
+// so patients can submit a fresh request once the previous one is complete.
+const BLOCKING_STATUSES_PATIENT = new Set<ReorderStatus>([
   "new",
   "reviewing",
   "approved",
   "sent",
+  "declined",
   "needs_followup",
 ]);
 
@@ -96,6 +100,7 @@ const CURRENT_REQUEST_HEADING: Record<ReorderStatus, string> = {
   reviewing:      "Midland Sleep is reviewing your request",
   approved:       "Your request has been approved",
   sent:           "Your supplies have been dispatched",
+  delivered:      "Your supply request is complete",
   declined:       "Your request could not be approved through the portal",
   needs_followup: "Midland Sleep needs to follow up with you",
 };
@@ -105,6 +110,7 @@ const CURRENT_REQUEST_MESSAGE: Record<ReorderStatus, string> = {
   reviewing:      "Your request has been received and will be reviewed by Midland Sleep staff. Please allow 5–7 business days.",
   approved:       "Midland Sleep has approved your supply request. Our team will prepare your items and contact you if anything else is needed.",
   sent:           "Your supplies have been dispatched. Please allow 2–3 business days for delivery.",
+  delivered:      "Your supplies have been delivered or completed by Midland Sleep. You can submit another supply request when needed.",
   declined:       "Please contact Midland Sleep to discuss your options or get help with your equipment.",
   needs_followup: "Our team needs to confirm a few details before this request can proceed. Midland Sleep will contact you.",
 };
@@ -128,6 +134,7 @@ const STATUS_LABELS: Record<ReorderStatus, string> = {
   reviewing:      "Being reviewed",
   approved:       "Approved",
   sent:           "Sent",
+  delivered:      "Delivered",
   declined:       "Declined",
   needs_followup: "Needs follow-up",
 };
@@ -137,6 +144,7 @@ const STATUS_BADGE_CLS: Record<ReorderStatus, string> = {
   reviewing:      "border-blue-200 bg-blue-100 text-blue-800",
   approved:       "border-emerald-200 bg-emerald-100 text-emerald-800",
   sent:           "border-purple-200 bg-purple-100 text-purple-800",
+  delivered:      "border-teal-200 bg-teal-100 text-teal-800",
   declined:       "border-red-200 bg-red-100 text-red-700",
   needs_followup: "border-orange-200 bg-orange-100 text-orange-700",
 };
@@ -334,8 +342,9 @@ export default function ReorderPage() {
   const showAddressForm = !hasSavedAddress || !useSavedAddress;
   const activeDeliveryAddress =
     useSavedAddress && savedAddress ? savedAddress : overrideAddress;
+  const isRequestBlocking = currentRequest !== null && BLOCKING_STATUSES_PATIENT.has(currentRequest.status);
   const canSendRequest =
-    !currentRequest &&
+    !isRequestBlocking &&
     selectedItems.length > 0 &&
     hasCompleteDeliveryAddress(activeDeliveryAddress);
 
@@ -355,7 +364,7 @@ export default function ReorderPage() {
   };
 
   const handleSubmit = async () => {
-    if (currentRequest) return;
+    if (currentRequest && BLOCKING_STATUSES_PATIENT.has(currentRequest.status)) return;
     const addressSnapshot = normalizeDeliveryAddress(activeDeliveryAddress);
     if (!hasCompleteDeliveryAddress(addressSnapshot) || selectedItems.length === 0) return;
 
@@ -726,8 +735,8 @@ export default function ReorderPage() {
         </section>
       )}
 
-      {currentRequest ? (
-        currentRequest.status === "declined" ? (
+      {isRequestBlocking ? (
+        currentRequest?.status === "declined" ? (
           <div className="rounded-2xl border border-sand bg-white p-6 md:p-7 space-y-3">
             <p className="text-lg font-medium leading-7 text-charcoal">
               To discuss your options, please contact Midland Sleep.

@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from "react";
 import { PatientDrawer } from "@/components/admin/PatientDrawer";
 import { cn } from "@/lib/utils";
 
-type OrderStatus   = "New" | "Reviewing" | "Approved" | "Sent" | "Declined" | "Needs Follow-Up";
+type OrderStatus   = "New" | "Reviewing" | "Approved" | "Sent" | "Delivered" | "Declined" | "Needs Follow-Up";
 type KpiFilter     = OrderStatus | "Needs Funding Review" | null;
 type OrderType     = "ENTITLEMENT" | "PRIVATE" | "MIXED";
 type DateRange     = "week" | "month" | "older";
@@ -169,7 +169,7 @@ function normalizeOrder(order: Partial<Order> & Pick<Order, "id" | "requestId" |
   };
 }
 
-const STATUS_OPTIONS: OrderStatus[] = ["New", "Reviewing", "Approved", "Sent", "Declined", "Needs Follow-Up"];
+const STATUS_OPTIONS: OrderStatus[] = ["New", "Reviewing", "Approved", "Sent", "Delivered", "Declined", "Needs Follow-Up"];
 const TYPE_OPTIONS:   OrderType[]   = ["ENTITLEMENT", "PRIVATE", "MIXED"];
 const REQUEST_CATEGORIES: RequestCategory[] = ["Mask", "Headgear", "Filters", "Tubing", "Cleaning supplies", "Support request"];
 const TYPE_LABEL: Record<OrderType, string> = {
@@ -182,6 +182,7 @@ const STATUS_BADGE: Record<OrderStatus, string> = {
   Reviewing:        "bg-blue-100 text-blue-800 border border-blue-200",
   Approved:         "bg-emerald-100 text-emerald-800 border border-emerald-200",
   Sent:             "bg-purple-100 text-purple-800 border border-purple-200",
+  Delivered:        "bg-teal-100 text-teal-800 border border-teal-200",
   Declined:         "bg-red-100 text-red-700 border border-red-200",
   "Needs Follow-Up": "bg-orange-100 text-orange-700 border border-orange-200",
 };
@@ -728,6 +729,7 @@ export default function AdminOrdersPage() {
     Reviewing:        'reviewing',
     Approved:         'approved',
     Sent:             'sent',
+    Delivered:        'delivered',
     Declined:         'declined',
     'Needs Follow-Up': 'needs_followup',
   };

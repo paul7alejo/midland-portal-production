@@ -13,7 +13,7 @@ import {
 const ORG_ID = 'midland-sleep'
 
 const VALID_STATUSES = new Set<ReorderStatus>([
-  'new', 'reviewing', 'approved', 'sent', 'declined', 'needs_followup',
+  'new', 'reviewing', 'approved', 'sent', 'delivered', 'declined', 'needs_followup',
 ])
 
 const STATUS_DISPLAY: Record<ReorderStatus, string> = {
@@ -21,6 +21,7 @@ const STATUS_DISPLAY: Record<ReorderStatus, string> = {
   reviewing:      'Reviewing',
   approved:       'Approved',
   sent:           'Sent',
+  delivered:      'Delivered',
   declined:       'Declined',
   needs_followup: 'Needs Follow-Up',
 }

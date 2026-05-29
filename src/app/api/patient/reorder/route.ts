@@ -31,6 +31,7 @@ const PATIENT_STATUS_MESSAGES: Record<ReorderStatus, string> = {
   reviewing:      'Your request is being reviewed by our team.',
   approved:       'Your request has been approved. We will be in touch.',
   sent:           'Your supplies have been dispatched.',
+  delivered:      'Your supplies have been delivered or completed by Midland Sleep.',
   declined:       'Your request was not approved at this time. Please contact Midland Sleep if you have questions.',
   needs_followup: 'Our team needs to follow up with you. We will be in touch shortly.',
 }
