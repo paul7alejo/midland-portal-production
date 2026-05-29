@@ -264,7 +264,7 @@ export default function DashboardPage() {
   );
 
   return (
-    <>
+    <div className="relative left-1/2 w-[calc(100vw-2rem)] max-w-[88rem] -translate-x-1/2 lg:w-[calc(100vw-18rem)]">
       {/* Hero */}
       <div className="relative mb-5 overflow-hidden rounded-xl bg-[#0B2A3C] px-5 py-5 md:px-7 md:py-6">
         <div className="relative">
@@ -298,7 +298,7 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <div aria-label="Supply request progress" className="mx-auto mt-6 max-w-4xl">
+        <div aria-label="Supply request progress" className="mx-auto mt-6 max-w-5xl">
           <div className="grid grid-cols-[1fr_minmax(32px,1fr)_1fr_minmax(32px,1fr)_1fr] items-start">
             {SUPPLY_STAGES.map((stage, index) => {
               const activeIndex = supplyStatus.activeStage
@@ -362,7 +362,7 @@ export default function DashboardPage() {
         )}
       </section>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.9fr)_minmax(280px,0.9fr)]">
+      <div className="grid gap-5 xl:grid-cols-[minmax(420px,1.25fr)_minmax(280px,0.85fr)_minmax(280px,0.85fr)] 2xl:grid-cols-[minmax(520px,1.35fr)_minmax(320px,0.85fr)_minmax(320px,0.85fr)]">
 
         {/* CARD 1 — MY EQUIPMENT */}
         <section className="space-y-4 rounded-xl border border-[#E6D3A3] bg-white p-5 md:p-6">
@@ -629,6 +629,6 @@ export default function DashboardPage() {
           </div>
         </section>
       )}
-    </>
+    </div>
   );
 }
