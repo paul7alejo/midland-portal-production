@@ -1152,6 +1152,20 @@ export async function updateNeedsFundingReview(params: {
   }))
 }
 
+export async function getReorderById(
+  id: string,
+  orgId: string
+): Promise<ReorderRecord | null> {
+  const res = await docClient.send(new GetCommand({
+    TableName: TABLES.ORDERS,
+    Key: { pk: `ORDER#${id}`, sk: 'REORDER' },
+  }))
+  if (!res.Item) return null
+  const record = normalizeReorderRecord(res.Item as Record<string, NativeAttributeValue>)
+  if (record.org_id !== orgId) return null
+  return record
+}
+
 export async function createCommsRecord(record: CommsRecord): Promise<void> {
   const timestamp = new Date().toISOString()
   await docClient.send(new PutCommand({

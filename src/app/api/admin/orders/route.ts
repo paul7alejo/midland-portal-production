@@ -6,6 +6,7 @@ import {
   updateReorderStatus,
   updateNeedsFundingReview,
   appendAuditLog,
+  getReorderById,
   type ReorderRecord,
   type ReorderStatus,
 } from '@/lib/aws/dynamodb'
@@ -122,6 +123,18 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'id is required' }, { status: 400 })
   }
 
+  // Fetch the existing record to capture patient context for audit.
+  // Non-fatal if the lookup fails — audit proceeds without patient_msid.
+  let existingRecord: Awaited<ReturnType<typeof getReorderById>> = null
+  try {
+    existingRecord = await getReorderById(id, ORG_ID)
+  } catch (err) {
+    console.warn('admin/orders PATCH: pre-audit record lookup failed', err instanceof Error ? err.message : String(err))
+  }
+  const patientMsid       = existingRecord?.patient_msid
+  const requestReference  = existingRecord?.request_reference
+  const previousStatus    = existingRecord?.status
+
   // Route: needsFundingReview toggle
   if ('needsFundingReview' in b) {
     const flag = b.needsFundingReview
@@ -132,16 +145,19 @@ export async function PATCH(request: NextRequest) {
 
     try {
       await appendAuditLog({
-        userId:      admin.sub,
-        event_type:  'REQUEST_STATUS_UPDATED',
-        action:      'REQUEST_STATUS_UPDATED',
-        order_id:    id,
-        org_id:      ORG_ID,
-        timestamp:   new Date().toISOString(),
-        result:      'success',
-        details:     `Needs funding review set to ${flag}${reviewReason ? ` — ${reviewReason}` : ''}.`,
-        admin_email: admin.email,
-        category:    'Orders',
+        userId:          admin.sub,
+        event_type:      'REQUEST_STATUS_UPDATED',
+        action:          'REQUEST_STATUS_UPDATED',
+        order_id:        id,
+        org_id:          ORG_ID,
+        timestamp:       new Date().toISOString(),
+        result:          'success',
+        details:         `Needs funding review set to ${flag}${reviewReason ? ` — ${reviewReason}` : ''}.`,
+        admin_email:     admin.email,
+        category:        'Orders',
+        patient_msid:    patientMsid,
+        request_id:      requestReference,
+        previous_status: previousStatus,
       })
     } catch (err) {
       console.error('admin/orders PATCH funding-review: audit failed', err instanceof Error ? err.message : String(err))
@@ -177,17 +193,20 @@ export async function PATCH(request: NextRequest) {
   // Audit-first: write before mutation; abort if audit fails
   try {
     await appendAuditLog({
-      userId:      admin.sub,
-      event_type:  'REQUEST_STATUS_UPDATED',
-      action:      'REQUEST_STATUS_UPDATED',
-      order_id:    id,
-      org_id:      ORG_ID,
-      timestamp:   new Date().toISOString(),
-      result:      'success',
-      details:     `Request status updated to ${status}.`,
-      admin_email: admin.email,
-      new_status:  status,
-      category:    'Orders',
+      userId:          admin.sub,
+      event_type:      'REQUEST_STATUS_UPDATED',
+      action:          'REQUEST_STATUS_UPDATED',
+      order_id:        id,
+      org_id:          ORG_ID,
+      timestamp:       new Date().toISOString(),
+      result:          'success',
+      details:         `Request status updated to ${status}.`,
+      admin_email:     admin.email,
+      new_status:      status,
+      category:        'Orders',
+      patient_msid:    patientMsid,
+      request_id:      requestReference,
+      previous_status: previousStatus,
     })
   } catch (err) {
     console.error('admin/orders PATCH: audit failed', err instanceof Error ? err.message : String(err))
