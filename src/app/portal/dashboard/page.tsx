@@ -265,6 +265,98 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Supply request status */}
+      <section className={cn("mb-6 rounded-xl border p-5 md:p-6", supplyStatus.cardClass)}>
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+          <div className="min-w-0">
+            <p className="mb-1 font-mono text-xs uppercase tracking-[0.16em] text-charcoal/60">
+              Supply request status
+            </p>
+            <h2 className="font-display text-[28px] font-semibold leading-tight text-navy md:text-[32px]">
+              {supplyStatus.label}
+            </h2>
+            <p className="mt-2 max-w-3xl text-lg leading-7">{supplyStatus.detail}</p>
+          </div>
+          {supplyStatus.action && (
+            <Link
+              href="/portal/reorder"
+              className="inline-flex min-h-[52px] items-center justify-center rounded-lg bg-[#0B5C6C] px-6 py-3 text-lg font-medium text-white transition-colors hover:bg-[#0B5C6C]/90"
+            >
+              {supplyStatus.action}
+            </Link>
+          )}
+        </div>
+
+        <div aria-label="Supply request progress" className="mt-5 space-y-3">
+          <div className="hidden grid-cols-6 gap-2 md:grid">
+            {SUPPLY_STAGES.map((stage) => {
+              const activeIndex = supplyStatus.activeStage
+                ? SUPPLY_STAGES.indexOf(supplyStatus.activeStage)
+                : -1;
+              const stageIndex = SUPPLY_STAGES.indexOf(stage);
+              const isActive = stage === supplyStatus.activeStage;
+              const isComplete = activeIndex >= 0 && stageIndex < activeIndex;
+
+              return (
+                <div key={stage} className="min-w-0">
+                  <div
+                    className={cn(
+                      "h-2 rounded-full",
+                      isActive || isComplete ? "bg-[#0B5C6C]" : "bg-white/70"
+                    )}
+                  />
+                  <p
+                    className={cn(
+                      "mt-2 truncate text-center text-sm font-semibold text-charcoal/65",
+                      isActive && "text-deep-teal"
+                    )}
+                  >
+                    {stage}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="md:hidden">
+            <div className="grid grid-cols-6 gap-1.5">
+              {SUPPLY_STAGES.map((stage) => {
+                const activeIndex = supplyStatus.activeStage
+                  ? SUPPLY_STAGES.indexOf(supplyStatus.activeStage)
+                  : -1;
+                const stageIndex = SUPPLY_STAGES.indexOf(stage);
+                const isActive = stage === supplyStatus.activeStage;
+                const isComplete = activeIndex >= 0 && stageIndex < activeIndex;
+
+                return (
+                  <div
+                    key={stage}
+                    className={cn(
+                      "h-2 rounded-full",
+                      isActive || isComplete ? "bg-[#0B5C6C]" : "bg-white/70"
+                    )}
+                  />
+                );
+              })}
+            </div>
+            {supplyStatus.activeStage && (
+              <p className="mt-2 text-sm font-semibold text-deep-teal">
+                Current stage: {supplyStatus.activeStage}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {supplyStatus.requestedLabel && requestedItems && (
+          <div className="mt-5 rounded-lg border border-white/60 bg-white/60 p-4 text-charcoal">
+            <p className="mb-1 font-mono text-xs uppercase tracking-wide text-charcoal/60">
+              {supplyStatus.requestedLabel}
+            </p>
+            <p className="text-lg font-semibold leading-7">{requestedItems}</p>
+          </div>
+        )}
+      </section>
+
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.75fr)]">
 
         {/* CARD 1 — MY EQUIPMENT */}
@@ -402,67 +494,7 @@ export default function DashboardPage() {
         </section>
 
         <div className="space-y-5">
-          {/* CARD 2 — MY SUPPLIES STATUS */}
-          <section className={cn("space-y-4 rounded-xl border p-5 md:p-6", supplyStatus.cardClass)}>
-            <h2 className="font-display text-2xl font-semibold leading-snug text-navy">My supplies status</h2>
-            <div>
-              <p className="text-xl font-semibold leading-7">{supplyStatus.label}</p>
-              <p className="mt-2 text-lg leading-7">{supplyStatus.detail}</p>
-            </div>
-            <div aria-label="Supply request progress" className="space-y-2">
-              <div className="grid grid-cols-6 gap-1.5">
-                {SUPPLY_STAGES.map((stage) => {
-                  const activeIndex = supplyStatus.activeStage
-                    ? SUPPLY_STAGES.indexOf(supplyStatus.activeStage)
-                    : -1;
-                  const stageIndex = SUPPLY_STAGES.indexOf(stage);
-                  const isActive = stage === supplyStatus.activeStage;
-                  const isComplete = activeIndex >= 0 && stageIndex < activeIndex;
-
-                  return (
-                    <div
-                      key={stage}
-                      className={cn(
-                        "h-2 rounded-full",
-                        isActive || isComplete ? "bg-[#0B5C6C]" : "bg-white/70"
-                      )}
-                    />
-                  );
-                })}
-              </div>
-              <div className="grid grid-cols-3 gap-x-2 gap-y-1 text-xs font-semibold text-charcoal/65 sm:grid-cols-6">
-                {SUPPLY_STAGES.map((stage) => (
-                  <span
-                    key={stage}
-                    className={cn(
-                      "leading-4",
-                      stage === supplyStatus.activeStage && "text-deep-teal"
-                    )}
-                  >
-                    {stage}
-                  </span>
-                ))}
-              </div>
-            </div>
-            {supplyStatus.requestedLabel && requestedItems && (
-              <div className="rounded-lg border border-white/60 bg-white/60 p-4 text-charcoal">
-                <p className="mb-1 font-mono text-xs uppercase tracking-wide text-charcoal/60">
-                  {supplyStatus.requestedLabel}
-                </p>
-                <p className="text-lg font-semibold leading-7">{requestedItems}</p>
-              </div>
-            )}
-            {supplyStatus.action && (
-              <Link
-                href="/portal/reorder"
-                className="inline-flex min-h-[52px] items-center justify-center rounded-lg bg-[#0B5C6C] px-6 py-3 text-lg font-medium text-white transition-colors hover:bg-[#0B5C6C]/90"
-              >
-                {supplyStatus.action}
-              </Link>
-            )}
-          </section>
-
-          {/* CARD 3 — SAFETY AND MAINTENANCE */}
+          {/* CARD 2 — SAFETY AND MAINTENANCE */}
           {(overdueChecks.length > 0 || dueSoonChecks.length > 0) && (
             <section className="space-y-4 rounded-xl border border-sand bg-white p-5 md:p-6">
               <h2 className="font-display text-2xl font-semibold text-navy leading-snug">
@@ -508,7 +540,7 @@ export default function DashboardPage() {
             </section>
           )}
 
-          {/* CARD 4 — NEED HELP */}
+          {/* CARD 3 — NEED HELP */}
           <section className="rounded-xl border border-sand bg-sand-pale p-5 md:p-6">
             <h2 className="font-display text-2xl font-semibold text-navy mb-3 leading-snug">Need help?</h2>
             <p className="text-lg leading-7 text-charcoal/80">
