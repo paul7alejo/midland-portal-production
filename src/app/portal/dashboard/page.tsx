@@ -29,15 +29,22 @@ interface CurrentReorderRequest {
 }
 
 const SUPPLY_STAGES = [
-  "Available",
   "Requested",
   "Reviewing",
-  "Approved",
-  "Sent",
-  "Complete",
+  "Delivered",
 ] as const;
 
 type SupplyStage = typeof SUPPLY_STAGES[number];
+
+const STATUS_LABELS: Record<ReorderStatus, string> = {
+  new: "Requested",
+  reviewing: "Reviewing",
+  approved: "Approved",
+  sent: "Sent",
+  delivered: "Delivered",
+  declined: "Contact clinic",
+  needs_followup: "Follow-up needed",
+};
 
 function formatDate(iso: string): string {
   const date = new Date(iso);
@@ -85,6 +92,10 @@ function formatRequestedItems(request: CurrentReorderRequest | null): string | n
   const itemNames = request.itemNames?.length ? request.itemNames : request.items;
   if (itemNames?.length) return itemNames.join(", ");
   return request.itemDescription?.trim() || null;
+}
+
+function getRequestDate(request: CurrentReorderRequest): string {
+  return formatDate(request.updatedAt ?? request.createdAt);
 }
 
 export default function DashboardPage() {
@@ -162,12 +173,12 @@ export default function DashboardPage() {
         detail: "We are checking whether you have a request in progress.",
         action: null,
         requestedLabel: null,
-        activeStage: null,
+        activeStage: "Requested",
         cardClass: "border-sand bg-white text-charcoal",
       }
     : currentRequest?.status === "new" || currentRequest?.status === "reviewing"
     ? {
-        label: "Request received",
+        label: currentRequest.status === "new" ? "Request received" : "Request in progress",
         detail: "Midland Sleep staff are reviewing your supply request.",
         action: "View request",
         requestedLabel: requestedItems ? "Requested" : null,
@@ -180,16 +191,16 @@ export default function DashboardPage() {
         detail: "Midland Sleep has approved your supply request and will prepare your items.",
         action: "View request",
         requestedLabel: requestedItems ? "Requested" : null,
-        activeStage: "Approved",
+        activeStage: "Reviewing",
         cardClass: "border-seafoam/40 bg-seafoam-pale text-deep-teal",
       }
     : currentRequest?.status === "sent"
     ? {
-        label: "Supplies dispatched",
+        label: "Supplies on the way",
         detail: "Your supplies have been dispatched. Please allow 2-3 business days for delivery.",
         action: "View request",
         requestedLabel: requestedItems ? "Requested" : null,
-        activeStage: "Sent",
+        activeStage: "Reviewing",
         cardClass: "border-seafoam/40 bg-seafoam-pale text-deep-teal",
       }
     : currentRequest?.status === "needs_followup"
@@ -207,7 +218,7 @@ export default function DashboardPage() {
         detail: "Your request could not be approved through the portal. Please contact Midland Sleep to discuss your options.",
         action: "View request",
         requestedLabel: requestedItems ? "Requested" : null,
-        activeStage: "Complete",
+        activeStage: "Delivered",
         cardClass: "border-sand bg-sand-pale text-charcoal",
       }
     : currentRequest?.status === "delivered"
@@ -216,7 +227,7 @@ export default function DashboardPage() {
         detail: "Your last request is complete. You can request replacement supplies when needed.",
         action: "Request supplies",
         requestedLabel: requestedItems ? "Last requested" : null,
-        activeStage: "Complete",
+        activeStage: "Delivered",
         cardClass: "border-seafoam/40 bg-seafoam-pale text-deep-teal",
       }
     : canReorder
@@ -225,7 +236,7 @@ export default function DashboardPage() {
         detail: "You can request replacement supplies when needed. Midland Sleep staff will review your request.",
         action: "Request supplies",
         requestedLabel: null,
-        activeStage: "Available",
+        activeStage: "Requested",
         cardClass: "border-seafoam/40 bg-seafoam-pale text-deep-teal",
       }
     : {
@@ -233,7 +244,7 @@ export default function DashboardPage() {
         detail: "Contact Midland Sleep if you need supplies. Staff will review your options with you.",
         action: "Get help",
         requestedLabel: requestedItems ? "Requested" : null,
-        activeStage: "Available",
+        activeStage: "Requested",
         cardClass: "border-sand bg-sand-pale text-charcoal",
       };
   const overdueChecks = maintenance.filter((c: any) => c.status === "OVERDUE");
@@ -255,7 +266,7 @@ export default function DashboardPage() {
   return (
     <>
       {/* Hero */}
-      <div className="relative mb-6 overflow-hidden rounded-xl bg-navy px-5 py-6 md:px-7 md:py-7">
+      <div className="relative mb-5 overflow-hidden rounded-xl bg-[#0B2A3C] px-5 py-5 md:px-7 md:py-6">
         <div className="relative">
           <p className="mb-2 font-mono text-xs uppercase tracking-[0.18em] text-seafoam/75">Patient Portal</p>
           <h1 className="mb-4 font-display text-[34px] font-semibold leading-tight text-cream md:text-[42px]">
@@ -266,7 +277,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Supply request status */}
-      <section className={cn("mb-6 rounded-xl border p-5 md:p-6", supplyStatus.cardClass)}>
+      <section className={cn("mb-5 rounded-xl border border-[#E6D3A3] bg-white p-5 text-[#333333] shadow-sm md:p-6", supplyStatus.cardClass)}>
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
           <div className="min-w-0">
             <p className="mb-1 font-mono text-xs uppercase tracking-[0.16em] text-charcoal/60">
@@ -287,63 +298,57 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <div aria-label="Supply request progress" className="mt-5 space-y-3">
-          <div className="hidden grid-cols-6 gap-2 md:grid">
-            {SUPPLY_STAGES.map((stage) => {
+        <div aria-label="Supply request progress" className="mx-auto mt-6 max-w-4xl">
+          <div className="grid grid-cols-[1fr_minmax(32px,1fr)_1fr_minmax(32px,1fr)_1fr] items-start">
+            {SUPPLY_STAGES.map((stage, index) => {
               const activeIndex = supplyStatus.activeStage
                 ? SUPPLY_STAGES.indexOf(supplyStatus.activeStage)
-                : -1;
-              const stageIndex = SUPPLY_STAGES.indexOf(stage);
-              const isActive = stage === supplyStatus.activeStage;
-              const isComplete = activeIndex >= 0 && stageIndex < activeIndex;
+                : 0;
+              const isActive = index === activeIndex;
+              const isComplete = index < activeIndex;
 
               return (
-                <div key={stage} className="min-w-0">
-                  <div
-                    className={cn(
-                      "h-2 rounded-full",
-                      isActive || isComplete ? "bg-[#0B5C6C]" : "bg-white/70"
-                    )}
-                  />
-                  <p
-                    className={cn(
-                      "mt-2 truncate text-center text-sm font-semibold text-charcoal/65",
-                      isActive && "text-deep-teal"
-                    )}
-                  >
-                    {stage}
-                  </p>
+                <div key={stage} className="contents">
+                  <div className="flex min-w-0 flex-col items-center text-center">
+                    <div
+                      className={cn(
+                        "flex h-8 w-8 items-center justify-center rounded-full border-2",
+                        isComplete && "border-[#74C0A2] bg-[#74C0A2] text-white",
+                        isActive && "border-[#0B5C6C] bg-[#0B5C6C] text-white",
+                        !isComplete && !isActive && "border-[#E6D3A3] bg-transparent"
+                      )}
+                      aria-hidden="true"
+                    >
+                      {isComplete ? (
+                        <span className="text-base font-bold leading-none">✓</span>
+                      ) : isActive ? (
+                        <span className="h-2 w-2 rounded-full bg-white" />
+                      ) : null}
+                    </div>
+                    <p
+                      className={cn(
+                        "mt-2 text-sm leading-5 text-charcoal/60",
+                        isComplete && "font-medium text-[#74C0A2]",
+                        isActive && "font-semibold text-[#0B5C6C]"
+                      )}
+                    >
+                      {stage}
+                    </p>
+                  </div>
+                  {index < SUPPLY_STAGES.length - 1 && (
+                    <div
+                      className={cn(
+                        "mt-4 border-t-2",
+                        index < activeIndex
+                          ? "border-[#74C0A2]"
+                          : "border-dashed border-[#E6D3A3]"
+                      )}
+                      aria-hidden="true"
+                    />
+                  )}
                 </div>
               );
             })}
-          </div>
-
-          <div className="md:hidden">
-            <div className="grid grid-cols-6 gap-1.5">
-              {SUPPLY_STAGES.map((stage) => {
-                const activeIndex = supplyStatus.activeStage
-                  ? SUPPLY_STAGES.indexOf(supplyStatus.activeStage)
-                  : -1;
-                const stageIndex = SUPPLY_STAGES.indexOf(stage);
-                const isActive = stage === supplyStatus.activeStage;
-                const isComplete = activeIndex >= 0 && stageIndex < activeIndex;
-
-                return (
-                  <div
-                    key={stage}
-                    className={cn(
-                      "h-2 rounded-full",
-                      isActive || isComplete ? "bg-[#0B5C6C]" : "bg-white/70"
-                    )}
-                  />
-                );
-              })}
-            </div>
-            {supplyStatus.activeStage && (
-              <p className="mt-2 text-sm font-semibold text-deep-teal">
-                Current stage: {supplyStatus.activeStage}
-              </p>
-            )}
           </div>
         </div>
 
@@ -357,12 +362,12 @@ export default function DashboardPage() {
         )}
       </section>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.75fr)]">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.9fr)_minmax(280px,0.9fr)]">
 
         {/* CARD 1 — MY EQUIPMENT */}
-        <section className="space-y-4 rounded-xl border border-sand bg-white p-5 md:p-6">
-          <div className="flex flex-wrap justify-between items-start gap-3">
-            <h2 className="font-display text-2xl font-semibold text-navy leading-snug">My equipment</h2>
+        <section className="space-y-4 rounded-xl border border-[#E6D3A3] bg-white p-5 md:p-6">
+          <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#E6D3A3] pb-3">
+            <h2 className="font-display text-[28px] font-semibold leading-snug text-[#0B2A3C]">My Equipment</h2>
             <Link
               href="/portal/equipment"
               className="text-lg text-deep-teal hover:underline font-medium"
@@ -372,21 +377,21 @@ export default function DashboardPage() {
           </div>
 
           {(device || mask) && (
-            <div className="grid gap-4 border-b border-sand pb-4 md:grid-cols-2">
+            <div className="grid gap-5 border-b border-[#E6D3A3] pb-4 md:grid-cols-2">
               {device && (
-                <div className="rounded-lg border border-sand bg-sand-pale/40 p-4">
+                <div className="min-h-[120px] rounded-xl border border-[#D9E8E4] bg-[#EFF5F4] p-5">
                   <Link
                     href="/portal/equipment"
                     aria-label={`View equipment details for ${device.name}`}
-                    className="block rounded-lg transition-colors hover:bg-white/50 focus:outline-none focus:ring-2 focus:ring-deep-teal"
+                    className="flex h-20 items-center justify-center rounded-lg border border-[#E6D3A3] bg-white shadow-sm transition-colors hover:bg-white/80 focus:outline-none focus:ring-2 focus:ring-deep-teal"
                   >
-                    <EquipmentVisual type="machine" className="h-24 w-full min-w-0 sm:h-28" />
+                    <EquipmentVisual type="machine" className="h-12 w-20 min-w-0 text-[#0B5C6C]" />
                   </Link>
-                  <div className="mt-3 min-w-0">
-                    <p className="text-xs uppercase tracking-wide text-charcoal/60 font-mono">Machine</p>
+                  <div className="mt-4 min-w-0 text-center">
+                    <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-[#888888]">Machine</p>
                     <Link
                       href="/portal/equipment"
-                      className="mt-1 block text-xl font-semibold text-charcoal leading-snug hover:text-deep-teal hover:underline"
+                      className="mt-1 block text-[22px] font-bold leading-[1.2] text-[#0B2A3C] hover:text-deep-teal hover:underline"
                     >
                       {device.name}
                     </Link>
@@ -399,19 +404,19 @@ export default function DashboardPage() {
                 </div>
               )}
               {mask && (
-                <div className="rounded-lg border border-sand bg-sand-pale/40 p-4">
+                <div className="min-h-[120px] rounded-xl border border-[#E6D3A3]/70 bg-[#F5F3EE] p-5">
                   <Link
                     href="/portal/equipment"
                     aria-label={`View equipment details for ${mask.name}`}
-                    className="block rounded-lg transition-colors hover:bg-white/50 focus:outline-none focus:ring-2 focus:ring-deep-teal"
+                    className="flex h-20 items-center justify-center rounded-lg border border-[#E6D3A3] bg-white shadow-sm transition-colors hover:bg-white/80 focus:outline-none focus:ring-2 focus:ring-deep-teal"
                   >
-                    <EquipmentVisual type="mask" className="h-24 w-full min-w-0 sm:h-28" />
+                    <EquipmentVisual type="mask" className="h-12 w-20 min-w-0 text-[#0B5C6C]" />
                   </Link>
-                  <div className="mt-3 min-w-0">
-                    <p className="text-xs uppercase tracking-wide text-charcoal/60 font-mono">Mask</p>
+                  <div className="mt-4 min-w-0 text-center">
+                    <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-[#888888]">Mask</p>
                     <Link
                       href="/portal/equipment"
-                      className="mt-1 block text-xl font-semibold text-charcoal leading-snug hover:text-deep-teal hover:underline"
+                      className="mt-1 block text-[22px] font-bold leading-[1.2] text-[#0B2A3C] hover:text-deep-teal hover:underline"
                     >
                       {mask.name}
                     </Link>
@@ -421,27 +426,27 @@ export default function DashboardPage() {
             </div>
           )}
 
-          <div className="grid gap-x-8 gap-y-4 text-lg leading-7 md:grid-cols-2">
+          <div className="grid gap-x-8 gap-y-4 text-base leading-6 md:grid-cols-2">
             {!device && (
               <div>
-                <p className="text-sm uppercase tracking-wide text-charcoal/80 font-mono mb-1.5">Machine</p>
+                <p className="mb-1.5 font-mono text-[11px] uppercase tracking-[0.08em] text-charcoal/70">Machine</p>
                 <p className="text-charcoal font-medium">No machine on file</p>
               </div>
             )}
             <div>
-              <p className="text-sm uppercase tracking-wide text-charcoal/80 font-mono mb-1.5">Serial number</p>
+              <p className="mb-1.5 font-mono text-[11px] uppercase tracking-[0.08em] text-charcoal/70">Serial number</p>
               <p className="text-charcoal font-mono break-all">
                 {device ? device.serial_number : "No serial on file"}
               </p>
             </div>
             <div>
-              <p className="text-sm uppercase tracking-wide text-charcoal/80 font-mono mb-1.5">Issued</p>
+              <p className="mb-1.5 font-mono text-[11px] uppercase tracking-[0.08em] text-charcoal/70">Issued</p>
               <p className="text-charcoal">
                 {device ? formatDate(device.setup_date) : "Not recorded"}
               </p>
             </div>
             <div>
-              <p className="text-sm uppercase tracking-wide text-charcoal/80 font-mono mb-1.5">Replacement due</p>
+              <p className="mb-1.5 font-mono text-[11px] uppercase tracking-[0.08em] text-charcoal/70">Replacement due</p>
               <p className="text-charcoal font-medium">
                 {machineReplacementDue ? formatDate(machineReplacementDue) : "Not recorded"}
               </p>
@@ -449,7 +454,7 @@ export default function DashboardPage() {
             {/* Safety check + Water chamber status badges */}
             {maintenance.map((check: any) => (
               <div key={check.check_type}>
-                <p className="text-sm uppercase tracking-wide text-charcoal/80 font-mono mb-1.5">
+                <p className="mb-1.5 font-mono text-[11px] uppercase tracking-[0.08em] text-charcoal/70">
                   {check.check_type === "safety_check" ? "Safety Check" : "Water Chamber"}
                 </p>
                 <span
@@ -473,24 +478,59 @@ export default function DashboardPage() {
 
             {/* Mask info */}
             <div>
-              <p className="text-sm uppercase tracking-wide text-charcoal/80 font-mono mb-1.5">Mask</p>
+              <p className="mb-1.5 font-mono text-[11px] uppercase tracking-[0.08em] text-charcoal/70">Mask</p>
               <p className="text-charcoal font-medium">
                 {mask ? mask.name : "No mask on file"}
               </p>
             </div>
             <div>
-              <p className="text-sm uppercase tracking-wide text-charcoal/80 font-mono mb-1.5">Size</p>
+              <p className="mb-1.5 font-mono text-[11px] uppercase tracking-[0.08em] text-charcoal/70">Size</p>
               <p className="text-charcoal font-medium">
                 {mask ? mask.size : "Not recorded"}
               </p>
             </div>
             <div className="md:col-span-2">
-              <p className="text-sm uppercase tracking-wide text-charcoal/80 font-mono mb-1.5">Last issued</p>
+              <p className="mb-1.5 font-mono text-[11px] uppercase tracking-[0.08em] text-charcoal/70">Last issued</p>
               <p className="text-charcoal">
                 {mask ? formatDate(mask.fitted_date) : "Not recorded"}
               </p>
             </div>
           </div>
+        </section>
+
+        {/* CARD 2 — RECENT REQUESTS */}
+        <section className="rounded-xl border border-[#E6D3A3] bg-white p-5 md:p-6">
+          <div className="border-b border-[#E6D3A3] pb-3">
+            <h2 className="font-display text-[28px] font-semibold leading-snug text-[#0B2A3C]">Recent Requests</h2>
+          </div>
+          {currentRequest ? (
+            <div className="mt-5 rounded-lg border border-sand bg-[#F5F3EE] p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <p className="font-mono text-base font-bold text-[#0B5C6C]">
+                  {currentRequest.referenceNumber}
+                </p>
+                <span className="rounded-full bg-[#74C0A2]/20 px-3 py-1 text-sm font-semibold text-[#0B5C6C]">
+                  {STATUS_LABELS[currentRequest.status]}
+                </span>
+              </div>
+              <p className="mt-4 text-lg font-semibold leading-7 text-[#0B2A3C]">
+                {requestedItems ?? "Supply request"}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-charcoal/75">
+                Requested: {getRequestDate(currentRequest)}
+              </p>
+            </div>
+          ) : (
+            <p className="mt-5 text-base leading-7 text-charcoal/75">
+              No supply requests to show yet.
+            </p>
+          )}
+          <Link
+            href="/portal/reorder"
+            className="mt-5 inline-flex items-center text-base font-semibold text-[#0B5C6C] hover:underline"
+          >
+            View supply requests
+          </Link>
         </section>
 
         <div className="space-y-5">
@@ -541,15 +581,54 @@ export default function DashboardPage() {
           )}
 
           {/* CARD 3 — NEED HELP */}
-          <section className="rounded-xl border border-sand bg-sand-pale p-5 md:p-6">
-            <h2 className="font-display text-2xl font-semibold text-navy mb-3 leading-snug">Need help?</h2>
-            <p className="text-lg leading-7 text-charcoal/80">
-              Call Midland Sleep on {phoneLink} or email {emailLink}. We are open Monday to Friday, 8:30am to 5pm.
+          <section className="relative overflow-hidden rounded-xl border border-[#E6D3A3] bg-white p-5 md:p-6">
+            <h2 className="mb-3 border-b border-[#E6D3A3] pb-3 font-display text-[28px] font-semibold leading-snug text-[#0B2A3C]">Need Help?</h2>
+            <p className="text-base leading-7 text-charcoal/80">
+              Our team is available Monday to Friday, 8:30am to 5pm.
             </p>
+            <div className="mt-5 space-y-3 text-lg leading-7">
+              <p>Call Midland Sleep on {phoneLink}</p>
+              <p>Email {emailLink}</p>
+            </div>
           </section>
         </div>
 
       </div>
+
+      {currentRequest && requestedItems && (
+        <section className="mt-5 rounded-xl border border-[#E6D3A3] bg-white p-5 md:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#E6D3A3] pb-3">
+            <h2 className="font-display text-[28px] font-semibold leading-snug text-[#0B2A3C]">My Supply Request History</h2>
+            <Link href="/portal/reorder" className="text-base font-semibold text-[#0B5C6C] hover:underline">
+              View all
+            </Link>
+          </div>
+          <div className="mt-4 overflow-x-auto">
+            <table className="min-w-full text-left text-base">
+              <thead>
+                <tr className="border-b border-[#E6D3A3] font-mono text-[11px] uppercase tracking-[0.08em] text-charcoal/70">
+                  <th className="py-3 pr-4 font-medium">Date</th>
+                  <th className="py-3 pr-4 font-medium">Reference</th>
+                  <th className="py-3 pr-4 font-medium">Items</th>
+                  <th className="py-3 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-b border-sand/60 last:border-0">
+                  <td className="py-4 pr-4 text-charcoal">{getRequestDate(currentRequest)}</td>
+                  <td className="py-4 pr-4 font-mono font-semibold text-[#0B5C6C]">{currentRequest.referenceNumber}</td>
+                  <td className="py-4 pr-4 text-charcoal">{requestedItems}</td>
+                  <td className="py-4">
+                    <span className="inline-flex rounded-full bg-[#74C0A2]/20 px-3 py-1 text-sm font-semibold text-[#0B5C6C]">
+                      {STATUS_LABELS[currentRequest.status]}
+                    </span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
     </>
   );
 }
