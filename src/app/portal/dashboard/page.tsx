@@ -1,7 +1,7 @@
 "use client";
 
 import { useAuth } from "@/components/AuthProvider";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Fragment } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { usePatientData } from "@/hooks/usePatientData";
@@ -28,13 +28,18 @@ interface CurrentReorderRequest {
   itemDescription?: string;
 }
 
-const SUPPLY_STAGES = [
-  "Requested",
-  "Reviewing",
-  "Delivered",
-] as const;
+type StepState = "completed" | "active" | "future";
+type StatusStep = { label: string; state: StepState };
+type StatusTone = "neutral" | "green" | "teal" | "rose" | "amber";
 
-type SupplyStage = typeof SUPPLY_STAGES[number];
+interface RequestStatusConfig {
+  title: string;
+  body: string;
+  steps: StatusStep[];
+  tone: StatusTone;
+  ctaLabel: string;
+  ctaHref: string;
+}
 
 const STATUS_LABELS: Record<ReorderStatus, string> = {
   new: "Requested",
@@ -45,6 +50,158 @@ const STATUS_LABELS: Record<ReorderStatus, string> = {
   declined: "Contact clinic",
   needs_followup: "Follow-up needed",
 };
+
+const TONE_STYLES: Record<
+  StatusTone,
+  { card: string; title: string; activeCircle: string; activeLabel: string }
+> = {
+  neutral: {
+    card:         "border-[#E6D3A3] bg-white",
+    title:        "text-[#0B2A3C]",
+    activeCircle: "border-[#0B5C6C] bg-[#0B5C6C]",
+    activeLabel:  "text-[#0B5C6C]",
+  },
+  teal: {
+    card:         "border-seafoam/40 bg-seafoam-pale",
+    title:        "text-deep-teal",
+    activeCircle: "border-[#0B5C6C] bg-[#0B5C6C]",
+    activeLabel:  "text-[#0B5C6C]",
+  },
+  green: {
+    card:         "border-seafoam/40 bg-seafoam-pale",
+    title:        "text-deep-teal",
+    activeCircle: "border-[#0B5C6C] bg-[#0B5C6C]",
+    activeLabel:  "text-[#0B5C6C]",
+  },
+  rose: {
+    card:         "border-rose-200 bg-rose-50",
+    title:        "text-rose-800",
+    activeCircle: "border-rose-600 bg-rose-600",
+    activeLabel:  "text-rose-700",
+  },
+  amber: {
+    card:         "border-amber-200 bg-amber-50",
+    title:        "text-amber-900",
+    activeCircle: "border-amber-500 bg-amber-500",
+    activeLabel:  "text-amber-800",
+  },
+};
+
+function getStatusConfig(status: string | null | undefined): RequestStatusConfig {
+  switch (status) {
+    case "new":
+      return {
+        title: "Request received",
+        body: "Midland Sleep has received your request. Our team will review it shortly.",
+        steps: [
+          { label: "Submitted", state: "completed" },
+          { label: "Under review", state: "active" },
+        ],
+        tone: "teal",
+        ctaLabel: "View request",
+        ctaHref: "/portal/reorder",
+      };
+    case "reviewing":
+      return {
+        title: "Request under review",
+        body: "Midland Sleep is reviewing your request. Please allow 5–7 business days.",
+        steps: [
+          { label: "Submitted", state: "completed" },
+          { label: "Under review", state: "active" },
+        ],
+        tone: "teal",
+        ctaLabel: "View request",
+        ctaHref: "/portal/reorder",
+      };
+    case "approved":
+      return {
+        title: "Request approved",
+        body: "Your request has been approved. Midland Sleep will prepare your supplies.",
+        steps: [
+          { label: "Submitted", state: "completed" },
+          { label: "Approved", state: "active" },
+          { label: "Preparing", state: "future" },
+        ],
+        tone: "green",
+        ctaLabel: "View request",
+        ctaHref: "/portal/reorder",
+      };
+    case "sent":
+      return {
+        title: "Supplies on the way",
+        body: "Your supplies have been dispatched. Please allow 2–3 business days for delivery.",
+        steps: [
+          { label: "Approved", state: "completed" },
+          { label: "Dispatched", state: "active" },
+          { label: "Delivered", state: "future" },
+        ],
+        tone: "teal",
+        ctaLabel: "View request",
+        ctaHref: "/portal/reorder",
+      };
+    case "delivered":
+      return {
+        title: "Supply request complete",
+        body: "Your last request is complete. You can request replacement supplies when needed.",
+        steps: [
+          { label: "Approved", state: "completed" },
+          { label: "Dispatched", state: "completed" },
+          { label: "Delivered", state: "active" },
+        ],
+        tone: "green",
+        ctaLabel: "Request supplies",
+        ctaHref: "/portal/reorder",
+      };
+    case "declined":
+      return {
+        title: "Request not approved",
+        body: "Your request could not be approved through the portal. Please contact Midland Sleep and our team will help.",
+        steps: [
+          { label: "Submitted", state: "completed" },
+          { label: "Reviewed", state: "completed" },
+          { label: "Not approved", state: "active" },
+        ],
+        tone: "rose",
+        ctaLabel: "Contact Midland Sleep",
+        ctaHref: "/portal/contact",
+      };
+    case "needs_followup":
+      return {
+        title: "Follow-up needed",
+        body: "Our team needs to follow up with you about this request. Please contact Midland Sleep.",
+        steps: [
+          { label: "Submitted", state: "completed" },
+          { label: "Reviewed", state: "completed" },
+          { label: "Follow-up needed", state: "active" },
+        ],
+        tone: "amber",
+        ctaLabel: "Contact Midland Sleep",
+        ctaHref: "/portal/contact",
+      };
+    case null:
+    case undefined:
+      return {
+        title: "Supplies available",
+        body: "You can request replacement supplies when needed. Midland Sleep staff will review your request.",
+        steps: [],
+        tone: "neutral",
+        ctaLabel: "Request supplies",
+        ctaHref: "/portal/reorder",
+      };
+    default:
+      return {
+        title: "Request received",
+        body: "Midland Sleep has received your request. Our team will review it shortly.",
+        steps: [
+          { label: "Submitted", state: "completed" },
+          { label: "Under review", state: "active" },
+        ],
+        tone: "teal",
+        ctaLabel: "View request",
+        ctaHref: "/portal/reorder",
+      };
+  }
+}
 
 function formatDate(iso: string): string {
   const date = new Date(iso);
@@ -63,7 +220,6 @@ function addYears(iso: string, years: number): string | null {
   return date.toISOString();
 }
 
-
 function getFirstName(name?: string): string {
   return name?.trim().split(/\s+/)[0] || "Patient";
 }
@@ -76,7 +232,6 @@ function getNzGreeting(): string {
       timeZone: "Pacific/Auckland",
     }).format(new Date())
   );
-
   if (nzHour < 12) return "Good morning";
   if (nzHour < 18) return "Good afternoon";
   return "Good evening";
@@ -87,10 +242,16 @@ function normalizeMsid(msid?: string): string {
   return msid.startsWith("MS-") ? msid : `MS-${msid}`;
 }
 
+const formatItemName = (name: string) =>
+  name
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+
 function formatRequestedItems(request: CurrentReorderRequest | null): string | null {
   if (!request) return null;
   const itemNames = request.itemNames?.length ? request.itemNames : request.items;
-  if (itemNames?.length) return itemNames.join(", ");
+  if (itemNames?.length) return itemNames.map(formatItemName).join(" · ");
   return request.itemDescription?.trim() || null;
 }
 
@@ -160,93 +321,32 @@ export default function DashboardPage() {
   const greeting = getNzGreeting();
   const requestedItems = formatRequestedItems(currentRequest);
 
-  const supplyStatus: {
-    label: string;
-    detail: string;
-    action: string | null;
-    requestedLabel: string | null;
-    activeStage: SupplyStage | null;
-    cardClass: string;
-  } = requestLoading
+  const config: RequestStatusConfig = requestLoading
     ? {
-        label: "Checking supply request status",
-        detail: "We are checking whether you have a request in progress.",
-        action: null,
-        requestedLabel: null,
-        activeStage: "Requested",
-        cardClass: "border-sand bg-white text-charcoal",
+        title: "Checking your supply request…",
+        body: "We are checking whether you have a request in progress.",
+        steps: [],
+        tone: "neutral",
+        ctaLabel: "",
+        ctaHref: "",
       }
-    : currentRequest?.status === "new" || currentRequest?.status === "reviewing"
+    : !currentRequest && !canReorder
     ? {
-        label: currentRequest.status === "new" ? "Request received" : "Request in progress",
-        detail: "Midland Sleep staff are reviewing your supply request.",
-        action: "View request",
-        requestedLabel: requestedItems ? "Requested" : null,
-        activeStage: currentRequest.status === "new" ? "Requested" : "Reviewing",
-        cardClass: "border-seafoam/40 bg-seafoam-pale text-deep-teal",
+        title: "Supplies need staff review",
+        body: "Contact Midland Sleep if you need supplies. Staff will review your options with you.",
+        steps: [],
+        tone: "neutral",
+        ctaLabel: "Get help",
+        ctaHref: "/portal/contact",
       }
-    : currentRequest?.status === "approved"
-    ? {
-        label: "Request approved",
-        detail: "Midland Sleep has approved your supply request and will prepare your items.",
-        action: "View request",
-        requestedLabel: requestedItems ? "Requested" : null,
-        activeStage: "Reviewing",
-        cardClass: "border-seafoam/40 bg-seafoam-pale text-deep-teal",
-      }
-    : currentRequest?.status === "sent"
-    ? {
-        label: "Supplies on the way",
-        detail: "Your supplies have been dispatched. Please allow 2-3 business days for delivery.",
-        action: "View request",
-        requestedLabel: requestedItems ? "Requested" : null,
-        activeStage: "Reviewing",
-        cardClass: "border-seafoam/40 bg-seafoam-pale text-deep-teal",
-      }
-    : currentRequest?.status === "needs_followup"
-    ? {
-        label: "Follow-up needed",
-        detail: "Midland Sleep needs to confirm a few details before this request can proceed.",
-        action: "View request",
-        requestedLabel: requestedItems ? "Requested" : null,
-        activeStage: "Reviewing",
-        cardClass: "border-sand bg-sand-pale text-charcoal",
-      }
-    : currentRequest?.status === "declined"
-    ? {
-        label: "Please contact Midland Sleep",
-        detail: "Your request could not be approved through the portal. Please contact Midland Sleep to discuss your options.",
-        action: "View request",
-        requestedLabel: requestedItems ? "Requested" : null,
-        activeStage: "Delivered",
-        cardClass: "border-sand bg-sand-pale text-charcoal",
-      }
-    : currentRequest?.status === "delivered"
-    ? {
-        label: "Supplies available",
-        detail: "Your last request is complete. You can request replacement supplies when needed.",
-        action: "Request supplies",
-        requestedLabel: requestedItems ? "Last requested" : null,
-        activeStage: "Delivered",
-        cardClass: "border-seafoam/40 bg-seafoam-pale text-deep-teal",
-      }
-    : canReorder
-    ? {
-        label: "Supplies available",
-        detail: "You can request replacement supplies when needed. Midland Sleep staff will review your request.",
-        action: "Request supplies",
-        requestedLabel: null,
-        activeStage: "Requested",
-        cardClass: "border-seafoam/40 bg-seafoam-pale text-deep-teal",
-      }
-    : {
-        label: "Supplies need staff review",
-        detail: "Contact Midland Sleep if you need supplies. Staff will review your options with you.",
-        action: "Get help",
-        requestedLabel: requestedItems ? "Requested" : null,
-        activeStage: "Requested",
-        cardClass: "border-sand bg-sand-pale text-charcoal",
-      };
+    : getStatusConfig(currentRequest?.status ?? null);
+
+  const toneStyles = TONE_STYLES[config.tone];
+  const stepCount = config.steps.length;
+  const gridCols = config.steps
+    .map((_, i) => (i < stepCount - 1 ? "1fr minmax(32px,1fr)" : "1fr"))
+    .join(" ");
+
   const overdueChecks = maintenance.filter((c: any) => c.status === "OVERDUE");
   const dueSoonChecks = maintenance.filter((c: any) => c.status === "DUE");
   const machineReplacementDue = device ? addYears(device.setup_date, 5) : null;
@@ -277,85 +377,80 @@ export default function DashboardPage() {
       </div>
 
       {/* Supply request status */}
-      <section className={cn("mb-5 rounded-xl border border-[#E6D3A3] bg-white p-5 text-[#333333] shadow-sm md:p-6", supplyStatus.cardClass)}>
+      <section className={cn("mb-5 rounded-xl border p-5 shadow-sm md:p-6", toneStyles.card)}>
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
           <div className="min-w-0">
             <p className="mb-1 font-mono text-xs uppercase tracking-[0.16em] text-charcoal/60">
               Supply request status
             </p>
-            <h2 className="font-display text-[28px] font-semibold leading-tight text-navy md:text-[32px]">
-              {supplyStatus.label}
+            <h2 className={cn("font-display text-[28px] font-semibold leading-tight md:text-[32px]", toneStyles.title)}>
+              {config.title}
             </h2>
-            <p className="mt-2 max-w-3xl text-lg leading-7">{supplyStatus.detail}</p>
+            <p className="mt-2 max-w-3xl text-lg leading-7">{config.body}</p>
           </div>
-          {supplyStatus.action && (
+          {config.ctaLabel && (
             <Link
-              href="/portal/reorder"
+              href={config.ctaHref}
               className="inline-flex min-h-[52px] items-center justify-center rounded-lg bg-[#0B5C6C] px-6 py-3 text-lg font-medium text-white transition-colors hover:bg-[#0B5C6C]/90"
             >
-              {supplyStatus.action}
+              {config.ctaLabel}
             </Link>
           )}
         </div>
 
-        <div aria-label="Supply request progress" className="mx-auto mt-6 max-w-5xl">
-          <div className="grid grid-cols-[1fr_minmax(32px,1fr)_1fr_minmax(32px,1fr)_1fr] items-start">
-            {SUPPLY_STAGES.map((stage, index) => {
-              const activeIndex = supplyStatus.activeStage
-                ? SUPPLY_STAGES.indexOf(supplyStatus.activeStage)
-                : 0;
-              const isActive = index === activeIndex;
-              const isComplete = index < activeIndex;
-
-              return (
-                <div key={stage} className="contents">
+        {stepCount > 0 && (
+          <div aria-label="Supply request progress" className="mx-auto mt-6 max-w-5xl">
+            <div className="grid items-start" style={{ gridTemplateColumns: gridCols }}>
+              {config.steps.map((step, index) => (
+                <Fragment key={step.label}>
                   <div className="flex min-w-0 flex-col items-center text-center">
                     <div
                       className={cn(
                         "flex h-8 w-8 items-center justify-center rounded-full border-2",
-                        isComplete && "border-[#74C0A2] bg-[#74C0A2] text-white",
-                        isActive && "border-[#0B5C6C] bg-[#0B5C6C] text-white",
-                        !isComplete && !isActive && "border-[#E6D3A3] bg-transparent"
+                        step.state === "completed" && "border-[#74C0A2] bg-[#74C0A2] text-white",
+                        step.state === "active"    && toneStyles.activeCircle,
+                        step.state === "active"    && "text-white",
+                        step.state === "future"    && "border-[#E6D3A3] bg-transparent"
                       )}
                       aria-hidden="true"
                     >
-                      {isComplete ? (
-                        <span className="text-base font-bold leading-none">✓</span>
-                      ) : isActive ? (
+                      {step.state === "completed" ? (
+                        <span className="text-base font-bold leading-none">&#10003;</span>
+                      ) : step.state === "active" ? (
                         <span className="h-2 w-2 rounded-full bg-white" />
                       ) : null}
                     </div>
                     <p
                       className={cn(
                         "mt-2 text-sm leading-5 text-charcoal/60",
-                        isComplete && "font-medium text-[#74C0A2]",
-                        isActive && "font-semibold text-[#0B5C6C]"
+                        step.state === "completed" && "font-medium text-[#74C0A2]",
+                        step.state === "active"    && cn("font-semibold", toneStyles.activeLabel)
                       )}
                     >
-                      {stage}
+                      {step.label}
                     </p>
                   </div>
-                  {index < SUPPLY_STAGES.length - 1 && (
+                  {index < stepCount - 1 && (
                     <div
                       className={cn(
                         "mt-4 border-t-2",
-                        index < activeIndex
+                        step.state === "completed"
                           ? "border-[#74C0A2]"
                           : "border-dashed border-[#E6D3A3]"
                       )}
                       aria-hidden="true"
                     />
                   )}
-                </div>
-              );
-            })}
+                </Fragment>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
-        {supplyStatus.requestedLabel && requestedItems && (
+        {requestedItems && currentRequest && (
           <div className="mt-5 rounded-lg border border-white/60 bg-white/60 p-4 text-charcoal">
             <p className="mb-1 font-mono text-xs uppercase tracking-wide text-charcoal/60">
-              {supplyStatus.requestedLabel}
+              Requested
             </p>
             <p className="text-lg font-semibold leading-7">{requestedItems}</p>
           </div>
