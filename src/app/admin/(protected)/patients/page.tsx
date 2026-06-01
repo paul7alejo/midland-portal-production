@@ -781,6 +781,7 @@ export default function AdminPatientsPage() {
   }, []);
 
   function clearAllFilters() {
+    setSearch("");
     setStatusFilters(new Set());
     setFundingFilters(new Set());
     setRemainingRange(null);
@@ -795,15 +796,20 @@ export default function AdminPatientsPage() {
   const allPatients = useMemo(() => combinePatients(dynamoPatients), [dynamoPatients]);
 
   const displayedPatients = useMemo(() => {
-    let result = worklistMode === "needs_outreach"
-      ? allPatients.filter((p) => p.needsOutreach === true)
-      : worklistMode === "safety_checks"
-        ? allPatients.filter((p) => p.safetyCheckRequired === true)
-        : worklistMode === "all"
-          ? [...allPatients]
-          : allPatients.filter((p) => p.status === "pending_review");
+    const isSearching = search.trim().length > 0;
+    // When a search query is active, scan all patients regardless of the selected segment
+    // so that reviewed patients (and any other segment) are always reachable by name or MSID.
+    let result = isSearching
+      ? [...allPatients]
+      : worklistMode === "needs_outreach"
+        ? allPatients.filter((p) => p.needsOutreach === true)
+        : worklistMode === "safety_checks"
+          ? allPatients.filter((p) => p.safetyCheckRequired === true)
+          : worklistMode === "all"
+            ? [...allPatients]
+            : allPatients.filter((p) => p.status === "pending_review");
 
-    if (search.trim()) {
+    if (isSearching) {
       const q = search.toLowerCase();
       result = result.filter(
         (p) => p.name.toLowerCase().includes(q) || p.msid.toLowerCase().includes(q)
@@ -963,10 +969,22 @@ export default function AdminPatientsPage() {
             placeholder="Search by name or MSID…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg text-base
+            className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg text-base
                        focus:outline-none focus:ring-2 focus:ring-[#0B5C6C] focus:border-transparent
                        bg-white placeholder:text-gray-400"
           />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              aria-label="Clear search"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
         </div>
 
         <button
@@ -1047,13 +1065,15 @@ export default function AdminPatientsPage() {
               : "Patient review worklist"}
           </h2>
           <p className="mt-1 text-sm text-gray-500">
-            {worklistMode === "needs_outreach"
-              ? "Patients flagged for staff follow-up."
-              : worklistMode === "safety_checks"
-                ? "Patient records flagged for admin caution before next action."
-                : worklistMode === "all"
-                  ? "All DynamoDB patient records available to admin staff."
-                  : "Real DynamoDB patient records, imported records, outreach cues, and safety-check cues are marked for staff review."}
+            {search.trim() && worklistMode !== "all"
+              ? "Search results are shown across all patients."
+              : worklistMode === "needs_outreach"
+                ? "Patients flagged for staff follow-up."
+                : worklistMode === "safety_checks"
+                  ? "Patient records flagged for admin caution before next action."
+                  : worklistMode === "all"
+                    ? "All DynamoDB patient records available to admin staff."
+                    : "Real DynamoDB patient records, imported records, outreach cues, and safety-check cues are marked for staff review."}
           </p>
         </div>
         <div className="overflow-x-auto">
@@ -1110,7 +1130,9 @@ export default function AdminPatientsPage() {
                   <td colSpan={8} className="px-5 py-12 text-center text-base text-gray-500">
                     <span className="block font-medium text-gray-700">No patients found</span>
                     <span className="mt-1 block text-sm text-gray-500">
-                      Adjust the search or filters to see DynamoDB patient records.
+                      {search.trim()
+                        ? "Check the name or Midland Sleep ID and try again."
+                        : "Adjust the search or filters to see DynamoDB patient records."}
                     </span>
                   </td>
                 </tr>
