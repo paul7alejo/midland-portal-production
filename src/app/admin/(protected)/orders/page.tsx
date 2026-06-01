@@ -13,6 +13,7 @@ type OrderSortOpt  = "newest" | "oldest" | "name_az" | "status";
 type RequestCategory = "Mask" | "Headgear" | "Filters" | "Tubing" | "Cleaning supplies" | "Support request";
 type ReportWindow    = "7d" | "30d" | "90d" | "all";
 type ReportSource    = "patient_portal" | "support_request" | "admin_created" | "other";
+type ReviewTab       = "request" | "funding" | "patient" | "history";
 
 interface Order {
   id: string;
@@ -38,6 +39,7 @@ interface Order {
   estimatedFunded?: number | null;
   estimatedCopay?: number | null;
   estimatedRemaining?: number | null;
+  contactPreference?: string | null;
   adminNote?: string;
   isDemo?: boolean;
   localOnly?: boolean;
@@ -91,6 +93,7 @@ function formatEstimate(value: number | null | undefined): string {
   if (value === null || value === undefined) return "—";
   return formatCurrency(value);
 }
+
 
 function SourceBadge({ source }: { source: string | undefined }) {
   if (!source) return <span className="text-gray-400 text-xs">—</span>;
@@ -915,6 +918,298 @@ function ReportDrawer({
   );
 }
 
+// ─── RequestReviewDrawer ──────────────────────────────────────────────────────
+
+interface RequestReviewDrawerProps {
+  isOpen: boolean;
+  onClose: () => void;
+  order: Order | null;
+  statusLoading: Set<string>;
+  fundingReviewLoading: Set<string>;
+  onStatusChange: (order: Order, status: OrderStatus) => void;
+  onFundingReviewToggle: (order: Order) => void;
+  onViewPatient: () => void;
+}
+
+function RequestReviewDrawer({
+  isOpen, onClose,
+  order,
+  statusLoading, fundingReviewLoading,
+  onStatusChange, onFundingReviewToggle,
+  onViewPatient,
+}: RequestReviewDrawerProps) {
+  const [tab, setTab] = useState<ReviewTab>("request");
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    if (isOpen) document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [isOpen, onClose]);
+
+  useEffect(() => {
+    if (isOpen) setTab("request");
+  }, [order?.id, isOpen]);
+
+  const REVIEW_TABS: { key: ReviewTab; label: string }[] = [
+    { key: "request", label: "Request" },
+    { key: "funding", label: "Funding" },
+    { key: "patient", label: "Patient" },
+    { key: "history", label: "History" },
+  ];
+
+  return (
+    <>
+      <div
+        className={cn(
+          "fixed inset-0 bg-black/40 z-40 transition-opacity duration-300",
+          isOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+        )}
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Review Request"
+        className={cn(
+          "fixed inset-y-0 right-0 z-50 w-full sm:w-[480px] bg-white shadow-2xl flex flex-col transition-transform duration-300",
+          isOpen ? "translate-x-0" : "translate-x-full"
+        )}
+      >
+        {/* Header */}
+        <div className="px-6 py-5 border-b border-gray-200 shrink-0">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="font-mono text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                {order?.requestId ?? "—"}
+              </p>
+              <h2 className="mt-1 text-xl font-semibold text-navy truncate">
+                {order?.patient ?? "—"}
+              </h2>
+              <p className="mt-0.5 font-mono text-sm text-gray-400">{order?.msid ?? "—"}</p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close review"
+              className="p-2 rounded-lg hover:bg-gray-100 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center shrink-0"
+            >
+              <svg className="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          {order && (
+            <div className="mt-3 flex items-center gap-2 flex-wrap">
+              <span className={cn("inline-flex items-center text-xs font-semibold px-2.5 py-0.5 rounded-full", STATUS_BADGE[order.status])}>
+                {order.status}
+              </span>
+              <SourceBadge source={order.source} />
+              {order.needsFundingReview && (
+                <span className="inline-flex items-center text-xs font-semibold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                  Funding review
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Tabs */}
+        <div className="flex border-b border-gray-200 shrink-0">
+          {REVIEW_TABS.map(({ key, label }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setTab(key)}
+              className={cn(
+                "flex-1 px-3 py-3 text-sm font-semibold -mb-px border-b-2 transition-colors",
+                tab === key
+                  ? "border-[#0B5C6C] text-[#0B5C6C]"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Tab body */}
+        <div className="flex-1 overflow-y-auto px-6 py-5">
+          {!order ? (
+            <p className="text-sm text-gray-400">No request selected.</p>
+          ) : tab === "request" ? (
+            <dl className="space-y-4">
+              <div>
+                <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Reference</dt>
+                <dd className="mt-1 font-mono text-sm font-semibold text-gray-800">{order.requestId}</dd>
+              </div>
+              <div>
+                <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Status</dt>
+                <dd className="mt-1 space-y-1">
+                  <select
+                    value={order.status}
+                    onChange={(e) => onStatusChange(order, e.target.value as OrderStatus)}
+                    disabled={statusLoading.has(order.id)}
+                    className={cn("rounded-full px-2.5 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#0B5C6C]/30 disabled:opacity-60", STATUS_BADGE[order.status])}
+                    aria-label={`Change status for ${order.requestId}`}
+                  >
+                    {STATUS_OPTIONS.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                  {statusLoading.has(order.id) && (
+                    <p className="text-[10px] font-medium uppercase tracking-wide text-gray-400">Saving…</p>
+                  )}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Source</dt>
+                <dd className="mt-1"><SourceBadge source={order.source} /></dd>
+              </div>
+              <div>
+                <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Created</dt>
+                <dd className="mt-1 text-sm text-gray-700">{order.date}</dd>
+              </div>
+              <div>
+                <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Items</dt>
+                <dd className="mt-1 text-sm text-gray-700">{order.items || order.itemDescription || "—"}</dd>
+              </div>
+              {order.contactPreference && (
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Contact preference</dt>
+                  <dd className="mt-1 text-sm text-gray-700">{order.contactPreference}</dd>
+                </div>
+              )}
+              <div>
+                <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Funding review</dt>
+                <dd className="mt-1">
+                  <button
+                    type="button"
+                    onClick={() => onFundingReviewToggle(order)}
+                    disabled={fundingReviewLoading.has(order.id)}
+                    className={cn(
+                      "text-sm font-medium px-3 py-1.5 rounded-lg border transition-colors disabled:opacity-60",
+                      order.needsFundingReview
+                        ? "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                        : "border-gray-200 text-gray-500 hover:border-amber-300 hover:text-amber-700"
+                    )}
+                  >
+                    {fundingReviewLoading.has(order.id) ? "…" : order.needsFundingReview ? "Flagged — click to clear" : "Not flagged — click to flag"}
+                  </button>
+                </dd>
+              </div>
+            </dl>
+          ) : tab === "funding" ? (
+            <div className="space-y-5">
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+                <p className="text-sm text-amber-800">
+                  <span className="font-semibold">Phase 2 visibility only.</span>{" "}
+                  No entitlement deduction, payment, or inventory reservation is applied.
+                </p>
+              </div>
+              <dl className="divide-y divide-gray-100">
+                <div className="flex justify-between items-center py-3">
+                  <dt className="text-sm text-gray-600">Est. item amount</dt>
+                  <dd className="text-sm font-semibold text-gray-800">{formatEstimate(order.estimatedItemAmount)}</dd>
+                </div>
+                <div className="flex justify-between items-center py-3">
+                  <dt className="text-sm text-emerald-700">Est. funded</dt>
+                  <dd className="text-sm font-semibold text-emerald-700">{formatEstimate(order.estimatedFundedAmount)}</dd>
+                </div>
+                <div className="flex justify-between items-center py-3">
+                  <dt className="text-sm text-gray-600">Est. patient co-pay</dt>
+                  <dd className="text-sm font-semibold text-gray-800">{formatEstimate(order.estimatedPatientCopay)}</dd>
+                </div>
+                <div className="flex justify-between items-center py-3">
+                  <dt className="text-sm text-gray-600">Remaining after</dt>
+                  <dd className="text-sm font-semibold text-gray-800">{formatEstimate(order.estimatedRemainingAfter)}</dd>
+                </div>
+              </dl>
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Funding review</p>
+                <button
+                  type="button"
+                  onClick={() => onFundingReviewToggle(order)}
+                  disabled={fundingReviewLoading.has(order.id)}
+                  className={cn(
+                    "w-full text-left text-sm font-medium px-4 py-2.5 rounded-lg border transition-colors disabled:opacity-60",
+                    order.needsFundingReview
+                      ? "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                      : "border-gray-200 text-gray-500 hover:border-amber-300 hover:text-amber-700"
+                  )}
+                >
+                  {fundingReviewLoading.has(order.id) ? "…" : order.needsFundingReview ? "Flagged — click to clear" : "Not flagged — click to flag"}
+                </button>
+                {order.reviewReason && (
+                  <p className="mt-2 text-xs text-gray-500">Reason: {order.reviewReason}</p>
+                )}
+              </div>
+            </div>
+          ) : tab === "patient" ? (
+            <div className="space-y-5">
+              <dl className="space-y-4">
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Name</dt>
+                  <dd className="mt-1 text-base font-semibold text-navy">{order.patient}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Midland Sleep ID</dt>
+                  <dd className="mt-1 font-mono text-sm text-gray-700">{order.msid}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Source</dt>
+                  <dd className="mt-1"><SourceBadge source={order.source} /></dd>
+                </div>
+              </dl>
+              <p className="text-sm leading-6 text-gray-500">
+                Device record, mask record, and full patient history are available in the patient profile.
+              </p>
+              <button
+                type="button"
+                onClick={onViewPatient}
+                className="flex w-full items-center justify-center gap-2 rounded-lg border border-[#0B5C6C] px-4 py-2.5 text-sm font-medium text-[#0B5C6C] min-h-[44px] hover:bg-[#0B5C6C]/5 transition-colors"
+              >
+                Open patient record
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-5">
+              <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+                <p className="text-sm leading-6 text-gray-600">
+                  Full audit history is available in the Admin Audit Log. Status change events include admin email, previous status, new status, and timestamp.
+                </p>
+              </div>
+              <dl className="divide-y divide-gray-100">
+                <div className="flex justify-between items-center py-3">
+                  <dt className="text-sm text-gray-600">Created</dt>
+                  <dd className="text-sm font-semibold text-gray-800">{order.date}</dd>
+                </div>
+                {order.updatedDate && order.updatedDate !== order.date && (
+                  <div className="flex justify-between items-center py-3">
+                    <dt className="text-sm text-gray-600">Last updated</dt>
+                    <dd className="text-sm font-semibold text-gray-800">{order.updatedDate}</dd>
+                  </div>
+                )}
+                <div className="flex justify-between items-center py-3">
+                  <dt className="text-sm text-gray-600">Current status</dt>
+                  <dd>
+                    <span className={cn("inline-flex items-center text-xs font-semibold px-2.5 py-0.5 rounded-full", STATUS_BADGE[order.status])}>
+                      {order.status}
+                    </span>
+                  </dd>
+                </div>
+              </dl>
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
 // ─── Empty state ──────────────────────────────────────────────────────────────
 
 function EmptyState({ filtered }: { filtered: boolean }) {
@@ -1040,6 +1335,8 @@ export default function AdminOrdersPage() {
   const [reportStatusFilters, setReportStatusFilters] = useState<Set<OrderStatus>>(() => new Set(STATUS_OPTIONS));
   const [reportSourceFilters, setReportSourceFilters] = useState<Set<ReportSource>>(() => new Set(REPORT_SOURCE_OPTIONS));
   const [reportOpen,          setReportOpen]          = useState(false);
+  const [reviewDrawerOpen,    setReviewDrawerOpen]    = useState(false);
+  const [reviewOrderId,       setReviewOrderId]       = useState<string | null>(null);
   const [testForm,            setTestForm]            = useState<TestRequestForm>({
     msid: "MS-900005",
     patient: "Demo Patient",
@@ -1083,6 +1380,11 @@ export default function AdminOrdersPage() {
       all: rows.length,
     };
   }, [orders, showAdminRows]);
+
+  const reviewOrder = useMemo(
+    () => (reviewOrderId ? orders.find((o) => o.id === reviewOrderId) ?? null : null),
+    [orders, reviewOrderId]
+  );
 
   const reportRows = useMemo(() => {
     let result = orders.filter(isReportableOrder);
@@ -1358,7 +1660,19 @@ export default function AdminOrdersPage() {
     }
   }
 
+  function handleReviewRequest(order: Order) {
+    setReviewOrderId(order.id);
+    setReviewDrawerOpen(true);
+  }
+
   function handleViewPatient(order: Order) {
+    setDrawerMsid(order.msid);
+    setDrawerName(order.patient);
+    setDrawerOpen(true);
+  }
+
+  function handleReviewToPatient(order: Order) {
+    setReviewDrawerOpen(false);
     setDrawerMsid(order.msid);
     setDrawerName(order.patient);
     setDrawerOpen(true);
@@ -1622,7 +1936,14 @@ export default function AdminOrdersPage() {
                           {order.needsFundingReview && (
                             <span className="h-2 w-2 rounded-full bg-amber-400 shrink-0" title="Needs funding review" />
                           )}
-                          <span className="font-mono text-sm font-semibold text-gray-800 whitespace-nowrap">{order.requestId}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleReviewRequest(order)}
+                            aria-label={`Review request ${order.requestId}`}
+                            className="font-mono text-sm font-semibold text-[#0B5C6C] hover:underline whitespace-nowrap text-left"
+                          >
+                            {order.requestId}
+                          </button>
                           {order.isDemo && (
                             <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 border border-blue-200 uppercase tracking-wide whitespace-nowrap">
                               Demo
@@ -1694,10 +2015,10 @@ export default function AdminOrdersPage() {
                         <div className="flex items-center gap-2 flex-wrap">
                           <button
                             type="button"
-                            onClick={() => handleViewPatient(order)}
+                            onClick={() => handleReviewRequest(order)}
                             className="border border-[#0B5C6C] text-[#0B5C6C] text-sm font-medium px-3 py-2 rounded-lg min-h-[40px] hover:bg-[#0B5C6C]/5 transition-colors whitespace-nowrap"
                           >
-                            View patient
+                            Review request
                           </button>
                           <button
                             type="button"
@@ -1803,6 +2124,17 @@ export default function AdminOrdersPage() {
         })}
         onDownloadList={() => downloadReportRequestListCsv(reportRows)}
         matchingCount={reportRows.length}
+      />
+
+      <RequestReviewDrawer
+        isOpen={reviewDrawerOpen}
+        onClose={() => setReviewDrawerOpen(false)}
+        order={reviewOrder}
+        statusLoading={statusLoading}
+        fundingReviewLoading={fundingReviewLoading}
+        onStatusChange={handleStatusChange}
+        onFundingReviewToggle={handleFundingReviewToggle}
+        onViewPatient={() => reviewOrder && handleReviewToPatient(reviewOrder)}
       />
 
       <PatientDrawer
