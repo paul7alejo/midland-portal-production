@@ -11,6 +11,7 @@ type DateRange     = "week" | "month" | "older";
 type ViewTab       = "active" | "completed" | "all";
 type OrderSortOpt  = "newest" | "oldest" | "name_az" | "status";
 type RequestCategory = "Mask" | "Headgear" | "Filters" | "Tubing" | "Cleaning supplies" | "Support request";
+type ReportWindow    = "7d" | "30d" | "90d" | "all";
 
 interface Order {
   id: string;
@@ -127,6 +128,43 @@ function calculateEstimate(itemAmount: number, remainingAllowance = DEFAULT_ANNU
   };
 }
 
+function downloadReportCsv(params: {
+  windowLabel: string;
+  total: number;
+  byStatus: Record<string, number>;
+  portal: number;
+  support: number;
+  adminCreated: number;
+  otherSource: number;
+  needsFundingReview: number;
+}) {
+  const { windowLabel, total, byStatus, portal, support, adminCreated, otherSource, needsFundingReview } = params;
+  const rows: [string, number | string][] = [
+    ["Reporting window",    windowLabel],
+    ["Total requests",      total],
+    ["New",                 byStatus["New"]              ?? 0],
+    ["Reviewing",           byStatus["Reviewing"]         ?? 0],
+    ["Approved",            byStatus["Approved"]          ?? 0],
+    ["Sent",                byStatus["Sent"]              ?? 0],
+    ["Delivered",           byStatus["Delivered"]         ?? 0],
+    ["Declined",            byStatus["Declined"]          ?? 0],
+    ["Needs Follow-Up",     byStatus["Needs Follow-Up"]   ?? 0],
+    ["Needs Funding Review",needsFundingReview],
+    ["Source: Portal",      portal],
+    ["Source: Support",     support],
+  ];
+  if (adminCreated > 0) rows.push(["Source: Admin created", adminCreated]);
+  if (otherSource   > 0) rows.push(["Source: Other",        otherSource]);
+  const csv = ["Metric,Value", ...rows.map(([k, v]) => `"${k}","${v}"`)].join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href     = url;
+  a.download = `request-report-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 function downloadCsv(rows: Order[]) {
   const headers = ["Reference", "Patient", "MSID", "Items", "Status", "Source", "Date"];
   const lines = rows.map((o) =>
@@ -210,6 +248,15 @@ const TYPE_BADGE: Record<OrderType, string> = {
   ENTITLEMENT: "bg-[#0B5C6C]/10 text-[#0B5C6C]",
   PRIVATE:     "bg-purple-100 text-purple-700",
   MIXED:       "bg-orange-100 text-orange-700",
+};
+const STATUS_BAR_COLOR: Record<OrderStatus, string> = {
+  New:               "bg-amber-400",
+  Reviewing:         "bg-blue-400",
+  Approved:          "bg-emerald-500",
+  Sent:              "bg-purple-500",
+  Delivered:         "bg-teal-500",
+  Declined:          "bg-red-400",
+  "Needs Follow-Up": "bg-orange-400",
 };
 
 const ACTIVE_TAB_STATUSES    = new Set<OrderStatus>(["New", "Reviewing", "Approved", "Sent", "Needs Follow-Up"]);
@@ -606,6 +653,7 @@ export default function AdminOrdersPage() {
   const [showAdminRows,       setShowAdminRows]       = useState(false);
   const [viewTab,             setViewTab]             = useState<ViewTab>("active");
   const [devToolsOpen,        setDevToolsOpen]        = useState(false);
+  const [reportWindow,        setReportWindow]        = useState<ReportWindow>("30d");
   const [testForm,            setTestForm]            = useState<TestRequestForm>({
     msid: "MS-900005",
     patient: "Demo Patient",
@@ -649,6 +697,45 @@ export default function AdminOrdersPage() {
       all: rows.length,
     };
   }, [orders, showAdminRows]);
+
+  const reportRows = useMemo(() => {
+    const real = orders.filter((o) => !isAdminRow(o));
+    if (reportWindow === "all") return real;
+    const days = reportWindow === "7d" ? 7 : reportWindow === "30d" ? 30 : 90;
+    const cutoff = new Date();
+    cutoff.setHours(0, 0, 0, 0);
+    cutoff.setDate(cutoff.getDate() - days);
+    return real.filter((o) => {
+      const d = parseToDate(o.date);
+      return d !== null && d >= cutoff;
+    });
+  }, [orders, reportWindow]);
+
+  const reportStats = useMemo(() => {
+    const byStatus: Record<OrderStatus, number> = {
+      New: 0, Reviewing: 0, Approved: 0, Sent: 0,
+      Delivered: 0, Declined: 0, "Needs Follow-Up": 0,
+    };
+    for (const o of reportRows) {
+      byStatus[o.status] = byStatus[o.status] + 1;
+    }
+    return {
+      total:              reportRows.length,
+      byStatus,
+      portal:             reportRows.filter((o) => o.source === "patient_portal").length,
+      support:            reportRows.filter((o) => o.source === "support_request").length,
+      adminCreated:       reportRows.filter((o) => o.source === "admin_created").length,
+      otherSource:        reportRows.filter((o) =>
+        o.source !== "patient_portal" && o.source !== "support_request" && o.source !== "admin_created"
+      ).length,
+      needsFundingReview: reportRows.filter((o) => o.needsFundingReview).length,
+    };
+  }, [reportRows]);
+
+  const reportWindowLabel =
+    reportWindow === "7d"  ? "Last 7 days"  :
+    reportWindow === "30d" ? "Last 30 days" :
+    reportWindow === "90d" ? "Last 90 days" : "All time";
 
   function clearAllFilters() {
     setStatusFilters(new Set());
@@ -996,6 +1083,102 @@ export default function AdminOrdersPage() {
           </div>
         );
       })()}
+
+      {/* Basic Reporting */}
+      <div className="rounded-xl border border-gray-200 bg-gray-50 p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+          <div>
+            <h2 className="text-base font-semibold text-gray-800">Request reporting</h2>
+            <p className="mt-0.5 text-xs text-gray-500">
+              Operational summary based on currently loaded request data.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {(["7d", "30d", "90d", "all"] as ReportWindow[]).map((w) => {
+              const wLabel = w === "7d" ? "7 days" : w === "30d" ? "30 days" : w === "90d" ? "90 days" : "All time";
+              return (
+                <button
+                  key={w}
+                  type="button"
+                  onClick={() => setReportWindow(w)}
+                  className={cn(
+                    "px-3 py-1 text-xs font-medium rounded-lg border transition-colors",
+                    reportWindow === w
+                      ? "bg-[#0B5C6C] border-[#0B5C6C] text-white"
+                      : "bg-white border-gray-200 text-gray-600 hover:border-[#0B5C6C]/40"
+                  )}
+                >
+                  {wLabel}
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              onClick={() => downloadReportCsv({
+                windowLabel:        reportWindowLabel,
+                total:              reportStats.total,
+                byStatus:           reportStats.byStatus,
+                portal:             reportStats.portal,
+                support:            reportStats.support,
+                adminCreated:       reportStats.adminCreated,
+                otherSource:        reportStats.otherSource,
+                needsFundingReview: reportStats.needsFundingReview,
+              })}
+              className="px-3 py-1 text-xs font-medium rounded-lg border border-gray-200 bg-white text-gray-600 hover:border-[#0B5C6C]/40 transition-colors"
+            >
+              Export summary
+            </button>
+          </div>
+        </div>
+
+        {/* Status metric grid: Total + one cell per status */}
+        <div className="grid grid-cols-4 gap-2 sm:grid-cols-8 mb-3">
+          <div className="bg-white rounded-lg border border-gray-200 px-3 py-2.5">
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide leading-tight">Total</p>
+            <p className="text-2xl font-bold text-navy mt-0.5">{reportStats.total}</p>
+          </div>
+          {STATUS_OPTIONS.map((status) => (
+            <div key={status} className="bg-white rounded-lg border border-gray-200 px-3 py-2.5">
+              <p className="text-xs text-gray-500 truncate leading-tight">{status}</p>
+              <p className="text-xl font-bold text-navy mt-0.5">{reportStats.byStatus[status]}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Stacked status bar */}
+        {reportStats.total > 0 && (
+          <div className="flex h-2 rounded-full overflow-hidden bg-gray-200 mb-3">
+            {STATUS_OPTIONS.map((status) => {
+              const pct = (reportStats.byStatus[status] / reportStats.total) * 100;
+              return pct > 0 ? (
+                <div
+                  key={status}
+                  className={cn("transition-all", STATUS_BAR_COLOR[status])}
+                  style={{ width: `${pct}%` }}
+                  title={`${status}: ${reportStats.byStatus[status]}`}
+                />
+              ) : null;
+            })}
+          </div>
+        )}
+
+        {/* Source + funding review row */}
+        <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-gray-600">
+          <span><span className="font-semibold text-gray-700">Portal</span>{" "}{reportStats.portal}</span>
+          <span><span className="font-semibold text-gray-700">Support</span>{" "}{reportStats.support}</span>
+          {reportStats.adminCreated > 0 && (
+            <span><span className="font-semibold text-gray-700">Admin created</span>{" "}{reportStats.adminCreated}</span>
+          )}
+          {reportStats.otherSource > 0 && (
+            <span><span className="font-semibold text-gray-700">Other</span>{" "}{reportStats.otherSource}</span>
+          )}
+          {reportStats.needsFundingReview > 0 && (
+            <span className="text-amber-700">
+              <span className="font-semibold">Needs funding review</span>{" "}{reportStats.needsFundingReview}
+            </span>
+          )}
+        </div>
+      </div>
 
       {/* View tabs */}
       <div className="flex items-center gap-0 border-b border-gray-200">
