@@ -113,6 +113,52 @@ as soon as Midland confirms the sending domain and address (gates 3.1–3.3).
 
 ---
 
+## Phase 2 Admin Operations Command Centre scope is locked
+
+**Decision:** Phase 2 (covering Phase 2A portal accounts, Phase 2C import redesign, and Phase 2D
+request lifecycle) is packaged as the **Admin Operations Command Centre**. The delivered scope is:
+
+- Patient supply request lifecycle (submit, status card, branching dashboard)
+- Admin Orders work queue with Active / Completed / All tabs
+- KPI cards, Filter & Sort drawer, PatientDrawer
+- Declined and Delivered history visibility (not hidden, moved to Completed tab)
+- Admin Patients search across all patients when a query is active
+- Download Report drawer with summary CSV and request-list CSV exports
+- Audit-first policy on all status mutations
+- Read-only funding visibility (estimated cost fields, funding flag) — admin staff only
+
+**What is explicitly NOT included in Phase 2:**
+- Patient email / SMS notifications (Phase 2E — gated)
+- Inventory or entitlement deduction
+- Patient payment or checkout
+- Courier / fulfilment integration
+- PDF report export
+- Patient request history view
+
+**Rationale:** Scoping to a focused Admin Operations Command Centre avoids scope creep and delivers
+a working operational tool. Items requiring additional integrations, compliance review, or product
+decisions are explicitly deferred.
+
+---
+
+## Download Report drawer replaces inline reporting section
+
+**Decision:** The Basic Reporting v1 feature is delivered as a right-side drawer (same pattern as
+Filter & Sort), not as a permanent inline section on the Orders page. The header button reads
+"Download Report".
+
+**Rationale:** An inline reporting block made the Orders page feel crowded and distracted from the
+primary work queue. A drawer keeps the worklist clean and gives the reporting surface enough room to
+be readable.
+
+**Export safety constraints (invariants):**
+- Summary report CSV contains only Metric and Value columns — no patient identifiers.
+- Request-list CSV contains Reference, Patient, MSID, Items, Status, Source, Date — no NHI, no
+  email, no address, no dollar amounts.
+- Report window is independent of the table's date filter.
+
+---
+
 ## No inventory or entitlement deduction in Phase 2D
 
 **Decision:** Submitting a request, approving it, or marking it Delivered does not decrement any

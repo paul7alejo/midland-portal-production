@@ -93,6 +93,47 @@ Phase 1 and Phase 2A together deliver an admin portal, controlled CSV import, po
 - The `delivered` status is set manually by admin. There is no automatic delivery confirmation,
   tracking number integration, or courier webhook.
 
+## Admin Operations Command Centre (Phase 2 — current)
+
+**Not live — notifications:**
+- No patient email or SMS notification is sent when a request status changes. The patient must
+  manually refresh their portal to see a status update.
+- Phase 2E (delayed email notification) is specified and ready for implementation but no
+  implementation code has been written. All gate items in
+  `midland-os/02-product/phase-2e-release-gate.md` must be confirmed before implementation begins
+  — particularly business approval (D1–D8 in `phase-2e-decision-capture.md`) and NZ Unsolicited
+  Electronic Messages Act compliance (gate 9.5–9.7). SMS is out of scope unless separately
+  approved.
+
+**Not live — inventory, fulfilment, payments:**
+- No inventory is reserved or decremented at any stage of the request lifecycle.
+- No ACC / PHO entitlement balance is deducted. Estimated cost fields on orders are admin
+  annotations only — never returned to the patient API.
+- No payment or checkout step. "Approved" means admin intends to fulfil; it does not capture
+  payment or confirm stock availability.
+- No courier or fulfilment integration. The Delivered status is set manually by staff. There is no
+  tracking number, courier webhook, or automated delivery confirmation.
+
+**Not live — patient-facing history:**
+- The patient portal shows only the most recent request. Multiple historical requests are not listed
+  for the patient. Full request history for patients is future scope.
+
+**Reporting constraints:**
+- The Download Report drawer generates summary reports from currently loaded request data only. It
+  is not a real-time analytics platform and does not query aggregate history beyond what has been
+  loaded for the current admin session.
+- Summary report CSV (Generate report) contains Metric and Value columns only — no patient
+  identifiers, NHI, email, address, or financial data.
+- Request-list CSV (Download request list) contains Reference, Patient, MSID, Items, Status,
+  Source, and Date — admin-only export. No NHI, email, phone, address, or dollar amounts.
+- PDF export is not implemented. Shown as future scope in the drawer.
+
+**Read-only fields:**
+- Estimated cost fields (estimatedItemAmount, estimatedFundedAmount, estimatedPatientCopay,
+  estimatedRemainingAfter) are admin staff annotations only. They are never returned in any patient
+  API response.
+- The funding review flag is an internal staff signal. It has no patient-visible effect.
+
 ## UI and Operations
 
 - Some admin pages remain lightweight operational placeholders or management views.
