@@ -532,6 +532,215 @@ function FilterPanel({
   );
 }
 
+// ─── ReportDrawer ─────────────────────────────────────────────────────────────
+
+interface ReportStats {
+  total: number;
+  byStatus: Record<OrderStatus, number>;
+  portal: number;
+  support: number;
+  adminCreated: number;
+  otherSource: number;
+  needsFundingReview: number;
+}
+
+interface ReportDrawerProps {
+  isOpen: boolean;
+  onClose: () => void;
+  reportWindow: ReportWindow;
+  setReportWindow: (w: ReportWindow) => void;
+  stats: ReportStats;
+  windowLabel: string;
+  onGenerateReport: () => void;
+  onDownloadList: () => void;
+  visibleCount: number;
+}
+
+function ReportDrawer({
+  isOpen, onClose,
+  reportWindow, setReportWindow,
+  stats, windowLabel,
+  onGenerateReport, onDownloadList,
+  visibleCount,
+}: ReportDrawerProps) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    if (isOpen) document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [isOpen, onClose]);
+
+  const sectionCls = "space-y-3 pb-5 border-b border-gray-100 last:border-0 last:pb-0";
+  const legendCls  = "block text-sm font-semibold text-gray-600 uppercase tracking-wide";
+
+  const WINDOW_OPTIONS: { value: ReportWindow; label: string }[] = [
+    { value: "7d",  label: "Last 7 days" },
+    { value: "30d", label: "Last 30 days" },
+    { value: "90d", label: "Last 90 days" },
+    { value: "all", label: "All time" },
+  ];
+
+  return (
+    <>
+      <div
+        className={cn(
+          "fixed inset-0 bg-black/40 z-40 transition-opacity duration-300",
+          isOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+        )}
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Download Report"
+        className={cn(
+          "fixed inset-y-0 right-0 z-50 w-full sm:w-[420px] bg-white shadow-2xl flex flex-col transition-transform duration-300",
+          isOpen ? "translate-x-0" : "translate-x-full"
+        )}
+      >
+        <div className="flex items-center justify-between px-6 py-5 border-b border-gray-200 shrink-0">
+          <h2 className="text-xl font-semibold text-navy">Download Report</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="p-2 rounded-lg hover:bg-gray-100 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
+          >
+            <svg className="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+          {/* Reporting window */}
+          <div className={sectionCls}>
+            <span className={legendCls}>Reporting window</span>
+            <div className="grid grid-cols-2 gap-2 mt-3">
+              {WINDOW_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setReportWindow(opt.value)}
+                  className={cn(
+                    "px-3 py-2 text-sm font-medium rounded-lg border transition-colors text-left",
+                    reportWindow === opt.value
+                      ? "bg-[#0B5C6C] border-[#0B5C6C] text-white"
+                      : "bg-white border-gray-200 text-gray-700 hover:border-[#0B5C6C]/40"
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Requests by status */}
+          <div className={sectionCls}>
+            <span className={legendCls}>Requests by status</span>
+            <p className="text-xs text-gray-500 mt-0.5">{windowLabel}</p>
+            <dl className="mt-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <dt className="text-sm font-semibold text-gray-700">Total</dt>
+                <dd className="text-sm font-bold text-navy tabular-nums">{stats.total}</dd>
+              </div>
+              {STATUS_OPTIONS.map((status) => (
+                <div key={status} className="flex items-center justify-between">
+                  <dt className="flex items-center gap-2 text-sm text-gray-600">
+                    <span className={cn("h-2 w-2 rounded-full shrink-0", STATUS_BAR_COLOR[status])} />
+                    {status}
+                  </dt>
+                  <dd className="text-sm font-semibold text-gray-800 tabular-nums">{stats.byStatus[status]}</dd>
+                </div>
+              ))}
+              <div className="flex items-center justify-between pt-1 border-t border-gray-100">
+                <dt className="text-sm text-amber-700">Needs funding review</dt>
+                <dd className="text-sm font-semibold text-amber-700 tabular-nums">{stats.needsFundingReview}</dd>
+              </div>
+            </dl>
+            {stats.total > 0 && (
+              <div className="flex h-2 rounded-full overflow-hidden bg-gray-200 mt-3">
+                {STATUS_OPTIONS.map((status) => {
+                  const pct = (stats.byStatus[status] / stats.total) * 100;
+                  return pct > 0 ? (
+                    <div
+                      key={status}
+                      className={cn("transition-all", STATUS_BAR_COLOR[status])}
+                      style={{ width: `${pct}%` }}
+                      title={`${status}: ${stats.byStatus[status]}`}
+                    />
+                  ) : null;
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Requests by source */}
+          <div className={sectionCls}>
+            <span className={legendCls}>Requests by source</span>
+            <dl className="mt-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <dt className="text-sm text-gray-600">Portal</dt>
+                <dd className="text-sm font-semibold text-gray-800 tabular-nums">{stats.portal}</dd>
+              </div>
+              <div className="flex items-center justify-between">
+                <dt className="text-sm text-gray-600">Support</dt>
+                <dd className="text-sm font-semibold text-gray-800 tabular-nums">{stats.support}</dd>
+              </div>
+              {stats.adminCreated > 0 && (
+                <div className="flex items-center justify-between">
+                  <dt className="text-sm text-gray-600">Admin created</dt>
+                  <dd className="text-sm font-semibold text-gray-800 tabular-nums">{stats.adminCreated}</dd>
+                </div>
+              )}
+              {stats.otherSource > 0 && (
+                <div className="flex items-center justify-between">
+                  <dt className="text-sm text-gray-600">Other</dt>
+                  <dd className="text-sm font-semibold text-gray-800 tabular-nums">{stats.otherSource}</dd>
+                </div>
+              )}
+            </dl>
+          </div>
+
+          {/* File format */}
+          <div className={sectionCls}>
+            <span className={legendCls}>File format</span>
+            <div className="mt-3 space-y-2">
+              <div className="flex items-center gap-3 min-h-[44px]">
+                <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 border-[#0B5C6C]">
+                  <div className="h-2.5 w-2.5 rounded-full bg-[#0B5C6C]" />
+                </div>
+                <span className="text-base text-gray-700">CSV — metric/value summary</span>
+              </div>
+              <div className="flex items-center gap-3 min-h-[44px] opacity-40">
+                <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 border-gray-300" />
+                <span className="text-base text-gray-400">PDF — future scope</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="shrink-0 border-t border-gray-200 px-6 py-4 space-y-3 bg-white">
+          <button
+            type="button"
+            onClick={onGenerateReport}
+            className="w-full bg-[#0B5C6C] text-white text-base font-medium px-6 py-2.5 rounded-lg min-h-[44px] hover:bg-[#0B5C6C]/90 transition-colors"
+          >
+            Generate report
+          </button>
+          <button
+            type="button"
+            onClick={onDownloadList}
+            className="w-full border border-gray-300 bg-white text-gray-700 text-sm font-medium px-6 py-2 rounded-lg min-h-[44px] hover:border-[#0B5C6C] transition-colors"
+          >
+            Download request list ({visibleCount} visible rows)
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
 // ─── Empty state ──────────────────────────────────────────────────────────────
 
 function EmptyState({ filtered }: { filtered: boolean }) {
@@ -654,6 +863,7 @@ export default function AdminOrdersPage() {
   const [viewTab,             setViewTab]             = useState<ViewTab>("active");
   const [devToolsOpen,        setDevToolsOpen]        = useState(false);
   const [reportWindow,        setReportWindow]        = useState<ReportWindow>("30d");
+  const [reportOpen,          setReportOpen]          = useState(false);
   const [testForm,            setTestForm]            = useState<TestRequestForm>({
     msid: "MS-900005",
     patient: "Demo Patient",
@@ -1022,11 +1232,11 @@ export default function AdminOrdersPage() {
           )}
           <button
             type="button"
-            onClick={() => downloadCsv(visibleOrders)}
+            onClick={() => setReportOpen(true)}
             className="flex items-center gap-2 px-4 py-2.5 border border-gray-300 rounded-lg text-base font-medium
                        bg-white text-gray-700 hover:border-[#0B5C6C] min-h-[44px] whitespace-nowrap transition-colors"
           >
-            Download CSV
+            Download Report
           </button>
         </div>
       </div>
@@ -1083,102 +1293,6 @@ export default function AdminOrdersPage() {
           </div>
         );
       })()}
-
-      {/* Basic Reporting */}
-      <div className="rounded-xl border border-gray-200 bg-gray-50 p-5">
-        <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
-          <div>
-            <h2 className="text-base font-semibold text-gray-800">Request reporting</h2>
-            <p className="mt-0.5 text-xs text-gray-500">
-              Operational summary based on currently loaded request data.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {(["7d", "30d", "90d", "all"] as ReportWindow[]).map((w) => {
-              const wLabel = w === "7d" ? "7 days" : w === "30d" ? "30 days" : w === "90d" ? "90 days" : "All time";
-              return (
-                <button
-                  key={w}
-                  type="button"
-                  onClick={() => setReportWindow(w)}
-                  className={cn(
-                    "px-3 py-1 text-xs font-medium rounded-lg border transition-colors",
-                    reportWindow === w
-                      ? "bg-[#0B5C6C] border-[#0B5C6C] text-white"
-                      : "bg-white border-gray-200 text-gray-600 hover:border-[#0B5C6C]/40"
-                  )}
-                >
-                  {wLabel}
-                </button>
-              );
-            })}
-            <button
-              type="button"
-              onClick={() => downloadReportCsv({
-                windowLabel:        reportWindowLabel,
-                total:              reportStats.total,
-                byStatus:           reportStats.byStatus,
-                portal:             reportStats.portal,
-                support:            reportStats.support,
-                adminCreated:       reportStats.adminCreated,
-                otherSource:        reportStats.otherSource,
-                needsFundingReview: reportStats.needsFundingReview,
-              })}
-              className="px-3 py-1 text-xs font-medium rounded-lg border border-gray-200 bg-white text-gray-600 hover:border-[#0B5C6C]/40 transition-colors"
-            >
-              Export summary
-            </button>
-          </div>
-        </div>
-
-        {/* Status metric grid: Total + one cell per status */}
-        <div className="grid grid-cols-4 gap-2 sm:grid-cols-8 mb-3">
-          <div className="bg-white rounded-lg border border-gray-200 px-3 py-2.5">
-            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide leading-tight">Total</p>
-            <p className="text-2xl font-bold text-navy mt-0.5">{reportStats.total}</p>
-          </div>
-          {STATUS_OPTIONS.map((status) => (
-            <div key={status} className="bg-white rounded-lg border border-gray-200 px-3 py-2.5">
-              <p className="text-xs text-gray-500 truncate leading-tight">{status}</p>
-              <p className="text-xl font-bold text-navy mt-0.5">{reportStats.byStatus[status]}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* Stacked status bar */}
-        {reportStats.total > 0 && (
-          <div className="flex h-2 rounded-full overflow-hidden bg-gray-200 mb-3">
-            {STATUS_OPTIONS.map((status) => {
-              const pct = (reportStats.byStatus[status] / reportStats.total) * 100;
-              return pct > 0 ? (
-                <div
-                  key={status}
-                  className={cn("transition-all", STATUS_BAR_COLOR[status])}
-                  style={{ width: `${pct}%` }}
-                  title={`${status}: ${reportStats.byStatus[status]}`}
-                />
-              ) : null;
-            })}
-          </div>
-        )}
-
-        {/* Source + funding review row */}
-        <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-gray-600">
-          <span><span className="font-semibold text-gray-700">Portal</span>{" "}{reportStats.portal}</span>
-          <span><span className="font-semibold text-gray-700">Support</span>{" "}{reportStats.support}</span>
-          {reportStats.adminCreated > 0 && (
-            <span><span className="font-semibold text-gray-700">Admin created</span>{" "}{reportStats.adminCreated}</span>
-          )}
-          {reportStats.otherSource > 0 && (
-            <span><span className="font-semibold text-gray-700">Other</span>{" "}{reportStats.otherSource}</span>
-          )}
-          {reportStats.needsFundingReview > 0 && (
-            <span className="text-amber-700">
-              <span className="font-semibold">Needs funding review</span>{" "}{reportStats.needsFundingReview}
-            </span>
-          )}
-        </div>
-      </div>
 
       {/* View tabs */}
       <div className="flex items-center gap-0 border-b border-gray-200">
@@ -1471,6 +1585,27 @@ export default function AdminOrdersPage() {
         setSortOpt={setSortOpt}
         resultCount={visibleOrders.length}
         onClearAll={clearAllFilters}
+      />
+
+      <ReportDrawer
+        isOpen={reportOpen}
+        onClose={() => setReportOpen(false)}
+        reportWindow={reportWindow}
+        setReportWindow={setReportWindow}
+        stats={reportStats}
+        windowLabel={reportWindowLabel}
+        onGenerateReport={() => downloadReportCsv({
+          windowLabel:        reportWindowLabel,
+          total:              reportStats.total,
+          byStatus:           reportStats.byStatus,
+          portal:             reportStats.portal,
+          support:            reportStats.support,
+          adminCreated:       reportStats.adminCreated,
+          otherSource:        reportStats.otherSource,
+          needsFundingReview: reportStats.needsFundingReview,
+        })}
+        onDownloadList={() => downloadCsv(visibleOrders)}
+        visibleCount={visibleOrders.length}
       />
 
       <PatientDrawer
