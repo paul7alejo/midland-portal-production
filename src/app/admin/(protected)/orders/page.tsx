@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { PatientDrawer } from "@/components/admin/PatientDrawer";
 import { cn } from "@/lib/utils";
 
@@ -918,6 +918,58 @@ function ReportDrawer({
   );
 }
 
+// ─── RequestReviewDrawer types + helpers ─────────────────────────────────────
+
+type RequestHistoryState = "idle" | "loading" | "loaded" | "error";
+
+interface RequestHistoryEvent {
+  timestamp: string;
+  label: string;
+  action: string;
+  adminEmail?: string | null;
+  result: string | null;
+}
+
+const REQUEST_HISTORY_LABELS: Record<string, string> = {
+  REQUEST_STATUS_UPDATED:  "Status updated",
+  REQUEST_CREATED:         "Request submitted",
+  REQUEST_REVIEWED:        "Request reviewed",
+};
+
+function labelForRequestAction(action: string): string {
+  return (
+    REQUEST_HISTORY_LABELS[action] ??
+    action.replace(/_/g, " ").toLowerCase().replace(/^\w/, (c) => c.toUpperCase())
+  );
+}
+
+const SAFE_REQUEST_DETAIL: Record<string, string> = {
+  REQUEST_CREATED:               "Request created",
+  REQUEST_STATUS_UPDATED:        "Request status updated",
+  REQUEST_REVIEWED:              "Request reviewed",
+  REQUEST_FUNDING_REVIEW_SET:    "Funding review flag updated",
+  REQUEST_FUNDING_REVIEW_CLEARED:"Funding review flag updated",
+  REQUEST_FUNDING_REVIEW_CLEAR:  "Funding review flag updated",
+};
+
+function getSafeRequestHistoryDetail(action: string): string {
+  return SAFE_REQUEST_DETAIL[action] ?? "Request activity recorded";
+}
+
+function formatHistoryDate(iso: string): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return new Intl.DateTimeFormat("en-NZ", {
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "Pacific/Auckland",
+  }).format(d);
+}
+
 // ─── RequestReviewDrawer ──────────────────────────────────────────────────────
 
 interface RequestReviewDrawerProps {
@@ -949,6 +1001,38 @@ function RequestReviewDrawer({
   useEffect(() => {
     if (isOpen) setTab("request");
   }, [order?.id, isOpen]);
+
+  const historyFetchRef = useRef(false);
+  const [requestHistory,      setRequestHistory]      = useState<RequestHistoryEvent[]>([]);
+  const [requestHistoryState, setRequestHistoryState] = useState<RequestHistoryState>("idle");
+
+  useEffect(() => {
+    setRequestHistory([]);
+    setRequestHistoryState("idle");
+    historyFetchRef.current = false;
+  }, [order?.id]);
+
+  useEffect(() => {
+    if (tab !== "history" || !order?.msid || historyFetchRef.current) return;
+    historyFetchRef.current = true;
+    let cancelled = false;
+    setRequestHistoryState("loading");
+    fetch(`/api/admin/patients/activity?msid=${encodeURIComponent(order.msid)}&limit=50`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((data: unknown) => {
+        if (cancelled) return;
+        const payload = data as Record<string, unknown>;
+        if (Array.isArray(payload.activity)) {
+          const all = payload.activity as RequestHistoryEvent[];
+          setRequestHistory(all.filter((e) => e.action.startsWith("REQUEST")));
+          setRequestHistoryState("loaded");
+        } else {
+          setRequestHistoryState("error");
+        }
+      })
+      .catch(() => { if (!cancelled) setRequestHistoryState("error"); });
+    return () => { cancelled = true; };
+  }, [tab, order?.msid]);
 
   const REVIEW_TABS: { key: ReviewTab; label: string }[] = [
     { key: "request", label: "Request" },
@@ -1177,11 +1261,7 @@ function RequestReviewDrawer({
             </div>
           ) : (
             <div className="space-y-5">
-              <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
-                <p className="text-sm leading-6 text-gray-600">
-                  Full audit history is available in the Admin Audit Log. Status change events include admin email, previous status, new status, and timestamp.
-                </p>
-              </div>
+              {/* Safe metadata */}
               <dl className="divide-y divide-gray-100">
                 <div className="flex justify-between items-center py-3">
                   <dt className="text-sm text-gray-600">Created</dt>
@@ -1202,6 +1282,65 @@ function RequestReviewDrawer({
                   </dd>
                 </div>
               </dl>
+
+              {/* Request activity */}
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Patient request activity</p>
+                <p className="text-xs text-gray-400 leading-5">Showing request-related activity for this patient. Some events may relate to other requests from the same patient.</p>
+
+                {(requestHistoryState === "idle" || requestHistoryState === "loading") && (
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+                    <p className="text-sm text-gray-400">Loading activity…</p>
+                  </div>
+                )}
+                {requestHistoryState === "error" && (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                    <p className="text-sm text-amber-800">Activity temporarily unavailable.</p>
+                  </div>
+                )}
+                {requestHistoryState === "loaded" && requestHistory.length === 0 && (
+                  <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-3 space-y-1.5">
+                    <p className="text-sm text-gray-500">No patient request activity is available yet.</p>
+                    <p className="text-xs text-gray-400">Full patient audit history is available from the patient record.</p>
+                  </div>
+                )}
+                {requestHistoryState === "loaded" && requestHistory.length > 0 && (
+                  <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <div className="min-w-[460px]">
+                        <div className="grid grid-cols-[100px_130px_1fr_110px] gap-x-3 px-4 py-2.5 bg-gray-50 border-b border-gray-200">
+                          {["When", "Activity", "Details", "By"].map((h) => (
+                            <span key={h} className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</span>
+                          ))}
+                        </div>
+                        <ul className="divide-y divide-gray-100">
+                          {requestHistory.map((event, i) => (
+                            <li key={i} className="grid grid-cols-[100px_130px_1fr_110px] gap-x-3 items-start px-4 py-3">
+                              <span className="text-xs text-gray-500 whitespace-nowrap leading-5">
+                                {formatHistoryDate(event.timestamp)}
+                              </span>
+                              <span className="text-sm font-medium text-gray-800 leading-5">
+                                {labelForRequestAction(event.action)}
+                              </span>
+                              <span className="text-xs text-gray-600 leading-5 break-words">
+                                {getSafeRequestHistoryDetail(event.action)}
+                              </span>
+                              <span className="text-xs text-gray-500 leading-5">
+                                {event.adminEmail ? "Staff user" : "—"}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                    <div className="px-4 py-2 border-t border-gray-100 bg-gray-50">
+                      <p className="text-xs text-gray-400">
+                        {requestHistory.length} event{requestHistory.length !== 1 ? "s" : ""} · Patient request activity
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
