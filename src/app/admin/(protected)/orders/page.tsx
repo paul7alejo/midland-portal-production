@@ -2149,16 +2149,15 @@ const reviewOrder = useMemo(
                           strokeDasharray="3 2"
                           opacity={0.35}
                         />
-                        {hPt.count > 0 && (
-                          <circle
-                            cx={hPt.x}
-                            cy={hPt.y}
-                            r={5}
-                            fill="#0B5C6C"
-                            stroke="white"
-                            strokeWidth={2}
-                          />
-                        )}
+                        <circle
+                          cx={hPt.x}
+                          cy={hPt.y}
+                          r={hPt.count > 0 ? 5 : 3.5}
+                          fill={hPt.count > 0 ? "#0B5C6C" : "white"}
+                          stroke={hPt.count > 0 ? "white" : "#0B5C6C"}
+                          strokeWidth={hPt.count > 0 ? 2 : 1.5}
+                          opacity={hPt.count > 0 ? 1 : 0.55}
+                        />
                       </>
                     )}
                   </svg>
