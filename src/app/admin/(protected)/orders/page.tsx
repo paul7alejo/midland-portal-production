@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 type OrderStatus   = "New" | "Reviewing" | "Approved" | "Sent" | "Delivered" | "Declined" | "Needs Follow-Up";
 type StatusTab     = OrderStatus | "Needs Funding Review" | "all";
 type OrderType     = "ENTITLEMENT" | "PRIVATE" | "MIXED";
-type DateRange     = "week" | "month" | "older";
+type DateRange     = "week" | "month" | "older" | "custom";
 type OrderSortOpt  = "newest" | "oldest" | "name_az" | "status";
 type RequestCategory = "Mask" | "Headgear" | "Filters" | "Tubing" | "Cleaning supplies" | "Support request";
 type ReportWindow    = "7d" | "30d" | "90d" | "all";
@@ -81,6 +81,22 @@ function parseToDate(s: string): Date | null {
   const mo = MONTH_NUM[m];
   if (!mo) return null;
   return new Date(parseInt(y), mo - 1, parseInt(d));
+}
+
+function parseInputDate(s: string): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (!match) return null;
+  const y = Number(match[1]);
+  const m = Number(match[2]);
+  const d = Number(match[3]);
+  const date = new Date(y, m - 1, d);
+  if (date.getFullYear() !== y || date.getMonth() !== m - 1 || date.getDate() !== d) return null;
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+function formatChartDate(date: Date, includeYear = true): string {
+  return `${date.getDate()} ${MONTH_SHORT[date.getMonth()]}${includeYear ? ` ${date.getFullYear()}` : ""}`;
 }
 
 function formatCurrency(value: number): string {
@@ -437,6 +453,10 @@ interface FilterPanelProps {
   setTypeFilters: (s: Set<OrderType>) => void;
   dateRange: DateRange | null;
   setDateRange: (r: DateRange | null) => void;
+  customDateFrom: string;
+  setCustomDateFrom: (v: string) => void;
+  customDateTo: string;
+  setCustomDateTo: (v: string) => void;
   sortOpt: OrderSortOpt | null;
   setSortOpt: (s: OrderSortOpt | null) => void;
   resultCount: number;
@@ -448,6 +468,8 @@ function FilterPanel({
   statusFilters, setStatusFilters,
   typeFilters, setTypeFilters,
   dateRange, setDateRange,
+  customDateFrom, setCustomDateFrom,
+  customDateTo, setCustomDateTo,
   sortOpt, setSortOpt,
   resultCount, onClearAll,
 }: FilterPanelProps) {
@@ -478,6 +500,7 @@ function FilterPanel({
     { value: "week",  label: "This week" },
     { value: "month", label: "This month" },
     { value: "older", label: "Older" },
+    { value: "custom", label: "Custom range" },
   ];
   const SORT_OPTIONS: { value: OrderSortOpt; label: string }[] = [
     { value: "newest",  label: "Newest first" },
@@ -564,6 +587,28 @@ function FilterPanel({
                 <span className={labelCls}>{opt.label}</span>
               </label>
             ))}
+            {dateRange === "custom" && (
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label className="space-y-1.5">
+                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">From</span>
+                  <input
+                    type="date"
+                    value={customDateFrom}
+                    onChange={(e) => setCustomDateFrom(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B5C6C]/25"
+                  />
+                </label>
+                <label className="space-y-1.5">
+                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">To</span>
+                  <input
+                    type="date"
+                    value={customDateTo}
+                    onChange={(e) => setCustomDateTo(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B5C6C]/25"
+                  />
+                </label>
+              </div>
+            )}
           </div>
 
           <div className={sectionCls}>
@@ -1462,6 +1507,8 @@ export default function AdminOrdersPage() {
   const [statusFilters,       setStatusFilters]       = useState<Set<OrderStatus>>(new Set());
   const [typeFilters,         setTypeFilters]         = useState<Set<OrderType>>(new Set());
   const [dateRange,           setDateRange]           = useState<DateRange | null>(null);
+  const [customDateFrom,      setCustomDateFrom]      = useState("");
+  const [customDateTo,        setCustomDateTo]        = useState("");
   const [sortOpt,             setSortOpt]             = useState<OrderSortOpt | null>(null);
   const [statusLoading,       setStatusLoading]       = useState<Set<string>>(new Set());
   const [fundingReviewLoading, setFundingReviewLoading] = useState<Set<string>>(new Set());
@@ -1535,24 +1582,6 @@ export default function AdminOrdersPage() {
     };
   }, [orders]);
 
-  const chartData = useMemo(() => {
-    const real = orders.filter((o) => !isAdminRow(o));
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return Array.from({ length: 30 }, (_, i) => {
-      const d = new Date(today);
-      d.setDate(d.getDate() - (29 - i));
-      const count = real.filter((o) => {
-        const od = parseToDate(o.date);
-        return od !== null &&
-          od.getFullYear() === d.getFullYear() &&
-          od.getMonth() === d.getMonth() &&
-          od.getDate() === d.getDate();
-      }).length;
-      return { date: d, count };
-    });
-  }, [orders]);
-
 const reviewOrder = useMemo(
     () => (reviewOrderId ? orders.find((o) => o.id === reviewOrderId) ?? null : null),
     [orders, reviewOrderId]
@@ -1618,6 +1647,8 @@ const reviewOrder = useMemo(
     setStatusFilters(new Set());
     setTypeFilters(new Set());
     setDateRange(null);
+    setCustomDateFrom("");
+    setCustomDateTo("");
     setSortOpt(null);
     setKpiActiveFilter(null);
     setChartDateFilter(null);
@@ -1655,12 +1686,10 @@ const reviewOrder = useMemo(
     }
   }
 
-  const visibleOrders = useMemo(() => {
-    // KPI/chart filters are based on real-data counts, so their table scope must match.
-    const forceRealRows = Boolean(kpiActiveFilter || chartDateFilter);
-    let result = orders.filter((o) => forceRealRows ? !isAdminRow(o) : showAdminRows || !isAdminRow(o));
+  function applyOperationalFilters(baseOrders: Order[]): Order[] {
+    let result = [...baseOrders];
 
-    // KPI card filter takes priority; status tab is secondary; panel status filters are tertiary
+    // KPI card filter takes priority; status tab is secondary; panel status filters are tertiary.
     if (kpiActiveFilter) {
       const now = new Date();
       const cy = now.getFullYear();
@@ -1707,14 +1736,36 @@ const reviewOrder = useMemo(
       const today = new Date(); today.setHours(0, 0, 0, 0);
       const weekAgo  = new Date(today); weekAgo.setDate(weekAgo.getDate() - 7);
       const monthAgo = new Date(today); monthAgo.setMonth(monthAgo.getMonth() - 1);
+      const customFrom = parseInputDate(customDateFrom);
+      const customTo = parseInputDate(customDateTo);
       result = result.filter((o) => {
         const d = parseToDate(o.date);
         if (!d) return false;
         if (dateRange === "week")  return d >= weekAgo;
         if (dateRange === "month") return d >= monthAgo && d < weekAgo;
+        if (dateRange === "custom") {
+          if (customFrom && d < customFrom) return false;
+          if (customTo && d > customTo) return false;
+          return true;
+        }
         return d < monthAgo;
       });
     }
+
+    return result;
+  }
+
+  const filteredChartOrders = useMemo(
+    () => applyOperationalFilters(orders.filter((o) => !isAdminRow(o))),
+    [orders, statusTab, statusFilters, typeFilters, dateRange, customDateFrom, customDateTo, kpiActiveFilter, chartDateFilter]
+  );
+
+  const visibleOrders = useMemo(() => {
+    // KPI/chart filters are based on real-data counts, so their table scope must match.
+    const forceRealRows = Boolean(kpiActiveFilter || chartDateFilter);
+    let result = applyOperationalFilters(
+      orders.filter((o) => forceRealRows ? !isAdminRow(o) : showAdminRows || !isAdminRow(o))
+    );
 
     if (sortOpt) {
       result.sort((a, b) => {
@@ -1735,7 +1786,84 @@ const reviewOrder = useMemo(
     }
 
     return result;
-  }, [orders, statusTab, statusFilters, typeFilters, dateRange, sortOpt, showAdminRows, kpiActiveFilter, chartDateFilter]);
+  }, [orders, statusTab, statusFilters, typeFilters, dateRange, customDateFrom, customDateTo, sortOpt, showAdminRows, kpiActiveFilter, chartDateFilter]);
+
+  const chartWindow = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const weekAgo = new Date(today); weekAgo.setDate(weekAgo.getDate() - 7);
+    const monthAgo = new Date(today); monthAgo.setMonth(monthAgo.getMonth() - 1);
+    const monthAgoEnd = new Date(weekAgo); monthAgoEnd.setDate(monthAgoEnd.getDate() - 1);
+    const defaultStart = new Date(today); defaultStart.setDate(defaultStart.getDate() - 29);
+    const datedRows = filteredChartOrders
+      .map((o) => parseToDate(o.date))
+      .filter((d): d is Date => d !== null)
+      .sort((a, b) => a.getTime() - b.getTime());
+    const firstRowDate = datedRows[0] ?? null;
+    const lastRowDate = datedRows[datedRows.length - 1] ?? null;
+
+    if (chartDateFilter) {
+      const selected = new Date(chartDateFilter);
+      selected.setHours(0, 0, 0, 0);
+      return { start: selected, end: selected, label: formatChartDate(selected) };
+    }
+
+    if (dateRange === "week") {
+      return { start: weekAgo, end: today, label: `${formatChartDate(weekAgo, false)} - ${formatChartDate(today)}` };
+    }
+
+    if (dateRange === "month") {
+      return { start: monthAgo, end: monthAgoEnd, label: `${formatChartDate(monthAgo, false)} - ${formatChartDate(monthAgoEnd)}` };
+    }
+
+    if (dateRange === "older") {
+      const fallbackStart = new Date(monthAgoEnd);
+      fallbackStart.setDate(fallbackStart.getDate() - 29);
+      const start = firstRowDate ?? fallbackStart;
+      return { start, end: monthAgoEnd, label: `${formatChartDate(start, false)} - ${formatChartDate(monthAgoEnd)}` };
+    }
+
+    if (dateRange === "custom") {
+      const from = parseInputDate(customDateFrom);
+      const to = parseInputDate(customDateTo);
+      const start = from ?? firstRowDate ?? defaultStart;
+      const end = to ?? lastRowDate ?? today;
+      let label = "Custom range";
+      if (from && to) label = `${formatChartDate(from, false)} - ${formatChartDate(to)}`;
+      else if (from) label = `From ${formatChartDate(from)}`;
+      else if (to) label = `Until ${formatChartDate(to)}`;
+      return { start, end, label };
+    }
+
+    return { start: defaultStart, end: today, label: `${formatChartDate(defaultStart, false)} - ${formatChartDate(today)}` };
+  }, [filteredChartOrders, dateRange, customDateFrom, customDateTo, chartDateFilter]);
+
+  const chartData = useMemo(() => {
+    if (chartWindow.start > chartWindow.end) return [];
+    const dayMs = 24 * 60 * 60 * 1000;
+    const dayCount = Math.floor((chartWindow.end.getTime() - chartWindow.start.getTime()) / dayMs) + 1;
+    return Array.from({ length: dayCount }, (_, i) => {
+      const d = new Date(chartWindow.start);
+      d.setDate(d.getDate() + i);
+      const count = filteredChartOrders.filter((o) => {
+        const od = parseToDate(o.date);
+        return od !== null &&
+          od.getFullYear() === d.getFullYear() &&
+          od.getMonth() === d.getMonth() &&
+          od.getDate() === d.getDate();
+      }).length;
+      return { date: d, count };
+    });
+  }, [filteredChartOrders, chartWindow]);
+
+  const chartHasOperationalFilters = Boolean(
+    kpiActiveFilter ||
+    chartDateFilter ||
+    dateRange ||
+    statusTab !== "all" ||
+    statusFilters.size > 0 ||
+    typeFilters.size > 0
+  );
 
   const activeFilterCount = statusFilters.size + typeFilters.size + (dateRange ? 1 : 0) + (sortOpt ? 1 : 0) + (kpiActiveFilter ? 1 : 0) + (chartDateFilter ? 1 : 0);
 
@@ -1746,6 +1874,22 @@ const reviewOrder = useMemo(
     deliveredThisMonth: "Delivered · this month",
     declinedThisMonth:  "Declined · this month",
   };
+  const customDateFromValue = parseInputDate(customDateFrom);
+  const customDateToValue = parseInputDate(customDateTo);
+  const dateChipLabel =
+    dateRange === "custom"
+      ? customDateFromValue && customDateToValue
+        ? `Date: ${formatChartDate(customDateFromValue)} - ${formatChartDate(customDateToValue)}`
+        : customDateFromValue
+          ? `Date: From ${formatChartDate(customDateFromValue)}`
+          : customDateToValue
+            ? `Date: Until ${formatChartDate(customDateToValue)}`
+            : "Date: Custom range"
+      : dateRange === "week"
+        ? "This week"
+        : dateRange === "month"
+          ? "This month"
+          : "Older";
 
   const filterChips: { key: string; label: string; onRemove: () => void }[] = [
     ...(kpiActiveFilter ? [{ key: "kpi", label: kpiChipLabel[kpiActiveFilter], onRemove: () => setKpiActiveFilter(null) }] : []),
@@ -1766,8 +1910,12 @@ const reviewOrder = useMemo(
     })),
     ...(dateRange ? [{
       key: "date",
-      label: dateRange === "week" ? "This week" : dateRange === "month" ? "This month" : "Older",
-      onRemove: () => setDateRange(null),
+      label: dateChipLabel,
+      onRemove: () => {
+        setDateRange(null);
+        setCustomDateFrom("");
+        setCustomDateTo("");
+      },
     }] : []),
     ...(sortOpt ? [{
       key: "sort",
@@ -2025,8 +2173,9 @@ const reviewOrder = useMemo(
         const cW = W - PL - PR;
         const cH = H - PT - PB;
         const baseY = PT + cH;
+        const xDenom = Math.max(chartData.length - 1, 1);
         const pts = chartData.map((d, i) => ({
-          x: PL + (i / 29) * cW,
+          x: PL + (i / xDenom) * cW,
           y: maxCount > 0 ? PT + (1 - d.count / maxCount) * cH : baseY,
           count: d.count,
           date: d.date,
@@ -2047,6 +2196,11 @@ const reviewOrder = useMemo(
           : "";
         const hPt = hoveredChartIndex !== null ? (pts[hoveredChartIndex] ?? null) : null;
         const hDay = hoveredChartIndex !== null ? (chartData[hoveredChartIndex] ?? null) : null;
+        const labelIndexes = new Set(
+          np > 0
+            ? [0, Math.floor((np - 1) / 4), Math.floor((np - 1) / 2), Math.floor(((np - 1) * 3) / 4), np - 1]
+            : []
+        );
         function selectNearestChartPoint(e: PointerEvent<SVGSVGElement> | MouseEvent<SVGSVGElement>) {
           const svg = chartSvgRef.current ?? e.currentTarget;
           const ctm = svg.getScreenCTM();
@@ -2079,12 +2233,12 @@ const reviewOrder = useMemo(
           <div className="bg-white border border-gray-200 rounded-xl px-5 pt-4 pb-3 shadow-sm">
             <div className="flex items-start justify-between gap-3 mb-4">
               <div>
-                <p className="text-sm font-semibold text-gray-700">Requests — last 30 days</p>
-                {totalIn30 > 0 && (
-                  <p className="text-xs text-gray-400 mt-0.5 tabular-nums">
-                    {totalIn30} total · peak {maxCount} in a day
-                  </p>
-                )}
+                <p className="text-sm font-semibold text-gray-700">
+                  {chartHasOperationalFilters ? "Filtered request activity" : "Requests — last 30 days"}
+                </p>
+                <p className="text-xs text-gray-400 mt-0.5 tabular-nums">
+                  {chartWindow.label} · {totalIn30} total · peak {maxCount} in a day
+                </p>
               </div>
               <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
                 <span
@@ -2096,7 +2250,7 @@ const reviewOrder = useMemo(
             </div>
             {totalIn30 === 0 ? (
               <div className="flex items-center justify-center h-20 text-sm text-gray-400">
-                No request activity in the last 30 days.
+                No request activity for this chart range.
               </div>
             ) : (
               <>
@@ -2175,8 +2329,7 @@ const reviewOrder = useMemo(
                     )}
                     {/* X-axis labels share the same x positions as the plotted buckets */}
                     {pts.map((p, i) => {
-                      const show = i === 0 || i === 7 || i === 14 || i === 21 || i === 29;
-                      if (!show) return null;
+                      if (!labelIndexes.has(i)) return null;
                       return (
                         <text
                           key={i}
@@ -2184,7 +2337,7 @@ const reviewOrder = useMemo(
                           y={H - 5}
                           fill="#9ca3af"
                           fontSize={10}
-                          textAnchor={i === 0 ? "start" : i === 29 ? "end" : "middle"}
+                          textAnchor={i === 0 ? "start" : i === np - 1 ? "end" : "middle"}
                           dominantBaseline="middle"
                           className="select-none"
                         >
@@ -2547,6 +2700,10 @@ const reviewOrder = useMemo(
         setTypeFilters={setTypeFilters}
         dateRange={dateRange}
         setDateRange={setDateRange}
+        customDateFrom={customDateFrom}
+        setCustomDateFrom={setCustomDateFrom}
+        customDateTo={customDateTo}
+        setCustomDateTo={setCustomDateTo}
         sortOpt={sortOpt}
         setSortOpt={setSortOpt}
         resultCount={visibleOrders.length}
