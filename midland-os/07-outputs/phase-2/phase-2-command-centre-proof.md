@@ -73,3 +73,41 @@ Final deployed checks confirmed:
 - Orders chart hover, guide line, tooltip, marker, and click date are aligned.
 - Custom date range updates both chart and list.
 - Funding & Entitlement page is visibility-only and does not perform Phase 3 actions.
+
+## Dashboard alignment proof
+
+Commit: c211385 — fix: align dashboard with live admin data
+
+The Admin Dashboard was updated before presentation to remove stale/static demo data and align with the same live admin sources used by Patients, Orders, and Portal Accounts.
+
+Confirmed:
+- Static demo dashboard rows removed.
+- Hardcoded dashboard counts removed.
+- Dashboard metrics now derive from existing admin APIs.
+- Patient counts align with Patients page.
+- Portal account counts align with Portal Accounts page.
+- Request counts align with Orders / Patient Requests source.
+- Dashboard no longer presents fake operational rows.
+- No NHI, raw audit payload, Cognito IDs, or hidden identifiers are exposed.
+
+Known limitation:
+- Dashboard is an operational snapshot only. Full data reconciliation between patients, portal accounts, Cognito, and orders should be handled as a separate read-only reconciliation task if needed.
+
+## Dashboard alignment proof
+
+Commit: c211385 — fix: align dashboard with live admin data
+
+The Admin Dashboard was updated before presentation to remove stale/static demo data and align with the same live admin sources used by Patients, Orders, and Portal Accounts.
+
+Confirmed:
+- Static demo dashboard rows removed.
+- Hardcoded dashboard counts removed.
+- Dashboard metrics now derive from existing admin APIs.
+- Patient counts align with Patients page.
+- Portal account counts align with Portal Accounts page.
+- Request counts align with Orders / Patient Requests source.
+- Dashboard no longer presents fake operational rows.
+- No NHI, raw audit payload, Cognito IDs, or hidden identifiers are exposed.
+
+Known limitation:
+- Dashboard is an operational snapshot only. Full data reconciliation between patients, portal accounts, Cognito, and orders should be handled as a separate read-only reconciliation task if needed.
