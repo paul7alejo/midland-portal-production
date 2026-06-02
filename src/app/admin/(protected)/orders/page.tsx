@@ -2020,7 +2020,7 @@ const reviewOrder = useMemo(
         const maxCount = Math.max(...chartData.map((d) => d.count), 0);
         const totalIn30 = chartData.reduce((s, d) => s + d.count, 0);
         // SVG geometry constants
-        const W = 600, H = 68, PL = 4, PR = 4, PT = 8, PB = 4;
+        const W = 600, H = 90, PL = 4, PR = 4, PT = 10, PB = 4;
         const cW = W - PL - PR;
         const cH = H - PT - PB;
         const baseY = PT + cH;
@@ -2030,20 +2030,24 @@ const reviewOrder = useMemo(
           count: d.count,
           date: d.date,
         }));
-        const linePath = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
-        const areaPath = pts.length > 0
-          ? [
-              `M ${pts[0].x.toFixed(1)} ${baseY.toFixed(1)}`,
-              ...pts.map((p) => `L ${p.x.toFixed(1)} ${p.y.toFixed(1)}`),
-              `L ${pts[pts.length - 1].x.toFixed(1)} ${baseY.toFixed(1)}`,
-              "Z",
-            ].join(" ")
+        // Catmull-Rom → cubic Bezier: smooth curve through real data points only
+        const np = pts.length;
+        function gp(i: number) { return i < 0 ? pts[0]! : i >= np ? pts[np - 1]! : pts[i]!; }
+        const curve = np < 2 ? "" : Array.from({ length: np - 1 }, (_, i) => {
+          const p0 = gp(i - 1), p1 = gp(i), p2 = gp(i + 1), p3 = gp(i + 2);
+          const cp1x = p1.x + (p2.x - p0.x) / 6, cp1y = p1.y + (p2.y - p0.y) / 6;
+          const cp2x = p2.x - (p3.x - p1.x) / 6, cp2y = p2.y - (p3.y - p1.y) / 6;
+          return `C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+        }).join(" ");
+        const linePath = np > 0 ? `M ${pts[0]!.x.toFixed(1)} ${pts[0]!.y.toFixed(1)} ${curve}` : "";
+        const areaPath = np > 0
+          ? `M ${pts[0]!.x.toFixed(1)} ${baseY.toFixed(1)} L ${pts[0]!.x.toFixed(1)} ${pts[0]!.y.toFixed(1)} ${curve} L ${pts[np - 1]!.x.toFixed(1)} ${baseY.toFixed(1)} Z`
           : "";
         const hPt = hoveredChartIndex !== null ? (pts[hoveredChartIndex] ?? null) : null;
         const hDay = hoveredChartIndex !== null ? (chartData[hoveredChartIndex] ?? null) : null;
         return (
           <div className="bg-white border border-gray-200 rounded-xl px-5 pt-4 pb-3 shadow-sm">
-            <div className="flex items-start justify-between gap-3 mb-3">
+            <div className="flex items-start justify-between gap-3 mb-4">
               <div>
                 <p className="text-sm font-semibold text-gray-700">Requests — last 30 days</p>
                 {totalIn30 > 0 && (
@@ -2052,9 +2056,16 @@ const reviewOrder = useMemo(
                   </p>
                 )}
               </div>
+              <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
+                <span
+                  className="inline-block rounded-full"
+                  style={{ width: 20, height: 2.5, background: "#0B5C6C" }}
+                />
+                <span className="text-xs text-gray-500">Requests</span>
+              </div>
             </div>
             {totalIn30 === 0 ? (
-              <div className="flex items-center justify-center h-16 text-sm text-gray-400">
+              <div className="flex items-center justify-center h-20 text-sm text-gray-400">
                 No request activity in the last 30 days.
               </div>
             ) : (
@@ -2080,23 +2091,23 @@ const reviewOrder = useMemo(
                   <svg
                     viewBox={`0 0 ${W} ${H}`}
                     className="w-full"
-                    style={{ height: 68, display: "block" }}
+                    style={{ height: 90, display: "block" }}
                     aria-hidden="true"
                   >
                     {/* Baseline gridline */}
                     <line x1={PL} y1={baseY} x2={W - PR} y2={baseY} stroke="#e5e7eb" strokeWidth={1} />
-                    {/* Area fill */}
-                    <path d={areaPath} fill="#0B5C6C" fillOpacity={0.09} />
-                    {/* Line */}
+                    {/* Soft area fill */}
+                    <path d={areaPath} fill="#0B5C6C" fillOpacity={0.12} />
+                    {/* Smooth teal line */}
                     <path
                       d={linePath}
                       fill="none"
                       stroke="#0B5C6C"
-                      strokeWidth={1.5}
+                      strokeWidth={2.5}
                       strokeLinejoin="round"
                       strokeLinecap="round"
                     />
-                    {/* Circles for days with requests (skip hovered — rendered on top below) */}
+                    {/* Non-zero markers (skip hovered — rendered on top below) */}
                     {pts.map((p, i) => {
                       if (p.count === 0) return null;
                       if (hoveredChartIndex === i) return null;
@@ -2110,7 +2121,7 @@ const reviewOrder = useMemo(
                           key={i}
                           cx={p.x}
                           cy={p.y}
-                          r={isSel ? 4 : 2.5}
+                          r={isSel ? 4.5 : 3}
                           fill={isSel ? "#0B5C6C" : "#ffffff"}
                           stroke="#0B5C6C"
                           strokeWidth={isSel ? 2 : 1.5}
@@ -2126,7 +2137,7 @@ const reviewOrder = useMemo(
                           stroke="#0B5C6C"
                           strokeWidth={1}
                           strokeDasharray="3 2"
-                          opacity={0.4}
+                          opacity={0.35}
                         />
                         {hPt.count > 0 && (
                           <circle
@@ -2135,7 +2146,7 @@ const reviewOrder = useMemo(
                             r={5}
                             fill="#0B5C6C"
                             stroke="white"
-                            strokeWidth={1.5}
+                            strokeWidth={2}
                           />
                         )}
                       </>
