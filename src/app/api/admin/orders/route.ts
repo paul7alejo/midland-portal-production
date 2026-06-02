@@ -10,6 +10,7 @@ import {
   type ReorderRecord,
   type ReorderStatus,
 } from '@/lib/aws/dynamodb'
+import { listPortalUsers } from '@/lib/aws/cognito-admin'
 
 const ORG_ID = 'midland-sleep'
 
@@ -47,9 +48,14 @@ function formatDateForDisplay(iso: string): string {
   return d.toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-function toAdminOrder(r: ReorderRecord) {
+type PortalAccountStatus = 'linked' | 'no_account' | 'unknown'
+
+function toAdminOrder(r: ReorderRecord, portalMsids: Set<string> | null) {
   const referenceNumber = r.request_reference ?? 'Legacy request'
   const itemNames = r.items.map((t) => ITEM_LABELS[t] ?? t)
+  const portalAccountStatus: PortalAccountStatus = portalMsids === null
+    ? 'unknown'
+    : portalMsids.has(r.patient_msid) ? 'linked' : 'no_account'
   return {
     id:        r.id,
     referenceNumber,
@@ -81,6 +87,7 @@ function toAdminOrder(r: ReorderRecord) {
     estimatedFundedAmount:   r.estimated_funded_amount,
     estimatedPatientCopay:   r.estimated_patient_copay,
     estimatedRemainingAfter: r.estimated_remaining_after,
+    portalAccountStatus,
   }
 }
 
@@ -96,7 +103,21 @@ export async function GET(request: NextRequest) {
       ? await listReorderRequestsByMsid(msid, ORG_ID)
       : await listReorderRequests(ORG_ID)
     records.sort((a, b) => b.created_at.localeCompare(a.created_at))
-    return NextResponse.json({ orders: records.map(toAdminOrder) })
+
+    // Build portal MSID set for safe linkage annotation.
+    // Non-fatal: if Cognito is unavailable, orders still load with status "unknown".
+    let portalMsids: Set<string> | null = null
+    try {
+      const users = await listPortalUsers()
+      portalMsids = new Set(users.map((u) => u.msid))
+    } catch (err) {
+      console.warn(
+        'admin/orders GET: portal user lookup failed; portalAccountStatus will be "unknown".',
+        err instanceof Error ? `${err.name}: ${err.message}` : String(err),
+      )
+    }
+
+    return NextResponse.json({ orders: records.map((r) => toAdminOrder(r, portalMsids)) })
   } catch (err) {
     console.error('admin/orders GET ERROR:', err instanceof Error ? err.message : String(err))
     return NextResponse.json({ error: 'Unable to load orders' }, { status: 500 })

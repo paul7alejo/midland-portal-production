@@ -5,10 +5,9 @@ import { PatientDrawer } from "@/components/admin/PatientDrawer";
 import { cn } from "@/lib/utils";
 
 type OrderStatus   = "New" | "Reviewing" | "Approved" | "Sent" | "Delivered" | "Declined" | "Needs Follow-Up";
-type KpiFilter     = OrderStatus | "Needs Funding Review" | null;
+type StatusTab     = OrderStatus | "Needs Funding Review" | "all";
 type OrderType     = "ENTITLEMENT" | "PRIVATE" | "MIXED";
 type DateRange     = "week" | "month" | "older";
-type ViewTab       = "active" | "completed" | "all";
 type OrderSortOpt  = "newest" | "oldest" | "name_az" | "status";
 type RequestCategory = "Mask" | "Headgear" | "Filters" | "Tubing" | "Cleaning supplies" | "Support request";
 type ReportWindow    = "7d" | "30d" | "90d" | "all";
@@ -43,6 +42,7 @@ interface Order {
   adminNote?: string;
   isDemo?: boolean;
   localOnly?: boolean;
+  portalAccountStatus?: "linked" | "no_account" | "unknown";
 }
 
 interface TestRequestForm {
@@ -203,32 +203,31 @@ function downloadReportRequestListCsv(rows: Order[]) {
   const headers = [
     "Reference",
     "Patient",
-    "MSID",
+    "Midland Sleep ID",
     "Items",
     "Status",
     "Source",
     "Created Date",
+    "Last Updated",
     "Needs Funding Review",
-    "Funding Summary",
+    "Est. Item Amount",
+    "Est. Funded Amount",
+    "Est. Co-pay",
   ];
-  const lines = rows.map((o) => {
-    const fundingSummary = [
-      o.estimatedItemAmount !== null ? `Est ${formatEstimate(o.estimatedItemAmount)}` : null,
-      o.estimatedFundedAmount !== null ? `${formatEstimate(o.estimatedFundedAmount)} funded` : null,
-      o.estimatedPatientCopay !== null && o.estimatedPatientCopay > 0 ? `${formatEstimate(o.estimatedPatientCopay)} co-pay` : null,
-    ].filter(Boolean).join("; ");
-    return [
-      o.requestId,
-      o.patient,
-      o.msid,
-      o.items || o.itemDescription || "",
-      o.status,
-      getSourceLabel(o.source),
-      o.date,
-      o.needsFundingReview ? "Yes" : "No",
-      fundingSummary,
-    ].map(csvEscape).join(",");
-  });
+  const lines = rows.map((o) => [
+    o.requestId,
+    o.patient,
+    o.msid,
+    o.items || o.itemDescription || "",
+    o.status,
+    getSourceLabel(o.source),
+    o.date,
+    o.updatedDate && o.updatedDate !== o.date ? o.updatedDate : "",
+    o.needsFundingReview ? "Yes" : "No",
+    o.estimatedItemAmount !== null ? formatEstimate(o.estimatedItemAmount) : "",
+    o.estimatedFundedAmount !== null ? formatEstimate(o.estimatedFundedAmount) : "",
+    o.estimatedPatientCopay !== null && o.estimatedPatientCopay > 0 ? formatEstimate(o.estimatedPatientCopay) : "",
+  ].map(csvEscape).join(","));
   const csv = [headers.join(","), ...lines].join("\n");
   const blob = new Blob([csv], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
@@ -333,25 +332,17 @@ function getSourceLabel(source: string | undefined): string {
   return REPORT_SOURCE_LABEL[getSourceKey(source)];
 }
 
-const ACTIVE_TAB_STATUSES    = new Set<OrderStatus>(["New", "Reviewing", "Approved", "Sent", "Needs Follow-Up"]);
-const COMPLETED_TAB_STATUSES = new Set<OrderStatus>(["Delivered", "Declined"]);
-const TAB_STATUS_GROUPS: Record<ViewTab, Set<OrderStatus> | null> = {
-  active: ACTIVE_TAB_STATUSES,
-  completed: COMPLETED_TAB_STATUSES,
-  all: null,
-};
-
-function isOrderInTab(order: Order, tab: ViewTab): boolean {
-  const statuses = TAB_STATUS_GROUPS[tab];
-  return statuses ? statuses.has(order.status) : true;
-}
-
-function getTabForKpiFilter(filter: KpiFilter): ViewTab | null {
-  if (!filter) return null;
-  if (filter === "Declined") return "completed";
-  if (filter === "Needs Funding Review") return "all";
-  return "active";
-}
+const STATUS_TABS: { key: StatusTab; label: string }[] = [
+  { key: "all",                  label: "All" },
+  { key: "New",                  label: "New" },
+  { key: "Reviewing",            label: "Reviewing" },
+  { key: "Approved",             label: "Approved" },
+  { key: "Sent",                 label: "Sent" },
+  { key: "Delivered",            label: "Delivered" },
+  { key: "Declined",             label: "Declined" },
+  { key: "Needs Follow-Up",      label: "Needs Follow-Up" },
+  { key: "Needs Funding Review", label: "Needs Funding Review" },
+];
 
 const DEMO_REQUESTS: Order[] = [
   {
@@ -886,7 +877,7 @@ function ReportDrawer({
                 <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 border-[#0B5C6C]">
                   <div className="h-2.5 w-2.5 rounded-full bg-[#0B5C6C]" />
                 </div>
-                <span className="text-base text-gray-700">CSV — Section, Metric, Value, Description</span>
+                <span className="text-base text-gray-700">CSV — summary report (Section, Metric, Value)</span>
               </div>
               <div className="flex items-center gap-3 min-h-[44px] opacity-40">
                 <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 border-gray-300" />
@@ -896,22 +887,28 @@ function ReportDrawer({
           </div>
         </div>
 
-        <div className="shrink-0 border-t border-gray-200 px-6 py-4 space-y-3 bg-white">
-          <button
-            type="button"
-            onClick={onGenerateReport}
-            disabled={!canGenerateReport}
-            className="w-full bg-[#0B5C6C] text-white text-base font-medium px-6 py-2.5 rounded-lg min-h-[44px] hover:bg-[#0B5C6C]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Generate report
-          </button>
-          <button
-            type="button"
-            onClick={onDownloadList}
-            className="w-full border border-gray-300 bg-white text-gray-700 text-sm font-medium px-6 py-2 rounded-lg min-h-[44px] hover:border-[#0B5C6C] transition-colors"
-          >
-            Download request list ({matchingCount} matching rows)
-          </button>
+        <div className="shrink-0 border-t border-gray-200 px-6 py-4 space-y-4 bg-white">
+          <div className="space-y-1.5">
+            <button
+              type="button"
+              onClick={onGenerateReport}
+              disabled={!canGenerateReport}
+              className="w-full bg-[#0B5C6C] text-white text-base font-medium px-6 py-2.5 rounded-lg min-h-[44px] hover:bg-[#0B5C6C]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Download summary report
+            </button>
+            <p className="text-xs text-gray-500 leading-5">Summary report includes totals, status counts, source counts, and funding review counts.</p>
+          </div>
+          <div className="space-y-1.5">
+            <button
+              type="button"
+              onClick={onDownloadList}
+              className="w-full border border-gray-300 bg-white text-gray-700 text-sm font-medium px-6 py-2 rounded-lg min-h-[44px] hover:border-[#0B5C6C] transition-colors"
+            >
+              Download detailed request list ({matchingCount} matching rows)
+            </button>
+            <p className="text-xs text-gray-500 leading-5">Detailed request list includes matching request rows for staff review.</p>
+          </div>
         </div>
       </div>
     </>
@@ -1454,7 +1451,7 @@ function CreateTestRequestPanel({
 export default function AdminOrdersPage() {
   const [orders,              setOrders]              = useState<Order[]>([]);
   const [ordersLoading,       setOrdersLoading]       = useState(true);
-  const [kpiFilter,           setKpiFilter]           = useState<KpiFilter>(null);
+  const [statusTab,           setStatusTab]           = useState<StatusTab>("all");
   const [selected,            setSelected]            = useState<Set<string>>(new Set());
   const [drawerOpen,          setDrawerOpen]          = useState(false);
   const [drawerMsid,          setDrawerMsid]          = useState<string | null>(null);
@@ -1468,7 +1465,6 @@ export default function AdminOrdersPage() {
   const [fundingReviewLoading, setFundingReviewLoading] = useState<Set<string>>(new Set());
   const [statusError,         setStatusError]         = useState<string | null>(null);
   const [showAdminRows,       setShowAdminRows]       = useState(false);
-  const [viewTab,             setViewTab]             = useState<ViewTab>("active");
   const [devToolsOpen,        setDevToolsOpen]        = useState(false);
   const [reportWindow,        setReportWindow]        = useState<ReportWindow>("30d");
   const [reportStatusFilters, setReportStatusFilters] = useState<Set<OrderStatus>>(() => new Set(STATUS_OPTIONS));
@@ -1499,28 +1495,22 @@ export default function AdminOrdersPage() {
   }, []);
 
   const kpiCounts = useMemo(() => {
-    const real = orders.filter((o) => !isAdminRow(o));
+    const real    = orders.filter((o) => !isAdminRow(o));
+    const visible = orders.filter((o) => showAdminRows || !isAdminRow(o));
     return {
-      New:                 real.filter((o) => o.status === "New").length,
-      Reviewing:           real.filter((o) => o.status === "Reviewing").length,
-      Approved:            real.filter((o) => o.status === "Approved").length,
-      Sent:                real.filter((o) => o.status === "Sent").length,
-      Declined:            real.filter((o) => o.status === "Declined").length,
-      "Needs Follow-Up":   real.filter((o) => o.status === "Needs Follow-Up").length,
+      all:                    visible.length,
+      New:                    real.filter((o) => o.status === "New").length,
+      Reviewing:              real.filter((o) => o.status === "Reviewing").length,
+      Approved:               real.filter((o) => o.status === "Approved").length,
+      Sent:                   real.filter((o) => o.status === "Sent").length,
+      Delivered:              real.filter((o) => o.status === "Delivered").length,
+      Declined:               real.filter((o) => o.status === "Declined").length,
+      "Needs Follow-Up":      real.filter((o) => o.status === "Needs Follow-Up").length,
       "Needs Funding Review": real.filter((o) => o.needsFundingReview).length,
-    };
-  }, [orders]);
-
-  const tabCounts = useMemo(() => {
-    const rows = orders.filter((o) => showAdminRows || !isAdminRow(o));
-    return {
-      active: rows.filter((o) => isOrderInTab(o, "active")).length,
-      completed: rows.filter((o) => isOrderInTab(o, "completed")).length,
-      all: rows.length,
     };
   }, [orders, showAdminRows]);
 
-  const reviewOrder = useMemo(
+const reviewOrder = useMemo(
     () => (reviewOrderId ? orders.find((o) => o.id === reviewOrderId) ?? null : null),
     [orders, reviewOrderId]
   );
@@ -1588,35 +1578,20 @@ export default function AdminOrdersPage() {
     setSortOpt(null);
   }
 
-  function handleTabChange(tab: ViewTab) {
-    setViewTab(tab);
-    setKpiFilter(null);
+  function handleStatusTab(tab: StatusTab) {
+    setStatusTab(tab);
     setStatusFilters(new Set());
-  }
-
-  function handleKpiClick(filter: KpiFilter, isActive: boolean) {
-    if (isActive) {
-      setKpiFilter(null);
-      return;
-    }
-    const targetTab = getTabForKpiFilter(filter);
-    if (targetTab) setViewTab(targetTab);
-    setStatusFilters(new Set());
-    setKpiFilter(filter);
   }
 
   const visibleOrders = useMemo(() => {
     // Apply admin/test row visibility
     let result = orders.filter((o) => showAdminRows || !isAdminRow(o));
 
-    // Tab pre-filter
-    result = result.filter((o) => isOrderInTab(o, viewTab));
-
-    // KPI card filter takes priority; panel status filters are secondary
-    if (kpiFilter === "Needs Funding Review") {
+    // Status tab filter takes priority; panel status filters are secondary
+    if (statusTab === "Needs Funding Review") {
       result = result.filter((o) => o.needsFundingReview);
-    } else if (kpiFilter) {
-      result = result.filter((o) => o.status === kpiFilter);
+    } else if (statusTab !== "all") {
+      result = result.filter((o) => o.status === statusTab);
     } else if (statusFilters.size > 0) {
       result = result.filter((o) => statusFilters.has(o.status));
     }
@@ -1657,17 +1632,11 @@ export default function AdminOrdersPage() {
     }
 
     return result;
-  }, [orders, kpiFilter, statusFilters, typeFilters, dateRange, sortOpt, showAdminRows, viewTab]);
+  }, [orders, statusTab, statusFilters, typeFilters, dateRange, sortOpt, showAdminRows]);
 
-  const activeFilterCount =
-    (kpiFilter ? 1 : 0) + statusFilters.size + typeFilters.size + (dateRange ? 1 : 0) + (sortOpt ? 1 : 0);
+  const activeFilterCount = statusFilters.size + typeFilters.size + (dateRange ? 1 : 0) + (sortOpt ? 1 : 0);
 
   const filterChips: { key: string; label: string; onRemove: () => void }[] = [
-    ...(kpiFilter ? [{
-      key: "kpi",
-      label: kpiFilter,
-      onRemove: () => setKpiFilter(null),
-    }] : []),
     ...[...statusFilters].map((s) => ({
       key: `s-${s}`,
       label: s,
@@ -1842,8 +1811,7 @@ export default function AdminOrdersPage() {
       localOnly: true,
     };
     setOrders((prev) => [request, ...prev]);
-    setViewTab("active");
-    setKpiFilter("New");
+    setStatusTab("New");
     setStatusFilters(new Set());
     setTestForm((prev) => ({
       ...prev,
@@ -1897,26 +1865,27 @@ export default function AdminOrdersPage() {
 
       {/* KPI cards */}
       {(() => {
-        type KpiCard = { key: KpiFilter; label: string; amber?: boolean };
+        type KpiCard = { key: Exclude<StatusTab, "all">; label: string; amber?: boolean };
         const KPI_CARDS: KpiCard[] = [
           { key: "New",                  label: "New",                  amber: true },
           { key: "Reviewing",            label: "Reviewing" },
           { key: "Approved",             label: "Approved" },
           { key: "Sent",                 label: "Sent" },
+          { key: "Delivered",            label: "Delivered" },
           { key: "Declined",             label: "Declined" },
           { key: "Needs Follow-Up",      label: "Needs Follow-Up",      amber: true },
           { key: "Needs Funding Review", label: "Needs Funding Review", amber: true },
         ];
         return (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-8">
             {KPI_CARDS.map(({ key, label, amber }) => {
-              const count = key ? kpiCounts[key as keyof typeof kpiCounts] ?? 0 : 0;
-              const isActive = kpiFilter === key;
+              const count = kpiCounts[key] ?? 0;
+              const isActive = statusTab === key;
               return (
                 <button
                   key={label}
                   type="button"
-                  onClick={() => handleKpiClick(key, isActive)}
+                  onClick={() => handleStatusTab(isActive ? "all" : key)}
                   className={cn(
                     "relative flex flex-col items-start rounded-xl border px-4 py-4 text-left transition-colors",
                     isActive
@@ -1940,28 +1909,29 @@ export default function AdminOrdersPage() {
         );
       })()}
 
-      {/* View tabs */}
-      <div className="flex items-center gap-0 border-b border-gray-200">
-        {(["active", "completed", "all"] as ViewTab[]).map((tab) => {
-          const label = tab === "active" ? "Active" : tab === "completed" ? "Completed" : "All";
-          const isActive = viewTab === tab;
-          const count = tabCounts[tab];
-          return (
-            <button
-              key={tab}
-              type="button"
-              onClick={() => handleTabChange(tab)}
-              className={cn(
-                "px-6 py-3 text-sm font-semibold -mb-px border-b-2 transition-colors",
-                isActive
-                  ? "border-[#0B5C6C] text-[#0B5C6C]"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-              )}
-            >
-              {label} <span className="ml-1 text-xs font-medium opacity-70">({count})</span>
-            </button>
-          );
-        })}
+      {/* Status tabs */}
+      <div className="overflow-x-auto">
+        <div className="flex items-center gap-0 border-b border-gray-200 min-w-max">
+          {STATUS_TABS.map(({ key, label }) => {
+            const count = kpiCounts[key as keyof typeof kpiCounts] ?? 0;
+            const isActive = statusTab === key;
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => handleStatusTab(key)}
+                className={cn(
+                  "px-4 py-3 text-sm font-semibold -mb-px border-b-2 transition-colors whitespace-nowrap",
+                  isActive
+                    ? "border-[#0B5C6C] text-[#0B5C6C]"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                )}
+              >
+                {label} <span className="ml-1 text-xs font-medium opacity-70">({count})</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Toolbar: filter/sort + admin toggle + active filter chips */}
@@ -2094,6 +2064,27 @@ export default function AdminOrdersPage() {
                       {/* PATIENT */}
                       <td className="px-3 py-3">
                         <span className="text-base font-semibold text-navy whitespace-nowrap">{order.patient}</span>
+                        {order.portalAccountStatus === "linked" && (
+                          <div className="mt-0.5">
+                            <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">
+                              Portal linked
+                            </span>
+                          </div>
+                        )}
+                        {order.portalAccountStatus === "no_account" && (
+                          <div className="mt-0.5">
+                            <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded bg-gray-50 text-gray-500 border border-gray-200 whitespace-nowrap">
+                              No portal account
+                            </span>
+                          </div>
+                        )}
+                        {order.portalAccountStatus === "unknown" && (
+                          <div className="mt-0.5">
+                            <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-600 border border-amber-200 whitespace-nowrap">
+                              Portal unknown
+                            </span>
+                          </div>
+                        )}
                       </td>
                       {/* ITEMS */}
                       <td className="px-3 py-3 max-w-[180px]">
