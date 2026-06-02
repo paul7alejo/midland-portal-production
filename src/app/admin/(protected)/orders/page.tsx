@@ -13,6 +13,7 @@ type RequestCategory = "Mask" | "Headgear" | "Filters" | "Tubing" | "Cleaning su
 type ReportWindow    = "7d" | "30d" | "90d" | "all";
 type ReportSource    = "patient_portal" | "support_request" | "admin_created" | "other";
 type ReviewTab       = "request" | "funding" | "patient" | "history";
+type KpiActiveFilter = "requestsThisMonth" | "newRequests" | "needsFundingReview" | "deliveredThisMonth" | "declinedThisMonth";
 
 interface Order {
   id: string;
@@ -1473,6 +1474,9 @@ export default function AdminOrdersPage() {
   const [reportOpen,          setReportOpen]          = useState(false);
   const [reviewDrawerOpen,    setReviewDrawerOpen]    = useState(false);
   const [reviewOrderId,       setReviewOrderId]       = useState<string | null>(null);
+  const [kpiActiveFilter,     setKpiActiveFilter]     = useState<KpiActiveFilter | null>(null);
+  const [chartDateFilter,     setChartDateFilter]     = useState<Date | null>(null);
+  const [hoveredChartIndex,   setHoveredChartIndex]   = useState<number | null>(null);
   const [testForm,            setTestForm]            = useState<TestRequestForm>({
     msid: "MS-900005",
     patient: "Demo Patient",
@@ -1613,24 +1617,84 @@ const reviewOrder = useMemo(
     setTypeFilters(new Set());
     setDateRange(null);
     setSortOpt(null);
+    setKpiActiveFilter(null);
+    setChartDateFilter(null);
   }
 
   function handleStatusTab(tab: StatusTab) {
     setStatusTab(tab);
     setStatusFilters(new Set());
+    setKpiActiveFilter(null);
+    setChartDateFilter(null);
+  }
+
+  function handleKpiCardClick(filter: KpiActiveFilter) {
+    if (kpiActiveFilter === filter) {
+      setKpiActiveFilter(null);
+    } else {
+      setKpiActiveFilter(filter);
+      setStatusTab("all");
+      setStatusFilters(new Set());
+      setChartDateFilter(null);
+    }
+  }
+
+  function handleChartBarClick(date: Date) {
+    const alreadySelected =
+      chartDateFilter !== null &&
+      chartDateFilter.getFullYear() === date.getFullYear() &&
+      chartDateFilter.getMonth() === date.getMonth() &&
+      chartDateFilter.getDate() === date.getDate();
+    if (alreadySelected) {
+      setChartDateFilter(null);
+    } else {
+      setChartDateFilter(new Date(date));
+      setKpiActiveFilter(null);
+    }
   }
 
   const visibleOrders = useMemo(() => {
-    // Apply admin/test row visibility
-    let result = orders.filter((o) => showAdminRows || !isAdminRow(o));
+    // KPI/chart filters are based on real-data counts, so their table scope must match.
+    const forceRealRows = Boolean(kpiActiveFilter || chartDateFilter);
+    let result = orders.filter((o) => forceRealRows ? !isAdminRow(o) : showAdminRows || !isAdminRow(o));
 
-    // Status tab filter takes priority; panel status filters are secondary
-    if (statusTab === "Needs Funding Review") {
+    // KPI card filter takes priority; status tab is secondary; panel status filters are tertiary
+    if (kpiActiveFilter) {
+      const now = new Date();
+      const cy = now.getFullYear();
+      const cm = now.getMonth();
+      const inCurrentMonth = (s: string) => {
+        const d = parseToDate(s);
+        return d !== null && d.getFullYear() === cy && d.getMonth() === cm;
+      };
+      if (kpiActiveFilter === "requestsThisMonth") {
+        result = result.filter((o) => inCurrentMonth(o.date));
+      } else if (kpiActiveFilter === "newRequests") {
+        result = result.filter((o) => o.status === "New");
+      } else if (kpiActiveFilter === "needsFundingReview") {
+        result = result.filter((o) => Boolean(o.needsFundingReview));
+      } else if (kpiActiveFilter === "deliveredThisMonth") {
+        result = result.filter((o) => o.status === "Delivered" && inCurrentMonth(o.date));
+      } else if (kpiActiveFilter === "declinedThisMonth") {
+        result = result.filter((o) => o.status === "Declined" && inCurrentMonth(o.date));
+      }
+    } else if (statusTab === "Needs Funding Review") {
       result = result.filter((o) => o.needsFundingReview);
     } else if (statusTab !== "all") {
       result = result.filter((o) => o.status === statusTab);
     } else if (statusFilters.size > 0) {
       result = result.filter((o) => statusFilters.has(o.status));
+    }
+
+    // Chart date filter narrows further (applied on top of any above)
+    if (chartDateFilter) {
+      result = result.filter((o) => {
+        const od = parseToDate(o.date);
+        return od !== null &&
+          od.getFullYear() === chartDateFilter.getFullYear() &&
+          od.getMonth() === chartDateFilter.getMonth() &&
+          od.getDate() === chartDateFilter.getDate();
+      });
     }
 
     if (typeFilters.size > 0) {
@@ -1669,11 +1733,25 @@ const reviewOrder = useMemo(
     }
 
     return result;
-  }, [orders, statusTab, statusFilters, typeFilters, dateRange, sortOpt, showAdminRows]);
+  }, [orders, statusTab, statusFilters, typeFilters, dateRange, sortOpt, showAdminRows, kpiActiveFilter, chartDateFilter]);
 
-  const activeFilterCount = statusFilters.size + typeFilters.size + (dateRange ? 1 : 0) + (sortOpt ? 1 : 0);
+  const activeFilterCount = statusFilters.size + typeFilters.size + (dateRange ? 1 : 0) + (sortOpt ? 1 : 0) + (kpiActiveFilter ? 1 : 0) + (chartDateFilter ? 1 : 0);
+
+  const kpiChipLabel: Record<KpiActiveFilter, string> = {
+    requestsThisMonth:  "This month",
+    newRequests:        "New requests",
+    needsFundingReview: "Needs funding review",
+    deliveredThisMonth: "Delivered · this month",
+    declinedThisMonth:  "Declined · this month",
+  };
 
   const filterChips: { key: string; label: string; onRemove: () => void }[] = [
+    ...(kpiActiveFilter ? [{ key: "kpi", label: kpiChipLabel[kpiActiveFilter], onRemove: () => setKpiActiveFilter(null) }] : []),
+    ...(chartDateFilter ? [{
+      key: "chartDate",
+      label: `Date: ${chartDateFilter.getDate()} ${MONTH_SHORT[chartDateFilter.getMonth()]} ${chartDateFilter.getFullYear()}`,
+      onRemove: () => setChartDateFilter(null),
+    }] : []),
     ...[...statusFilters].map((s) => ({
       key: `s-${s}`,
       label: s,
@@ -1858,7 +1936,7 @@ const reviewOrder = useMemo(
     }));
   }
 
-  const isFiltered = activeFilterCount > 0;
+  const isFiltered = activeFilterCount > 0 || !!kpiActiveFilter || !!chartDateFilter;
 
   return (
     <div className="space-y-6">
@@ -1902,44 +1980,38 @@ const reviewOrder = useMemo(
 
       {/* Operational KPI cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-        <div className="bg-white border border-gray-200 rounded-xl px-5 py-4 shadow-sm">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Requests this month</p>
-          <p className="text-3xl font-bold text-gray-900 mt-1.5">{opKpiStats.requestsThisMonth}</p>
-        </div>
-        <div className="bg-white border border-gray-200 rounded-xl px-5 py-4 shadow-sm">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide flex items-center gap-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-[#0B5C6C] shrink-0" />
-            New requests
-          </p>
-          <p className="text-3xl font-bold text-[#0B5C6C] mt-1.5">{opKpiStats.newRequests}</p>
-        </div>
-        <div className="bg-white border border-gray-200 rounded-xl px-5 py-4 shadow-sm">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide flex items-center gap-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-amber-400 shrink-0" />
-            Needs funding review
-          </p>
-          <p className={cn("text-3xl font-bold mt-1.5", opKpiStats.needsFundingReview > 0 ? "text-amber-700" : "text-gray-900")}>
-            {opKpiStats.needsFundingReview}
-          </p>
-        </div>
-        <div className="bg-white border border-gray-200 rounded-xl px-5 py-4 shadow-sm">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide flex items-center gap-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
-            Delivered requests
-          </p>
-          <p className="text-3xl font-bold text-emerald-700 mt-1.5">{opKpiStats.deliveredThisMonth}</p>
-          <p className="text-[10px] text-gray-400 mt-1">Created this month</p>
-        </div>
-        <div className="bg-white border border-gray-200 rounded-xl px-5 py-4 shadow-sm">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide flex items-center gap-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-rose-400 shrink-0" />
-            Declined requests
-          </p>
-          <p className={cn("text-3xl font-bold mt-1.5", opKpiStats.declinedThisMonth > 0 ? "text-rose-700" : "text-gray-900")}>
-            {opKpiStats.declinedThisMonth}
-          </p>
-          <p className="text-[10px] text-gray-400 mt-1">Created this month</p>
-        </div>
+        {(
+          [
+            { key: "requestsThisMonth"  as KpiActiveFilter, label: "Requests this month",   count: opKpiStats.requestsThisMonth,  dot: "bg-gray-400",       countCls: "text-gray-900",   sub: null },
+            { key: "newRequests"        as KpiActiveFilter, label: "New requests",           count: opKpiStats.newRequests,        dot: "bg-[#0B5C6C]",      countCls: "text-[#0B5C6C]",  sub: null },
+            { key: "needsFundingReview" as KpiActiveFilter, label: "Needs funding review",   count: opKpiStats.needsFundingReview, dot: "bg-amber-400",      countCls: opKpiStats.needsFundingReview > 0 ? "text-amber-700" : "text-gray-900", sub: null },
+            { key: "deliveredThisMonth" as KpiActiveFilter, label: "Delivered requests",     count: opKpiStats.deliveredThisMonth, dot: "bg-emerald-500",    countCls: "text-emerald-700", sub: "Created this month" },
+            { key: "declinedThisMonth"  as KpiActiveFilter, label: "Declined requests",      count: opKpiStats.declinedThisMonth,  dot: "bg-rose-400",       countCls: opKpiStats.declinedThisMonth > 0 ? "text-rose-700" : "text-gray-900", sub: "Created this month" },
+          ] as const
+        ).map(({ key, label, count, dot, countCls, sub }) => {
+          const isActive = kpiActiveFilter === key;
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => handleKpiCardClick(key)}
+              className={cn(
+                "bg-white rounded-xl px-5 py-4 text-left transition-all shadow-sm",
+                isActive
+                  ? "border-2 border-[#0B5C6C] ring-1 ring-[#0B5C6C]/20"
+                  : "border border-gray-200 hover:border-[#0B5C6C]/40"
+              )}
+            >
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide flex items-center gap-1.5">
+                <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", dot)} />
+                {label}
+                {isActive && <span className="ml-auto text-[10px] font-semibold text-[#0B5C6C] bg-[#0B5C6C]/10 px-1.5 py-0.5 rounded">Active</span>}
+              </p>
+              <p className={cn("text-3xl font-bold mt-1.5", countCls)}>{count}</p>
+              {sub && <p className="text-[10px] text-gray-400 mt-1">{sub}</p>}
+            </button>
+          );
+        })}
       </div>
 
       {/* Request trend chart */}
@@ -1948,9 +2020,25 @@ const reviewOrder = useMemo(
         const totalIn30 = chartData.reduce((s, d) => s + d.count, 0);
         return (
           <div className="bg-white border border-gray-200 rounded-xl px-5 pt-4 pb-3 shadow-sm">
-            <div className="flex items-baseline justify-between gap-3 mb-3">
-              <p className="text-sm font-semibold text-gray-700">Requests — last 30 days</p>
-              <p className="text-xs text-gray-400 tabular-nums">{totalIn30} request{totalIn30 !== 1 ? "s" : ""}</p>
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div>
+                <p className="text-sm font-semibold text-gray-700">Requests — last 30 days</p>
+                {totalIn30 > 0 && (
+                  <p className="text-xs text-gray-400 mt-0.5 tabular-nums">
+                    {totalIn30} total · peak {maxCount} in a day
+                  </p>
+                )}
+              </div>
+              {hoveredChartIndex !== null && chartData[hoveredChartIndex] && (
+                <div className="text-right shrink-0">
+                  <p className="text-xs font-semibold text-gray-700">
+                    {chartData[hoveredChartIndex].date.getDate()} {MONTH_SHORT[chartData[hoveredChartIndex].date.getMonth()]}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {chartData[hoveredChartIndex].count} request{chartData[hoveredChartIndex].count !== 1 ? "s" : ""}
+                  </p>
+                </div>
+              )}
             </div>
             {totalIn30 === 0 ? (
               <div className="flex items-center justify-center h-16 text-sm text-gray-400">
@@ -1959,14 +2047,35 @@ const reviewOrder = useMemo(
             ) : (
               <>
                 <div className="flex items-end gap-px h-16">
-                  {chartData.map((d, i) => (
-                    <div
-                      key={i}
-                      title={`${d.date.getDate()} ${MONTH_SHORT[d.date.getMonth()]}: ${d.count} request${d.count !== 1 ? "s" : ""}`}
-                      className="flex-1 rounded-t-[2px] bg-[#0B5C6C]/60 hover:bg-[#0B5C6C] transition-colors"
-                      style={{ height: d.count > 0 ? `${Math.max((d.count / maxCount) * 100, 6)}%` : "2px", opacity: d.count > 0 ? 1 : 0.15 }}
-                    />
-                  ))}
+                  {chartData.map((d, i) => {
+                    const pct = d.count > 0 ? Math.max((d.count / maxCount) * 100, 6) : 0;
+                    const isHovered = hoveredChartIndex === i;
+                    const isSelected = chartDateFilter !== null &&
+                      d.date.getFullYear() === chartDateFilter.getFullYear() &&
+                      d.date.getMonth() === chartDateFilter.getMonth() &&
+                      d.date.getDate() === chartDateFilter.getDate();
+                    return (
+                      <button
+                        key={i}
+                        type="button"
+                        aria-label={`${d.date.getDate()} ${MONTH_SHORT[d.date.getMonth()]}: ${d.count} request${d.count !== 1 ? "s" : ""}`}
+                        className="relative flex-1 flex flex-col justify-end h-full cursor-pointer focus:outline-none"
+                        onMouseEnter={() => setHoveredChartIndex(i)}
+                        onMouseLeave={() => setHoveredChartIndex(null)}
+                        onClick={() => handleChartBarClick(d.date)}
+                      >
+                        <div
+                          className={cn(
+                            "w-full rounded-t-[2px] transition-colors",
+                            isSelected ? "bg-[#0B5C6C]"
+                              : isHovered ? "bg-[#0B5C6C]/80"
+                              : "bg-[#0B5C6C]/50"
+                          )}
+                          style={{ height: d.count > 0 ? `${pct}%` : "2px", opacity: d.count > 0 ? 1 : 0.12 }}
+                        />
+                      </button>
+                    );
+                  })}
                 </div>
                 <div className="flex mt-1.5">
                   {chartData.map((d, i) => {
