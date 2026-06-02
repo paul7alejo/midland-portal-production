@@ -2029,6 +2029,7 @@ const reviewOrder = useMemo(
           y: maxCount > 0 ? PT + (1 - d.count / maxCount) * cH : baseY,
           count: d.count,
           date: d.date,
+          index: i,
         }));
         // Catmull-Rom → cubic Bezier: smooth curve through real data points only
         const np = pts.length;
@@ -2074,11 +2075,20 @@ const reviewOrder = useMemo(
                 <div
                   className="relative cursor-pointer"
                   onMouseMove={(e) => {
+                    if (pts.length === 0) return;
                     const rect = e.currentTarget.getBoundingClientRect();
-                    const relX = e.clientX - rect.left;
-                    const index = Math.max(0, Math.min(29, Math.round(((relX / rect.width) * W - PL) * 29 / cW)));
-                    setHoveredChartIndex(index);
-                    setChartTooltipPos({ x: relX, y: e.clientY - rect.top });
+                    // Convert cursor DOM x → SVG x, find nearest rendered point
+                    const svgX = ((e.clientX - rect.left) / rect.width) * W;
+                    const nearest = pts.reduce(
+                      (best, p) => Math.abs(p.x - svgX) < Math.abs(best.x - svgX) ? p : best,
+                      pts[0]!
+                    );
+                    setHoveredChartIndex(nearest.index);
+                    // Anchor tooltip to the actual rendered point position, not cursor
+                    setChartTooltipPos({
+                      x: nearest.x * (rect.width / W),
+                      y: nearest.y * (rect.height / H),
+                    });
                   }}
                   onMouseLeave={() => {
                     setHoveredChartIndex(null);
