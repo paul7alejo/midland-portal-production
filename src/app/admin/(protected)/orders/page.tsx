@@ -68,6 +68,7 @@ const MONTH_NUM: Record<string, number> = {
   Jan: 1, Feb: 2, Mar: 3, Apr: 4, May: 5, Jun: 6,
   Jul: 7, Aug: 8, Sep: 9, Oct: 10, Nov: 11, Dec: 12,
 };
+const MONTH_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 function parseDateForSort(s: string): number {
   const [d, m, y] = s.split(" ");
@@ -1510,6 +1511,42 @@ export default function AdminOrdersPage() {
     };
   }, [orders, showAdminRows]);
 
+  const opKpiStats = useMemo(() => {
+    const real = orders.filter((o) => !isAdminRow(o));
+    const now = new Date();
+    const cy = now.getFullYear();
+    const cm = now.getMonth();
+    function inCurrentMonth(s: string): boolean {
+      const d = parseToDate(s);
+      return d !== null && d.getFullYear() === cy && d.getMonth() === cm;
+    }
+    return {
+      requestsThisMonth:  real.filter((o) => inCurrentMonth(o.date)).length,
+      newRequests:        real.filter((o) => o.status === "New").length,
+      needsFundingReview: real.filter((o) => Boolean(o.needsFundingReview)).length,
+      deliveredThisMonth: real.filter((o) => o.status === "Delivered" && inCurrentMonth(o.date)).length,
+      declinedThisMonth:  real.filter((o) => o.status === "Declined"  && inCurrentMonth(o.date)).length,
+    };
+  }, [orders]);
+
+  const chartData = useMemo(() => {
+    const real = orders.filter((o) => !isAdminRow(o));
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return Array.from({ length: 30 }, (_, i) => {
+      const d = new Date(today);
+      d.setDate(d.getDate() - (29 - i));
+      const count = real.filter((o) => {
+        const od = parseToDate(o.date);
+        return od !== null &&
+          od.getFullYear() === d.getFullYear() &&
+          od.getMonth() === d.getMonth() &&
+          od.getDate() === d.getDate();
+      }).length;
+      return { date: d, count };
+    });
+  }, [orders]);
+
 const reviewOrder = useMemo(
     () => (reviewOrderId ? orders.find((o) => o.id === reviewOrderId) ?? null : null),
     [orders, reviewOrderId]
@@ -1863,58 +1900,106 @@ const reviewOrder = useMemo(
         </div>
       )}
 
-      {/* KPI cards */}
+      {/* Operational KPI cards */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="bg-white border border-gray-200 rounded-xl px-5 py-4 shadow-sm">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Requests this month</p>
+          <p className="text-3xl font-bold text-gray-900 mt-1.5">{opKpiStats.requestsThisMonth}</p>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-xl px-5 py-4 shadow-sm">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide flex items-center gap-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#0B5C6C] shrink-0" />
+            New requests
+          </p>
+          <p className="text-3xl font-bold text-[#0B5C6C] mt-1.5">{opKpiStats.newRequests}</p>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-xl px-5 py-4 shadow-sm">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide flex items-center gap-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-400 shrink-0" />
+            Needs funding review
+          </p>
+          <p className={cn("text-3xl font-bold mt-1.5", opKpiStats.needsFundingReview > 0 ? "text-amber-700" : "text-gray-900")}>
+            {opKpiStats.needsFundingReview}
+          </p>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-xl px-5 py-4 shadow-sm">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide flex items-center gap-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
+            Delivered requests
+          </p>
+          <p className="text-3xl font-bold text-emerald-700 mt-1.5">{opKpiStats.deliveredThisMonth}</p>
+          <p className="text-[10px] text-gray-400 mt-1">Created this month</p>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-xl px-5 py-4 shadow-sm">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide flex items-center gap-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-rose-400 shrink-0" />
+            Declined requests
+          </p>
+          <p className={cn("text-3xl font-bold mt-1.5", opKpiStats.declinedThisMonth > 0 ? "text-rose-700" : "text-gray-900")}>
+            {opKpiStats.declinedThisMonth}
+          </p>
+          <p className="text-[10px] text-gray-400 mt-1">Created this month</p>
+        </div>
+      </div>
+
+      {/* Request trend chart */}
       {(() => {
-        type KpiCard = { key: Exclude<StatusTab, "all">; label: string; amber?: boolean };
-        const KPI_CARDS: KpiCard[] = [
-          { key: "New",                  label: "New",                  amber: true },
-          { key: "Reviewing",            label: "Reviewing" },
-          { key: "Approved",             label: "Approved" },
-          { key: "Sent",                 label: "Sent" },
-          { key: "Delivered",            label: "Delivered" },
-          { key: "Declined",             label: "Declined" },
-          { key: "Needs Follow-Up",      label: "Needs Follow-Up",      amber: true },
-          { key: "Needs Funding Review", label: "Needs Funding Review", amber: true },
-        ];
+        const maxCount = Math.max(...chartData.map((d) => d.count), 0);
+        const totalIn30 = chartData.reduce((s, d) => s + d.count, 0);
         return (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-8">
-            {KPI_CARDS.map(({ key, label, amber }) => {
-              const count = kpiCounts[key] ?? 0;
-              const isActive = statusTab === key;
-              return (
-                <button
-                  key={label}
-                  type="button"
-                  onClick={() => handleStatusTab(isActive ? "all" : key)}
-                  className={cn(
-                    "relative flex flex-col items-start rounded-xl border px-4 py-4 text-left transition-colors",
-                    isActive
-                      ? "bg-[#0B5C6C] border-[#0B5C6C] text-white shadow-sm"
-                      : "bg-white border-sand text-charcoal hover:border-[#0B5C6C]/40"
-                  )}
-                >
-                  {amber && count > 0 && !isActive && (
-                    <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-amber-400" />
-                  )}
-                  <span className={cn("text-3xl font-bold leading-none mb-1", isActive ? "text-white" : "text-navy")}>
-                    {count}
-                  </span>
-                  <span className={cn("text-xs font-medium leading-tight", isActive ? "text-white/80" : "text-charcoal/70")}>
-                    {label}
-                  </span>
-                </button>
-              );
-            })}
+          <div className="bg-white border border-gray-200 rounded-xl px-5 pt-4 pb-3 shadow-sm">
+            <div className="flex items-baseline justify-between gap-3 mb-3">
+              <p className="text-sm font-semibold text-gray-700">Requests — last 30 days</p>
+              <p className="text-xs text-gray-400 tabular-nums">{totalIn30} request{totalIn30 !== 1 ? "s" : ""}</p>
+            </div>
+            {totalIn30 === 0 ? (
+              <div className="flex items-center justify-center h-16 text-sm text-gray-400">
+                No request activity in the last 30 days.
+              </div>
+            ) : (
+              <>
+                <div className="flex items-end gap-px h-16">
+                  {chartData.map((d, i) => (
+                    <div
+                      key={i}
+                      title={`${d.date.getDate()} ${MONTH_SHORT[d.date.getMonth()]}: ${d.count} request${d.count !== 1 ? "s" : ""}`}
+                      className="flex-1 rounded-t-[2px] bg-[#0B5C6C]/60 hover:bg-[#0B5C6C] transition-colors"
+                      style={{ height: d.count > 0 ? `${Math.max((d.count / maxCount) * 100, 6)}%` : "2px", opacity: d.count > 0 ? 1 : 0.15 }}
+                    />
+                  ))}
+                </div>
+                <div className="flex mt-1.5">
+                  {chartData.map((d, i) => {
+                    const show = i === 0 || i === 7 || i === 14 || i === 21 || i === 29;
+                    return (
+                      <div key={i} className="flex-1 text-[10px] text-gray-400 leading-none text-center select-none">
+                        {show ? `${d.date.getDate()} ${MONTH_SHORT[d.date.getMonth()]}` : ""}
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </div>
         );
       })()}
 
-      {/* Status tabs */}
+      {/* Status tabs — worklist filter */}
       <div className="overflow-x-auto">
         <div className="flex items-center gap-0 border-b border-gray-200 min-w-max">
           {STATUS_TABS.map(({ key, label }) => {
             const count = kpiCounts[key as keyof typeof kpiCounts] ?? 0;
             const isActive = statusTab === key;
+            let countNode: React.ReactNode;
+            if (key === "Needs Funding Review" && count > 0) {
+              countNode = <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-700">{count}</span>;
+            } else if (key === "Declined" && count > 0) {
+              countNode = <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-rose-100 text-rose-700">{count}</span>;
+            } else if (key === "Delivered" && count > 0) {
+              countNode = <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700">{count}</span>;
+            } else {
+              countNode = <span className="ml-1 text-xs font-medium opacity-60">({count})</span>;
+            }
             return (
               <button
                 key={key}
@@ -1927,7 +2012,7 @@ const reviewOrder = useMemo(
                     : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                 )}
               >
-                {label} <span className="ml-1 text-xs font-medium opacity-70">({count})</span>
+                {label}{countNode}
               </button>
             );
           })}
