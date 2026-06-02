@@ -2018,6 +2018,27 @@ const reviewOrder = useMemo(
       {(() => {
         const maxCount = Math.max(...chartData.map((d) => d.count), 0);
         const totalIn30 = chartData.reduce((s, d) => s + d.count, 0);
+        // SVG geometry constants
+        const W = 600, H = 68, PL = 4, PR = 4, PT = 8, PB = 4;
+        const cW = W - PL - PR;
+        const cH = H - PT - PB;
+        const baseY = PT + cH;
+        const pts = chartData.map((d, i) => ({
+          x: PL + (i / 29) * cW,
+          y: maxCount > 0 ? PT + (1 - d.count / maxCount) * cH : baseY,
+          count: d.count,
+          date: d.date,
+        }));
+        const linePath = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
+        const areaPath = pts.length > 0
+          ? [
+              `M ${pts[0].x.toFixed(1)} ${baseY.toFixed(1)}`,
+              ...pts.map((p) => `L ${p.x.toFixed(1)} ${p.y.toFixed(1)}`),
+              `L ${pts[pts.length - 1].x.toFixed(1)} ${baseY.toFixed(1)}`,
+              "Z",
+            ].join(" ")
+          : "";
+        const colW = cW / 30;
         return (
           <div className="bg-white border border-gray-200 rounded-xl px-5 pt-4 pb-3 shadow-sm">
             <div className="flex items-start justify-between gap-3 mb-3">
@@ -2031,8 +2052,8 @@ const reviewOrder = useMemo(
               </div>
               {hoveredChartIndex !== null && chartData[hoveredChartIndex] && (
                 <div className="text-right shrink-0">
-                  <p className="text-xs font-semibold text-gray-700">
-                    {chartData[hoveredChartIndex].date.getDate()} {MONTH_SHORT[chartData[hoveredChartIndex].date.getMonth()]}
+                  <p className="text-xs font-semibold text-gray-700 tabular-nums">
+                    {chartData[hoveredChartIndex].date.getDate()} {MONTH_SHORT[chartData[hoveredChartIndex].date.getMonth()]} {chartData[hoveredChartIndex].date.getFullYear()}
                   </p>
                   <p className="text-xs text-gray-500">
                     {chartData[hoveredChartIndex].count} request{chartData[hoveredChartIndex].count !== 1 ? "s" : ""}
@@ -2046,37 +2067,72 @@ const reviewOrder = useMemo(
               </div>
             ) : (
               <>
-                <div className="flex items-end gap-px h-16">
+                <svg
+                  viewBox={`0 0 ${W} ${H}`}
+                  className="w-full"
+                  style={{ height: 68, display: "block" }}
+                  aria-hidden="true"
+                >
+                  {/* Baseline gridline */}
+                  <line x1={PL} y1={baseY} x2={W - PR} y2={baseY} stroke="#e5e7eb" strokeWidth={1} />
+                  {/* Area fill */}
+                  <path d={areaPath} fill="#0B5C6C" fillOpacity={0.09} />
+                  {/* Line */}
+                  <path
+                    d={linePath}
+                    fill="none"
+                    stroke="#0B5C6C"
+                    strokeWidth={1.5}
+                    strokeLinejoin="round"
+                    strokeLinecap="round"
+                  />
+                  {/* Circles for days with requests */}
+                  {pts.map((p, i) => {
+                    if (p.count === 0) return null;
+                    const isSel =
+                      chartDateFilter !== null &&
+                      p.date.getFullYear() === chartDateFilter.getFullYear() &&
+                      p.date.getMonth() === chartDateFilter.getMonth() &&
+                      p.date.getDate() === chartDateFilter.getDate();
+                    const isHov = hoveredChartIndex === i;
+                    return (
+                      <circle
+                        key={i}
+                        cx={p.x}
+                        cy={p.y}
+                        r={isSel || isHov ? 4 : 2.5}
+                        fill={isSel ? "#0B5C6C" : "#ffffff"}
+                        stroke="#0B5C6C"
+                        strokeWidth={isSel || isHov ? 2 : 1.5}
+                      />
+                    );
+                  })}
+                  {/* Hit zones (one invisible rect per day) */}
                   {chartData.map((d, i) => {
-                    const pct = d.count > 0 ? Math.max((d.count / maxCount) * 100, 6) : 0;
-                    const isHovered = hoveredChartIndex === i;
-                    const isSelected = chartDateFilter !== null &&
+                    const hx = PL + i * colW;
+                    const isSel =
+                      chartDateFilter !== null &&
                       d.date.getFullYear() === chartDateFilter.getFullYear() &&
                       d.date.getMonth() === chartDateFilter.getMonth() &&
                       d.date.getDate() === chartDateFilter.getDate();
                     return (
-                      <button
+                      <rect
                         key={i}
-                        type="button"
-                        aria-label={`${d.date.getDate()} ${MONTH_SHORT[d.date.getMonth()]}: ${d.count} request${d.count !== 1 ? "s" : ""}`}
-                        className="relative flex-1 flex flex-col justify-end h-full cursor-pointer focus:outline-none"
+                        x={hx}
+                        y={0}
+                        width={colW}
+                        height={H}
+                        fill={isSel ? "#0B5C6C" : "transparent"}
+                        fillOpacity={isSel ? 0.06 : 0}
+                        className="cursor-pointer"
                         onMouseEnter={() => setHoveredChartIndex(i)}
                         onMouseLeave={() => setHoveredChartIndex(null)}
                         onClick={() => handleChartBarClick(d.date)}
-                      >
-                        <div
-                          className={cn(
-                            "w-full rounded-t-[2px] transition-colors",
-                            isSelected ? "bg-[#0B5C6C]"
-                              : isHovered ? "bg-[#0B5C6C]/80"
-                              : "bg-[#0B5C6C]/50"
-                          )}
-                          style={{ height: d.count > 0 ? `${pct}%` : "2px", opacity: d.count > 0 ? 1 : 0.12 }}
-                        />
-                      </button>
+                        aria-label={`${d.date.getDate()} ${MONTH_SHORT[d.date.getMonth()]}: ${d.count} request${d.count !== 1 ? "s" : ""}`}
+                      />
                     );
                   })}
-                </div>
+                </svg>
                 <div className="flex mt-1.5">
                   {chartData.map((d, i) => {
                     const show = i === 0 || i === 7 || i === 14 || i === 21 || i === 29;
