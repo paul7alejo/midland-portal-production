@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, type MouseEvent, type PointerEvent } from "react";
 import { PatientDrawer } from "@/components/admin/PatientDrawer";
 import { cn } from "@/lib/utils";
 
@@ -1478,6 +1478,7 @@ export default function AdminOrdersPage() {
   const [chartDateFilter,     setChartDateFilter]     = useState<Date | null>(null);
   const [hoveredChartIndex,   setHoveredChartIndex]   = useState<number | null>(null);
   const [chartTooltipPos,     setChartTooltipPos]     = useState<{ x: number; y: number } | null>(null);
+  const chartSvgRef = useRef<SVGSVGElement | null>(null);
   const [testForm,            setTestForm]            = useState<TestRequestForm>({
     msid: "MS-900005",
     patient: "Demo Patient",
@@ -2046,6 +2047,34 @@ const reviewOrder = useMemo(
           : "";
         const hPt = hoveredChartIndex !== null ? (pts[hoveredChartIndex] ?? null) : null;
         const hDay = hoveredChartIndex !== null ? (chartData[hoveredChartIndex] ?? null) : null;
+        function selectNearestChartPoint(e: PointerEvent<SVGSVGElement> | MouseEvent<SVGSVGElement>) {
+          const svg = chartSvgRef.current ?? e.currentTarget;
+          const ctm = svg.getScreenCTM();
+          const tooltipContainer = svg.parentElement;
+          if (pts.length === 0 || ctm === null || tooltipContainer === null) return null;
+
+          const cursorPoint = svg.createSVGPoint();
+          cursorPoint.x = e.clientX;
+          cursorPoint.y = e.clientY;
+          const svgPoint = cursorPoint.matrixTransform(ctm.inverse());
+          const nearest = pts.reduce(
+            (best, p) => Math.abs(p.x - svgPoint.x) < Math.abs(best.x - svgPoint.x) ? p : best,
+            pts[0]!
+          );
+
+          const selectedPoint = svg.createSVGPoint();
+          selectedPoint.x = nearest.x;
+          selectedPoint.y = nearest.y;
+          const screenPoint = selectedPoint.matrixTransform(ctm);
+          const containerRect = tooltipContainer.getBoundingClientRect();
+
+          setHoveredChartIndex(nearest.index);
+          setChartTooltipPos({
+            x: screenPoint.x - containerRect.left,
+            y: screenPoint.y - containerRect.top,
+          });
+          return nearest;
+        }
         return (
           <div className="bg-white border border-gray-200 rounded-xl px-5 pt-4 pb-3 shadow-sm">
             <div className="flex items-start justify-between gap-3 mb-4">
@@ -2071,38 +2100,22 @@ const reviewOrder = useMemo(
               </div>
             ) : (
               <>
-                {/* Mouse-tracking wrapper — computes nearest day from x-position */}
-                <div
-                  className="relative cursor-pointer"
-                  onMouseMove={(e) => {
-                    if (pts.length === 0) return;
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    // Convert cursor DOM x → SVG x, find nearest rendered point
-                    const svgX = ((e.clientX - rect.left) / rect.width) * W;
-                    const nearest = pts.reduce(
-                      (best, p) => Math.abs(p.x - svgX) < Math.abs(best.x - svgX) ? p : best,
-                      pts[0]!
-                    );
-                    setHoveredChartIndex(nearest.index);
-                    // Anchor tooltip to the actual rendered point position, not cursor
-                    setChartTooltipPos({
-                      x: nearest.x * (rect.width / W),
-                      y: nearest.y * (rect.height / H),
-                    });
-                  }}
-                  onMouseLeave={() => {
-                    setHoveredChartIndex(null);
-                    setChartTooltipPos(null);
-                  }}
-                  onClick={() => {
-                    if (hDay !== null) handleChartBarClick(hDay.date);
-                  }}
-                >
+                <div className="relative">
                   <svg
+                    ref={chartSvgRef}
                     viewBox={`0 0 ${W} ${H}`}
-                    className="w-full"
+                    className="w-full cursor-pointer"
                     style={{ height: 90, display: "block" }}
                     aria-hidden="true"
+                    onPointerMove={selectNearestChartPoint}
+                    onPointerLeave={() => {
+                      setHoveredChartIndex(null);
+                      setChartTooltipPos(null);
+                    }}
+                    onClick={(e) => {
+                      const nearest = selectNearestChartPoint(e);
+                      if (nearest !== null) handleChartBarClick(nearest.date);
+                    }}
                   >
                     {/* Baseline gridline */}
                     <line x1={PL} y1={baseY} x2={W - PR} y2={baseY} stroke="#e5e7eb" strokeWidth={1} />
