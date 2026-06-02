@@ -2021,7 +2021,7 @@ const reviewOrder = useMemo(
         const maxCount = Math.max(...chartData.map((d) => d.count), 0);
         const totalIn30 = chartData.reduce((s, d) => s + d.count, 0);
         // SVG geometry constants
-        const W = 600, H = 90, PL = 4, PR = 4, PT = 10, PB = 4;
+        const W = 600, H = 110, PL = 4, PR = 4, PT = 10, PB = 24;
         const cW = W - PL - PR;
         const cH = H - PT - PB;
         const baseY = PT + cH;
@@ -2105,7 +2105,7 @@ const reviewOrder = useMemo(
                     ref={chartSvgRef}
                     viewBox={`0 0 ${W} ${H}`}
                     className="w-full cursor-pointer"
-                    style={{ height: 90, display: "block" }}
+                    style={{ height: 110, display: "block" }}
                     aria-hidden="true"
                     onPointerMove={selectNearestChartPoint}
                     onPointerLeave={() => {
@@ -2173,6 +2173,25 @@ const reviewOrder = useMemo(
                         />
                       </>
                     )}
+                    {/* X-axis labels share the same x positions as the plotted buckets */}
+                    {pts.map((p, i) => {
+                      const show = i === 0 || i === 7 || i === 14 || i === 21 || i === 29;
+                      if (!show) return null;
+                      return (
+                        <text
+                          key={i}
+                          x={p.x}
+                          y={H - 5}
+                          fill="#9ca3af"
+                          fontSize={10}
+                          textAnchor={i === 0 ? "start" : i === 29 ? "end" : "middle"}
+                          dominantBaseline="middle"
+                          className="select-none"
+                        >
+                          {p.date.getDate()} {MONTH_SHORT[p.date.getMonth()]}
+                        </text>
+                      );
+                    })}
                   </svg>
 
                   {/* Floating tooltip */}
@@ -2196,16 +2215,6 @@ const reviewOrder = useMemo(
                   )}
                 </div>
 
-                <div className="flex mt-1.5">
-                  {chartData.map((d, i) => {
-                    const show = i === 0 || i === 7 || i === 14 || i === 21 || i === 29;
-                    return (
-                      <div key={i} className="flex-1 text-[10px] text-gray-400 leading-none text-center select-none">
-                        {show ? `${d.date.getDate()} ${MONTH_SHORT[d.date.getMonth()]}` : ""}
-                      </div>
-                    );
-                  })}
-                </div>
               </>
             )}
           </div>
