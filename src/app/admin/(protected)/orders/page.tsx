@@ -1477,6 +1477,7 @@ export default function AdminOrdersPage() {
   const [kpiActiveFilter,     setKpiActiveFilter]     = useState<KpiActiveFilter | null>(null);
   const [chartDateFilter,     setChartDateFilter]     = useState<Date | null>(null);
   const [hoveredChartIndex,   setHoveredChartIndex]   = useState<number | null>(null);
+  const [chartTooltipPos,     setChartTooltipPos]     = useState<{ x: number; y: number } | null>(null);
   const [testForm,            setTestForm]            = useState<TestRequestForm>({
     msid: "MS-900005",
     patient: "Demo Patient",
@@ -2038,7 +2039,8 @@ const reviewOrder = useMemo(
               "Z",
             ].join(" ")
           : "";
-        const colW = cW / 30;
+        const hPt = hoveredChartIndex !== null ? (pts[hoveredChartIndex] ?? null) : null;
+        const hDay = hoveredChartIndex !== null ? (chartData[hoveredChartIndex] ?? null) : null;
         return (
           <div className="bg-white border border-gray-200 rounded-xl px-5 pt-4 pb-3 shadow-sm">
             <div className="flex items-start justify-between gap-3 mb-3">
@@ -2050,16 +2052,6 @@ const reviewOrder = useMemo(
                   </p>
                 )}
               </div>
-              {hoveredChartIndex !== null && chartData[hoveredChartIndex] && (
-                <div className="text-right shrink-0">
-                  <p className="text-xs font-semibold text-gray-700 tabular-nums">
-                    {chartData[hoveredChartIndex].date.getDate()} {MONTH_SHORT[chartData[hoveredChartIndex].date.getMonth()]} {chartData[hoveredChartIndex].date.getFullYear()}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    {chartData[hoveredChartIndex].count} request{chartData[hoveredChartIndex].count !== 1 ? "s" : ""}
-                  </p>
-                </div>
-              )}
             </div>
             {totalIn30 === 0 ? (
               <div className="flex items-center justify-center h-16 text-sm text-gray-400">
@@ -2067,72 +2059,110 @@ const reviewOrder = useMemo(
               </div>
             ) : (
               <>
-                <svg
-                  viewBox={`0 0 ${W} ${H}`}
-                  className="w-full"
-                  style={{ height: 68, display: "block" }}
-                  aria-hidden="true"
+                {/* Mouse-tracking wrapper — computes nearest day from x-position */}
+                <div
+                  className="relative cursor-pointer"
+                  onMouseMove={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const relX = e.clientX - rect.left;
+                    const index = Math.max(0, Math.min(29, Math.round(((relX / rect.width) * W - PL) * 29 / cW)));
+                    setHoveredChartIndex(index);
+                    setChartTooltipPos({ x: relX, y: e.clientY - rect.top });
+                  }}
+                  onMouseLeave={() => {
+                    setHoveredChartIndex(null);
+                    setChartTooltipPos(null);
+                  }}
+                  onClick={() => {
+                    if (hDay !== null) handleChartBarClick(hDay.date);
+                  }}
                 >
-                  {/* Baseline gridline */}
-                  <line x1={PL} y1={baseY} x2={W - PR} y2={baseY} stroke="#e5e7eb" strokeWidth={1} />
-                  {/* Area fill */}
-                  <path d={areaPath} fill="#0B5C6C" fillOpacity={0.09} />
-                  {/* Line */}
-                  <path
-                    d={linePath}
-                    fill="none"
-                    stroke="#0B5C6C"
-                    strokeWidth={1.5}
-                    strokeLinejoin="round"
-                    strokeLinecap="round"
-                  />
-                  {/* Circles for days with requests */}
-                  {pts.map((p, i) => {
-                    if (p.count === 0) return null;
-                    const isSel =
-                      chartDateFilter !== null &&
-                      p.date.getFullYear() === chartDateFilter.getFullYear() &&
-                      p.date.getMonth() === chartDateFilter.getMonth() &&
-                      p.date.getDate() === chartDateFilter.getDate();
-                    const isHov = hoveredChartIndex === i;
-                    return (
-                      <circle
-                        key={i}
-                        cx={p.x}
-                        cy={p.y}
-                        r={isSel || isHov ? 4 : 2.5}
-                        fill={isSel ? "#0B5C6C" : "#ffffff"}
-                        stroke="#0B5C6C"
-                        strokeWidth={isSel || isHov ? 2 : 1.5}
-                      />
-                    );
-                  })}
-                  {/* Hit zones (one invisible rect per day) */}
-                  {chartData.map((d, i) => {
-                    const hx = PL + i * colW;
-                    const isSel =
-                      chartDateFilter !== null &&
-                      d.date.getFullYear() === chartDateFilter.getFullYear() &&
-                      d.date.getMonth() === chartDateFilter.getMonth() &&
-                      d.date.getDate() === chartDateFilter.getDate();
-                    return (
-                      <rect
-                        key={i}
-                        x={hx}
-                        y={0}
-                        width={colW}
-                        height={H}
-                        fill={isSel ? "#0B5C6C" : "transparent"}
-                        fillOpacity={isSel ? 0.06 : 0}
-                        className="cursor-pointer"
-                        onMouseEnter={() => setHoveredChartIndex(i)}
-                        onMouseLeave={() => setHoveredChartIndex(null)}
-                        onClick={() => handleChartBarClick(d.date)}
-                        aria-label={`${d.date.getDate()} ${MONTH_SHORT[d.date.getMonth()]}: ${d.count} request${d.count !== 1 ? "s" : ""}`}
-                      />
-                    );
-                  })}
-                </svg>
+                  <svg
+                    viewBox={`0 0 ${W} ${H}`}
+                    className="w-full"
+                    style={{ height: 68, display: "block" }}
+                    aria-hidden="true"
+                  >
+                    {/* Baseline gridline */}
+                    <line x1={PL} y1={baseY} x2={W - PR} y2={baseY} stroke="#e5e7eb" strokeWidth={1} />
+                    {/* Area fill */}
+                    <path d={areaPath} fill="#0B5C6C" fillOpacity={0.09} />
+                    {/* Line */}
+                    <path
+                      d={linePath}
+                      fill="none"
+                      stroke="#0B5C6C"
+                      strokeWidth={1.5}
+                      strokeLinejoin="round"
+                      strokeLinecap="round"
+                    />
+                    {/* Circles for days with requests (skip hovered — rendered on top below) */}
+                    {pts.map((p, i) => {
+                      if (p.count === 0) return null;
+                      if (hoveredChartIndex === i) return null;
+                      const isSel =
+                        chartDateFilter !== null &&
+                        p.date.getFullYear() === chartDateFilter.getFullYear() &&
+                        p.date.getMonth() === chartDateFilter.getMonth() &&
+                        p.date.getDate() === chartDateFilter.getDate();
+                      return (
+                        <circle
+                          key={i}
+                          cx={p.x}
+                          cy={p.y}
+                          r={isSel ? 4 : 2.5}
+                          fill={isSel ? "#0B5C6C" : "#ffffff"}
+                          stroke="#0B5C6C"
+                          strokeWidth={isSel ? 2 : 1.5}
+                        />
+                      );
+                    })}
+                    {/* Vertical guide + hovered marker (on top) */}
+                    {hPt && (
+                      <>
+                        <line
+                          x1={hPt.x} y1={PT}
+                          x2={hPt.x} y2={baseY}
+                          stroke="#0B5C6C"
+                          strokeWidth={1}
+                          strokeDasharray="3 2"
+                          opacity={0.4}
+                        />
+                        {hPt.count > 0 && (
+                          <circle
+                            cx={hPt.x}
+                            cy={hPt.y}
+                            r={5}
+                            fill="#0B5C6C"
+                            stroke="white"
+                            strokeWidth={1.5}
+                          />
+                        )}
+                      </>
+                    )}
+                  </svg>
+
+                  {/* Floating tooltip */}
+                  {hDay !== null && chartTooltipPos !== null && (
+                    <div
+                      className="absolute z-10 bg-white border border-gray-200 shadow-lg rounded-lg px-2.5 py-1.5 pointer-events-none select-none"
+                      style={{
+                        left: (hoveredChartIndex ?? 0) >= 22
+                          ? chartTooltipPos.x - 132
+                          : chartTooltipPos.x + 12,
+                        top: Math.max(2, chartTooltipPos.y - 52),
+                      }}
+                    >
+                      <p className="text-xs font-semibold text-gray-800 whitespace-nowrap">
+                        {hDay.date.getDate()} {MONTH_SHORT[hDay.date.getMonth()]} {hDay.date.getFullYear()}
+                      </p>
+                      <p className="text-xs text-gray-500 whitespace-nowrap">
+                        Requests: {hDay.count}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
                 <div className="flex mt-1.5">
                   {chartData.map((d, i) => {
                     const show = i === 0 || i === 7 || i === 14 || i === 21 || i === 29;
