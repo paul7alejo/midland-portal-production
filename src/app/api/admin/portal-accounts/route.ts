@@ -2,7 +2,10 @@ import 'server-only'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getAdminUser, isAuthorizedAdmin } from '@/lib/security'
 import { getPortalUser, listPortalUsers } from '@/lib/aws/cognito-admin'
+import { listArchivedPatientSummaries } from '@/lib/aws/dynamodb'
 import type { PortalAccount } from '@/components/admin/PortalAccountsTable'
+
+const ORG_ID = 'midland-sleep'
 
 const MSID_RE = /^MS-\d+$/
 
@@ -33,17 +36,31 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Valid MSID is required' }, { status: 400 })
     }
     try {
-      const u = await getPortalUser(msidParam)
+      const [u, archivedSummaries] = await Promise.all([
+        getPortalUser(msidParam),
+        listArchivedPatientSummaries(ORG_ID),
+      ])
+      const archivedMsids = new Set(archivedSummaries.map(p => p.portal_id))
+      if (archivedMsids.has(msidParam)) {
+        return NextResponse.json({ account: null, archived: true })
+      }
       return NextResponse.json({ account: u ? toPortalAccount(u) : null })
     } catch {
       return NextResponse.json({ error: 'Failed to load account' }, { status: 500 })
     }
   }
 
-  // Full list for portal accounts page
+  // Full list for portal accounts page — exclude archived accounts
   try {
-    const users = await listPortalUsers()
-    return NextResponse.json({ accounts: users.map(toPortalAccount) })
+    const [users, archivedSummaries] = await Promise.all([
+      listPortalUsers(),
+      listArchivedPatientSummaries(ORG_ID),
+    ])
+    const archivedMsids = new Set(archivedSummaries.map(p => p.portal_id))
+    const activeAccounts = users
+      .filter(u => !archivedMsids.has(u.msid))
+      .map(toPortalAccount)
+    return NextResponse.json({ accounts: activeAccounts })
   } catch {
     return NextResponse.json({ error: 'Failed to load portal accounts' }, { status: 500 })
   }

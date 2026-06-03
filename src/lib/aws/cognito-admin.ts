@@ -4,6 +4,7 @@ import {
   AdminCreateUserCommand,
   AdminSetUserPasswordCommand,
   AdminEnableUserCommand,
+  AdminDisableUserCommand,
   ListUsersCommand,
   type UserType,
 } from '@aws-sdk/client-cognito-identity-provider'
@@ -234,6 +235,44 @@ export async function unlockPatientPortalAccount(
   }
 
   return { status: 'unlocked' }
+}
+
+export type DisableAccountResult =
+  | { status: 'disabled' }
+  | { status: 'error'; message: string }
+
+export async function disablePatientPortalAccount(
+  username: string  // number-only, e.g. "10047"
+): Promise<DisableAccountResult> {
+  try {
+    await client.send(new AdminDisableUserCommand({
+      UserPoolId: USER_POOL_ID,
+      Username: username,
+    }))
+  } catch (err: unknown) {
+    const errorName    = err instanceof Error ? err.name    : 'UnknownError'
+    const errorMessage = err instanceof Error ? err.message.slice(0, 300) : String(err).slice(0, 300)
+    const meta = (err as { $metadata?: { httpStatusCode?: number; requestId?: string } }).$metadata
+
+    console.error('[cognito-admin] disablePatientPortalAccount failed', {
+      username,
+      errorName,
+      errorMessage,
+      httpStatusCode: meta?.httpStatusCode,
+      requestId:      meta?.requestId,
+    })
+
+    const message =
+      errorName === 'AccessDeniedException'
+        ? 'AWS credentials cannot disable user (check cognito-idp:AdminDisableUser IAM permission)'
+        : errorName === 'UserNotFoundException'
+          ? 'Portal account not found in Cognito'
+          : 'Disable failed — check server logs for details'
+
+    return { status: 'error', message }
+  }
+
+  return { status: 'disabled' }
 }
 
 export interface PortalUserSummary {

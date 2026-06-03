@@ -72,6 +72,13 @@ export interface PatientRecord {
   updated_by_email?: string
   created_at?: string
   created_by?: string
+  // Archive / soft-delete fields (set by portal account delete flow)
+  archive_status?: 'archived'
+  archived_at?: string
+  archived_by?: string
+  archived_by_email?: string
+  archive_source?: string
+  purge_after?: string
 }
 
 export interface DeviceRecord {
@@ -293,10 +300,11 @@ export async function listPatients(orgId: string): Promise<PatientSummary[]> {
   do {
     const res = await docClient.send(new ScanCommand({
       TableName: TABLES.PATIENTS,
-      FilterExpression: 'org_id = :orgId AND sk = :profileSk',
+      FilterExpression: 'org_id = :orgId AND sk = :profileSk AND (attribute_not_exists(#archiveStatus) OR #archiveStatus <> :archived)',
       ExpressionAttributeValues: {
         ':orgId': orgId,
         ':profileSk': 'PROFILE',
+        ':archived': 'archived',
       },
       ProjectionExpression: [
         '#patientId',
@@ -351,6 +359,7 @@ export async function listPatients(orgId: string): Promise<PatientSummary[]> {
         '#safetyUpdatedByEmail': 'safety_updated_by_email',
         '#createdAt': 'created_at',
         '#createdBy': 'created_by',
+        '#archiveStatus': 'archive_status',
       },
       ExclusiveStartKey,
     }))
@@ -361,6 +370,142 @@ export async function listPatients(orgId: string): Promise<PatientSummary[]> {
 
   patients.sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''))
   return patients
+}
+
+// ── Patient archive / restore / bin ──────────────────────────────────────────
+
+export interface ArchivedPatientSummary {
+  patient_id: string
+  portal_id: string
+  name: string
+  archived_at: string
+  archived_by_email: string | null
+  archive_source: string
+  purge_after: string
+}
+
+export async function listArchivedPatientSummaries(orgId: string): Promise<ArchivedPatientSummary[]> {
+  const results: ArchivedPatientSummary[] = []
+  let ExclusiveStartKey: Record<string, NativeAttributeValue> | undefined
+  do {
+    const res = await docClient.send(new ScanCommand({
+      TableName: TABLES.PATIENTS,
+      FilterExpression: 'org_id = :orgId AND sk = :profileSk AND #archiveStatus = :archived',
+      ExpressionAttributeValues: {
+        ':orgId': orgId,
+        ':profileSk': 'PROFILE',
+        ':archived': 'archived',
+      },
+      ExpressionAttributeNames: {
+        '#archiveStatus': 'archive_status',
+        '#name': 'name',
+      },
+      ProjectionExpression: 'patient_id, portal_id, #name, archived_at, archived_by_email, archive_source, purge_after',
+      ExclusiveStartKey,
+    }))
+    results.push(...((res.Items ?? []) as ArchivedPatientSummary[]))
+    ExclusiveStartKey = res.LastEvaluatedKey
+  } while (ExclusiveStartKey)
+  results.sort((a, b) => b.archived_at.localeCompare(a.archived_at))
+  return results
+}
+
+export async function archivePatientByMsid(params: {
+  msid: string
+  adminSub: string
+  adminEmail: string
+  orgId: string
+}): Promise<{ ok: true; patientId: string } | { ok: false; reason: 'not_found' | 'already_archived' | 'error'; message?: string }> {
+  const patient = await getPatientByMSID(params.msid, params.orgId)
+  if (!patient) return { ok: false, reason: 'not_found' }
+
+  const now        = new Date().toISOString()
+  const purgeAfter = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+
+  try {
+    await docClient.send(new UpdateCommand({
+      TableName: TABLES.PATIENTS,
+      Key: { pk: patient.pk, sk: 'PROFILE' },
+      ConditionExpression: 'attribute_exists(pk) AND (attribute_not_exists(#archiveStatus) OR #archiveStatus <> :archived)',
+      UpdateExpression:
+        'SET archive_status = :archived, archived_at = :now, archived_by = :sub,' +
+        ' archived_by_email = :email, archive_source = :source, purge_after = :purgeAfter,' +
+        ' updated_at = :now, updated_by = :sub, updated_by_email = :email',
+      ExpressionAttributeNames: {
+        '#archiveStatus': 'archive_status',
+      },
+      ExpressionAttributeValues: {
+        ':archived':   'archived',
+        ':now':        now,
+        ':sub':        params.adminSub,
+        ':email':      params.adminEmail,
+        ':source':     'portal_account_deleted',
+        ':purgeAfter': purgeAfter,
+      },
+    }))
+  } catch (err: unknown) {
+    if ((err as { name?: string }).name === 'ConditionalCheckFailedException') {
+      return { ok: false, reason: 'already_archived' }
+    }
+    return { ok: false, reason: 'error', message: err instanceof Error ? err.message : String(err) }
+  }
+
+  return { ok: true, patientId: patient.patient_id }
+}
+
+export async function restorePatientByMsid(params: {
+  msid: string
+  adminSub: string
+  adminEmail: string
+  orgId: string
+}): Promise<{ ok: true } | { ok: false; reason: 'not_found' | 'not_archived' | 'wrong_source' | 'restore_window_expired' | 'error'; message?: string }> {
+  const patient = await getPatientByMSID(params.msid, params.orgId)
+  if (!patient) return { ok: false, reason: 'not_found' }
+
+  // Get the full item directly — GSI projection may be partial
+  let fullRecord: PatientRecord | undefined
+  try {
+    const res = await docClient.send(new GetCommand({
+      TableName: TABLES.PATIENTS,
+      Key: { pk: patient.pk, sk: 'PROFILE' },
+    }))
+    fullRecord = res.Item as PatientRecord | undefined
+  } catch (err: unknown) {
+    return { ok: false, reason: 'error', message: err instanceof Error ? err.message : String(err) }
+  }
+
+  if (!fullRecord || fullRecord.archive_status !== 'archived') {
+    return { ok: false, reason: 'not_archived' }
+  }
+
+  if (fullRecord.archive_source !== 'portal_account_deleted') {
+    return { ok: false, reason: 'wrong_source' }
+  }
+
+  if (fullRecord.purge_after && new Date(fullRecord.purge_after) < new Date()) {
+    return { ok: false, reason: 'restore_window_expired' }
+  }
+
+  const now = new Date().toISOString()
+  try {
+    await docClient.send(new UpdateCommand({
+      TableName: TABLES.PATIENTS,
+      Key: { pk: patient.pk, sk: 'PROFILE' },
+      ConditionExpression: 'attribute_exists(pk)',
+      UpdateExpression:
+        'REMOVE archive_status, archived_at, archived_by, archived_by_email, archive_source, purge_after' +
+        ' SET updated_at = :now, updated_by = :sub, updated_by_email = :email',
+      ExpressionAttributeValues: {
+        ':now':   now,
+        ':sub':   params.adminSub,
+        ':email': params.adminEmail,
+      },
+    }))
+  } catch (err: unknown) {
+    return { ok: false, reason: 'error', message: err instanceof Error ? err.message : String(err) }
+  }
+
+  return { ok: true }
 }
 
 export async function getPatientByNhiHash(

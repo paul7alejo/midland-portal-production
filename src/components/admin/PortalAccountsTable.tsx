@@ -13,19 +13,6 @@ export type PortalAccount = {
   accountStatus: "active" | "locked";
 };
 
-export const MOCK_ACCOUNTS: PortalAccount[] = [
-  { id: "1",  name: "Generated Final Guard Patient", msid: "MS-525374", nhiMasked: "ZZZ****", createdAt: "2025-12-01", passwordStatus: "temp",    twoFa: false, accountStatus: "locked" },
-  { id: "2",  name: "Sarah Chen",        msid: "MS-10052", nhiMasked: "GHT****", createdAt: "2025-12-03", passwordStatus: "temp",    twoFa: false, accountStatus: "active" },
-  { id: "3",  name: "Michael Torres",    msid: "MS-10061", nhiMasked: "KRP****", createdAt: "2025-12-08", passwordStatus: "changed", twoFa: false, accountStatus: "locked" },
-  { id: "4",  name: "Emily Watson",      msid: "MS-10074", nhiMasked: "LQF****", createdAt: "2026-01-05", passwordStatus: "temp",    twoFa: false, accountStatus: "active" },
-  { id: "5",  name: "Robert Kim",        msid: "MS-10089", nhiMasked: "NBM****", createdAt: "2026-01-11", passwordStatus: "changed", twoFa: true,  accountStatus: "active" },
-  { id: "6",  name: "Linda Park",        msid: "MS-10092", nhiMasked: "PCS****", createdAt: "2026-01-19", passwordStatus: "changed", twoFa: true,  accountStatus: "active" },
-  { id: "7",  name: "David Nguyen",      msid: "MS-10103", nhiMasked: "RDJ****", createdAt: "2026-02-02", passwordStatus: "temp",    twoFa: false, accountStatus: "locked" },
-  { id: "8",  name: "Anne Fischer",      msid: "MS-10115", nhiMasked: "TGK****", createdAt: "2026-02-14", passwordStatus: "changed", twoFa: true,  accountStatus: "active" },
-  { id: "9",  name: "Tom Bradley",       msid: "MS-10121", nhiMasked: "VHL****", createdAt: "2026-03-01", passwordStatus: "temp",    twoFa: false, accountStatus: "active" },
-  { id: "10", name: "Nina Patel",        msid: "MS-10134", nhiMasked: "XJN****", createdAt: "2026-03-15", passwordStatus: "changed", twoFa: false, accountStatus: "active" },
-];
-
 function formatDate(iso: string): string {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return iso;
@@ -46,11 +33,13 @@ export function PortalAccountsTable({
   onResetPassword,
   onUnlockAccount,
   onViewDetails,
+  onDelete,
 }: {
   accounts: PortalAccount[];
   onResetPassword: (account: PortalAccount) => void;
   onUnlockAccount: (account: PortalAccount) => void;
   onViewDetails: (account: PortalAccount) => void;
+  onDelete?: (account: PortalAccount) => void;
 }) {
   const [createdSort, setCreatedSort] = useState<"newest" | "oldest">("newest");
 
@@ -170,6 +159,15 @@ export function PortalAccountsTable({
                         className="text-xs font-medium text-red-700 border border-red-300 rounded-md px-3 py-1.5 hover:bg-red-50 transition-colors whitespace-nowrap"
                       >
                         Unlock
+                      </button>
+                    )}
+                    {onDelete && (
+                      <button
+                        type="button"
+                        onClick={() => onDelete(acct)}
+                        className="text-xs font-medium text-gray-500 border border-gray-200 rounded-md px-3 py-1.5 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors whitespace-nowrap"
+                      >
+                        Move to Bin
                       </button>
                     )}
                   </div>

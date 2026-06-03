@@ -9,6 +9,14 @@ import { decrementLockedCount, setLockedCount } from "@/components/admin/portalA
 
 type FilterKey = "all" | "changed" | "temp" | "locked";
 
+interface BinEntry {
+  msid:            string;
+  name:            string;
+  archivedAt:      string;
+  archivedByEmail: string | null;
+  purgeAfter:      string;
+}
+
 // ── KPI card ─────────────────────────────────────────────────────────────────
 
 type KpiTheme = "navy" | "seafoam" | "amber" | "red";
@@ -75,6 +83,116 @@ function KpiFilterCard({
   );
 }
 
+// ── Delete confirmation modal ─────────────────────────────────────────────────
+
+function DeleteConfirmModal({
+  account,
+  onClose,
+  onSuccess,
+}: {
+  account: PortalAccount;
+  onClose: () => void;
+  onSuccess: (msid: string) => void;
+}) {
+  const [confirmText, setConfirmText] = useState("");
+  const [submitting,  setSubmitting]  = useState(false);
+  const [error,       setError]       = useState<string | null>(null);
+
+  const confirmed = confirmText === "DELETE";
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!confirmed || submitting) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/portal-accounts/delete", {
+        method:      "POST",
+        credentials: "include",
+        headers:     { "Content-Type": "application/json" },
+        body:        JSON.stringify({ msid: account.msid, confirmationToken: "DELETE" }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({})) as Record<string, unknown>;
+        setError((data.error as string | undefined) ?? "Delete failed. Please try again.");
+        return;
+      }
+      onSuccess(account.msid);
+    } catch {
+      setError("Network error. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/40 z-50" onClick={onClose} aria-hidden="true" />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="delete-modal-title"
+        className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      >
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-5">
+          <div className="space-y-1">
+            <p className="text-xs font-semibold uppercase tracking-wide text-red-600">Move to Bin</p>
+            <h2 id="delete-modal-title" className="text-lg font-bold text-navy">
+              {account.name}
+            </h2>
+            <p className="text-xs font-mono text-charcoal/60">{account.msid}</p>
+          </div>
+
+          <p className="text-sm text-charcoal/80 leading-relaxed">
+            You are moving this portal account and linked patient record to the Bin. They will be
+            hidden from normal admin views and can be restored within{" "}
+            <span className="font-semibold">30 days</span>. Type{" "}
+            <span className="font-mono font-semibold text-red-700">DELETE</span> to confirm.
+          </p>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <input
+              type="text"
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              placeholder="Type DELETE to confirm"
+              autoComplete="off"
+              className="w-full px-3.5 py-2.5 text-sm border border-gray-300 rounded-lg
+                         focus:outline-none focus:ring-2 focus:ring-red-400/40 focus:border-red-400
+                         font-mono tracking-wider placeholder:font-sans placeholder:tracking-normal"
+            />
+
+            {error && (
+              <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                {error}
+              </p>
+            )}
+
+            <div className="flex gap-3 pt-1">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 text-sm font-medium text-charcoal/65 border border-sand rounded-lg py-2.5 hover:border-charcoal/30 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={!confirmed || submitting}
+                className="flex-1 text-sm font-semibold rounded-lg py-2.5 transition-colors
+                           bg-red-600 text-white hover:bg-red-700
+                           disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {submitting ? "Moving to Bin…" : "Move to Bin"}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </>
+  );
+}
+
 // ── Account detail drawer ─────────────────────────────────────────────────────
 
 type ActivityLoadState = "loading" | "loaded" | "error";
@@ -109,11 +227,13 @@ function PortalAccountDetailDrawer({
   onClose,
   onResetPassword,
   onUnlockAccount,
+  onDelete,
 }: {
   account: PortalAccount;
   onClose: () => void;
   onResetPassword: (account: PortalAccount) => void;
   onUnlockAccount: (account: PortalAccount) => void;
+  onDelete: (account: PortalAccount) => void;
 }) {
   const loginUsername = account.msid.startsWith("MS-") ? account.msid.slice(3) : account.msid;
 
@@ -140,14 +260,7 @@ function PortalAccountDetailDrawer({
 
   return (
     <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black/25 z-40"
-        onClick={onClose}
-        aria-hidden="true"
-      />
-
-      {/* Drawer */}
+      <div className="fixed inset-0 bg-black/25 z-40" onClick={onClose} aria-hidden="true" />
       <div
         role="dialog"
         aria-label="Account support details"
@@ -263,6 +376,13 @@ function PortalAccountDetailDrawer({
                   Unlock Account
                 </button>
               )}
+              <button
+                type="button"
+                onClick={() => { onClose(); onDelete(account); }}
+                className="text-sm font-medium text-gray-500 border border-gray-200 rounded-lg px-4 py-2 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors"
+              >
+                Move to Bin
+              </button>
             </div>
           </section>
 
@@ -353,6 +473,115 @@ function PortalAccountDetailDrawer({
   );
 }
 
+// ── Bin view ──────────────────────────────────────────────────────────────────
+
+function formatBinDate(iso: string): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleString("en-NZ", { day: "numeric", month: "short", year: "numeric" });
+}
+
+function BinView({
+  entries,
+  loading,
+  onRestore,
+  restoringMsid,
+}: {
+  entries: BinEntry[];
+  loading: boolean;
+  onRestore: (entry: BinEntry) => void;
+  restoringMsid: string | null;
+}) {
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20 text-sm text-charcoal/45">
+        Loading bin…
+      </div>
+    );
+  }
+
+  if (entries.length === 0) {
+    return (
+      <div className="bg-white border border-sand rounded-xl px-6 py-12 text-center shadow-[0_18px_50px_rgba(11,42,60,0.08)]">
+        <p className="text-sm text-charcoal/60">No deleted portal accounts.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-xl border border-amber-200/70 bg-amber-50/60 px-4 py-3 text-sm text-amber-800">
+        Deleted accounts can be restored within 30 days. Restoring a portal account also
+        restores the linked patient record to the active Patients list.
+      </div>
+      <div className="bg-white border border-sand rounded-xl overflow-hidden shadow-[0_18px_50px_rgba(11,42,60,0.08)]">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[700px] border-collapse text-sm">
+            <thead>
+              <tr className="bg-sand-pale/70 border-b border-sand">
+                {["Patient", "MSID", "Deleted", "Restore before", "Actions"].map((col) => (
+                  <th
+                    key={col}
+                    className="text-left px-4 py-3 text-xs font-semibold text-charcoal/70 uppercase tracking-wide whitespace-nowrap"
+                  >
+                    {col}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-sand/70">
+              {entries.map((entry) => {
+                const isRestoring = restoringMsid === entry.msid;
+                const purge = new Date(entry.purgeAfter);
+                const daysLeft = Math.max(0, Math.ceil((purge.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+                const urgent = daysLeft <= 7;
+                return (
+                  <tr key={entry.msid} className="hover:bg-sand-pale/45 transition-colors">
+                    <td className="px-4 py-3 whitespace-nowrap font-medium text-charcoal">
+                      {entry.name}
+                    </td>
+                    <td className="px-4 py-3 font-mono text-xs text-charcoal/80">
+                      {entry.msid}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-charcoal/70 whitespace-nowrap">
+                      {formatBinDate(entry.archivedAt)}
+                      {entry.archivedByEmail && (
+                        <span className="block text-charcoal/40">{entry.archivedByEmail}</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-xs whitespace-nowrap">
+                      <span className={urgent ? "font-semibold text-red-600" : "text-charcoal/70"}>
+                        {formatBinDate(entry.purgeAfter)}
+                      </span>
+                      {urgent && (
+                        <span className="block text-red-500">{daysLeft}d remaining</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <button
+                        type="button"
+                        onClick={() => onRestore(entry)}
+                        disabled={isRestoring}
+                        className="text-xs font-medium text-[#0B5C6C] border border-[#0B5C6C]/40 rounded-md px-3 py-1.5 hover:bg-[#0B5C6C]/5 transition-colors disabled:opacity-50 whitespace-nowrap"
+                      >
+                        {isRestoring ? "Restoring…" : "Restore"}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <p className="text-xs text-charcoal/40 px-1">
+        Permanent purge after 30 days is a separate gated admin operation and does not run automatically.
+      </p>
+    </div>
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function PortalAccountsPage() {
@@ -365,6 +594,16 @@ export default function PortalAccountsPage() {
   const [unlockTarget, setUnlockTarget]   = useState<PortalAccount | null>(null);
   const [drawerAccount, setDrawerAccount] = useState<PortalAccount | null>(null);
 
+  // Bin
+  const [viewBin,       setViewBin]       = useState(false);
+  const [binEntries,    setBinEntries]    = useState<BinEntry[]>([]);
+  const [binLoading,    setBinLoading]    = useState(false);
+  const [binError,      setBinError]      = useState<string | null>(null);
+  const [restoringMsid, setRestoringMsid] = useState<string | null>(null);
+
+  // Delete
+  const [deleteTarget, setDeleteTarget] = useState<PortalAccount | null>(null);
+
   useEffect(() => {
     fetch("/api/admin/portal-accounts", { credentials: "include" })
       .then((r) => r.json())
@@ -376,15 +615,15 @@ export default function PortalAccountsPage() {
           setLockedCount(loaded.filter((a) => a.accountStatus === "locked").length);
         }
       })
-      .catch(() => { /* leave empty — network error, table stays blank */ })
+      .catch(() => { /* leave empty */ })
       .finally(() => setLoading(false));
   }, []);
 
-  // Auto-open drawer when ?msid= is present in the URL (e.g. navigating from patient drawer)
+  // Auto-open drawer when ?msid= is present in the URL
   useEffect(() => {
     if (loading || accounts.length === 0 || autoOpenedRef.current) return;
-    if (typeof window === 'undefined') return;
-    const msidParam = new URLSearchParams(window.location.search).get('msid');
+    if (typeof window === "undefined") return;
+    const msidParam = new URLSearchParams(window.location.search).get("msid");
     if (!msidParam) return;
     const match = accounts.find((a) => a.msid === msidParam);
     if (match) {
@@ -392,6 +631,25 @@ export default function PortalAccountsPage() {
       setDrawerAccount(match);
     }
   }, [accounts, loading]);
+
+  // Load bin on first view
+  useEffect(() => {
+    if (!viewBin) return;
+    setBinLoading(true);
+    setBinError(null);
+    fetch("/api/admin/portal-accounts/bin", { credentials: "include" })
+      .then((r) => r.json())
+      .then((data: unknown) => {
+        const payload = data as Record<string, unknown>;
+        if (Array.isArray(payload.bin)) {
+          setBinEntries(payload.bin as BinEntry[]);
+        } else {
+          setBinError("Failed to load bin.");
+        }
+      })
+      .catch(() => setBinError("Network error loading bin."))
+      .finally(() => setBinLoading(false));
+  }, [viewBin]);
 
   const totalAccounts   = accounts.length;
   const passwordChanged = accounts.filter((a) => a.passwordStatus === "changed").length;
@@ -419,6 +677,43 @@ export default function PortalAccountsPage() {
     decrementLockedCount();
   }
 
+  function handleDeleteSuccess(msid: string) {
+    setAccounts((prev) => prev.filter((a) => a.msid !== msid));
+    setDeleteTarget(null);
+  }
+
+  async function handleRestore(entry: BinEntry) {
+    if (restoringMsid) return;
+    setRestoringMsid(entry.msid);
+    try {
+      const res = await fetch("/api/admin/portal-accounts/restore", {
+        method:      "POST",
+        credentials: "include",
+        headers:     { "Content-Type": "application/json" },
+        body:        JSON.stringify({ msid: entry.msid, confirmationToken: "RESTORE" }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({})) as Record<string, unknown>;
+        alert((data.error as string | undefined) ?? "Restore failed. Please try again.");
+        return;
+      }
+      // Remove from bin list
+      setBinEntries((prev) => prev.filter((e) => e.msid !== entry.msid));
+      // Reload active accounts so restored account appears
+      const accountsRes = await fetch("/api/admin/portal-accounts", { credentials: "include" });
+      if (accountsRes.ok) {
+        const data = await accountsRes.json() as Record<string, unknown>;
+        if (Array.isArray(data.accounts)) {
+          setAccounts(data.accounts as PortalAccount[]);
+        }
+      }
+    } catch {
+      alert("Network error. Please try again.");
+    } finally {
+      setRestoringMsid(null);
+    }
+  }
+
   return (
     <div className="space-y-6">
 
@@ -429,56 +724,100 @@ export default function PortalAccountsPage() {
           <h1 className="text-3xl font-display font-bold text-navy">Portal Accounts</h1>
           <p className="text-sm text-charcoal/65">Monitor patient login status and credential support.</p>
         </div>
-        <button
-          type="button"
-          disabled
-          className="inline-flex items-center gap-2 border border-gray-200 text-gray-400 text-sm font-medium px-4 py-2.5 rounded-lg cursor-not-allowed select-none"
-        >
-          Export CSV
-          <span className="text-xs font-normal">(Coming soon)</span>
-        </button>
-      </div>
-
-      {/* KPI cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <KpiFilterCard label="Total Accounts"   value={totalAccounts}   active={activeFilter === "all"}     theme="navy"    onClick={() => setActiveFilter("all")} />
-        <KpiFilterCard label="Password Changed" value={passwordChanged} active={activeFilter === "changed"} theme="seafoam" onClick={() => setActiveFilter("changed")} />
-        <KpiFilterCard label="Temp Password"    value={tempPassword}    active={activeFilter === "temp"}    theme="amber"   onClick={() => setActiveFilter("temp")} />
-        <KpiFilterCard label="Locked Accounts"  value={lockedAccounts}  active={activeFilter === "locked"}  theme="red"     onClick={() => setActiveFilter("locked")} />
-      </div>
-
-      {/* Search */}
-      <div className="relative w-full sm:max-w-sm">
-        <svg
-          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-charcoal/40"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2}
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
-        </svg>
-        <input
-          type="search"
-          placeholder="Search by name or MSID…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full pl-9 pr-4 py-2.5 text-sm text-charcoal placeholder:text-charcoal/40 bg-white border border-sand rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0B5C6C]/20 focus:border-[#0B5C6C]/50 transition-colors"
-        />
-      </div>
-
-      {/* Accounts table */}
-      {loading ? (
-        <div className="flex items-center justify-center py-20 text-sm text-charcoal/45">
-          Loading accounts…
+        <div className="flex items-center gap-3">
+          {/* Active / Bin tabs */}
+          <div className="flex items-center rounded-lg border border-sand overflow-hidden bg-white text-sm font-medium">
+            <button
+              type="button"
+              onClick={() => setViewBin(false)}
+              className={`px-4 py-2 transition-colors ${!viewBin ? "bg-navy text-white" : "text-charcoal/60 hover:bg-sand/60"}`}
+            >
+              Active
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewBin(true)}
+              className={`px-4 py-2 transition-colors ${viewBin ? "bg-navy text-white" : "text-charcoal/60 hover:bg-sand/60"}`}
+            >
+              Bin
+              {binEntries.length > 0 && !viewBin && (
+                <span className="ml-1.5 text-xs bg-red-100 text-red-600 rounded-full px-1.5 py-0.5">
+                  {binEntries.length}
+                </span>
+              )}
+            </button>
+          </div>
+          <button
+            type="button"
+            disabled
+            className="inline-flex items-center gap-2 border border-gray-200 text-gray-400 text-sm font-medium px-4 py-2.5 rounded-lg cursor-not-allowed select-none"
+          >
+            Export CSV
+            <span className="text-xs font-normal">(Coming soon)</span>
+          </button>
         </div>
+      </div>
+
+      {viewBin ? (
+        <>
+          {binError ? (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-3 text-sm text-red-700">
+              {binError}
+            </div>
+          ) : (
+            <BinView
+              entries={binEntries}
+              loading={binLoading}
+              onRestore={handleRestore}
+              restoringMsid={restoringMsid}
+            />
+          )}
+        </>
       ) : (
-        <PortalAccountsTable
-          accounts={filtered}
-          onResetPassword={(account) => setResetTarget(account)}
-          onUnlockAccount={(account) => setUnlockTarget(account)}
-          onViewDetails={(account) => setDrawerAccount(account)}
-        />
+        <>
+          {/* KPI cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <KpiFilterCard label="Total Accounts"   value={totalAccounts}   active={activeFilter === "all"}     theme="navy"    onClick={() => setActiveFilter("all")} />
+            <KpiFilterCard label="Password Changed" value={passwordChanged} active={activeFilter === "changed"} theme="seafoam" onClick={() => setActiveFilter("changed")} />
+            <KpiFilterCard label="Temp Password"    value={tempPassword}    active={activeFilter === "temp"}    theme="amber"   onClick={() => setActiveFilter("temp")} />
+            <KpiFilterCard label="Locked Accounts"  value={lockedAccounts}  active={activeFilter === "locked"}  theme="red"     onClick={() => setActiveFilter("locked")} />
+          </div>
+
+          {/* Search */}
+          <div className="relative w-full sm:max-w-sm">
+            <svg
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-charcoal/40"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+            </svg>
+            <input
+              type="search"
+              placeholder="Search by name or MSID…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-9 pr-4 py-2.5 text-sm text-charcoal placeholder:text-charcoal/40 bg-white border border-sand rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0B5C6C]/20 focus:border-[#0B5C6C]/50 transition-colors"
+            />
+          </div>
+
+          {/* Accounts table */}
+          {loading ? (
+            <div className="flex items-center justify-center py-20 text-sm text-charcoal/45">
+              Loading accounts…
+            </div>
+          ) : (
+            <PortalAccountsTable
+              accounts={filtered}
+              onResetPassword={(account) => setResetTarget(account)}
+              onUnlockAccount={(account) => setUnlockTarget(account)}
+              onViewDetails={(account) => setDrawerAccount(account)}
+              onDelete={(account) => setDeleteTarget(account)}
+            />
+          )}
+        </>
       )}
 
       {/* Account detail drawer */}
@@ -489,10 +828,21 @@ export default function PortalAccountsPage() {
           onClose={() => setDrawerAccount(null)}
           onResetPassword={(a) => setResetTarget(a)}
           onUnlockAccount={(a) => setUnlockTarget(a)}
+          onDelete={(a) => setDeleteTarget(a)}
         />
       )}
 
-      {/* Reset password modal — key forces fresh mount per account */}
+      {/* Delete confirmation modal */}
+      {deleteTarget && (
+        <DeleteConfirmModal
+          key={deleteTarget.id}
+          account={deleteTarget}
+          onClose={() => setDeleteTarget(null)}
+          onSuccess={handleDeleteSuccess}
+        />
+      )}
+
+      {/* Reset password modal */}
       {resetTarget && (
         <ResetPasswordModal
           key={resetTarget.id}
@@ -501,7 +851,7 @@ export default function PortalAccountsPage() {
         />
       )}
 
-      {/* Unlock account modal — key forces fresh mount per account */}
+      {/* Unlock account modal */}
       {unlockTarget && (
         <UnlockAccountModal
           key={unlockTarget.id}
