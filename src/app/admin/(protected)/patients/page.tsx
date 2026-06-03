@@ -59,6 +59,47 @@ interface PatientSummary {
   created_by?: string;
 }
 
+type ReconciliationFilter = "all" | "linked" | "no_portal_account" | "likely_test_demo" | "needs_manual_review";
+
+type ReconciliationPortalStatus =
+  | "linked"
+  | "no_portal_account"
+  | "portal_account_without_patient"
+  | "archived"
+  | "unknown";
+
+type ReconciliationPasswordStatus = "temp" | "changed" | "unknown";
+
+type ReconciliationCleanupHint =
+  | "likely_test_demo"
+  | "no_portal_account"
+  | "linked_portal_account"
+  | "needs_manual_review";
+
+interface ReconciliationSummary {
+  totalActivePatients: number;
+  totalActivePortalAccounts: number;
+  patientsWithLinkedPortalAccount: number;
+  patientsWithoutPortalAccount: number;
+  portalAccountsWithoutActivePatientRecord: number;
+  archivedPatientsExcludedFromActiveLists: number;
+}
+
+interface ReconciliationRow {
+  patientName: string;
+  msid: string;
+  source: string;
+  createdAt: string;
+  portalAccountStatus: ReconciliationPortalStatus;
+  passwordStatus: ReconciliationPasswordStatus;
+  cleanupHint: ReconciliationCleanupHint;
+}
+
+interface ReconciliationReport {
+  summary: ReconciliationSummary;
+  rows: ReconciliationRow[];
+}
+
 const PATIENTS: Patient[] = [
   {
     id: "1",
@@ -428,6 +469,179 @@ function SummaryCard({ label, value, accent, href, onClick, active }: {
   return <div className={baseCls}>{inner}</div>;
 }
 
+const RECONCILIATION_FILTERS: Array<{ value: ReconciliationFilter; label: string }> = [
+  { value: "all",                 label: "All" },
+  { value: "linked",              label: "Linked portal account" },
+  { value: "no_portal_account",   label: "No portal account" },
+  { value: "likely_test_demo",    label: "Likely test/demo" },
+  { value: "needs_manual_review", label: "Needs manual review" },
+];
+
+const PORTAL_STATUS_LABELS: Record<ReconciliationPortalStatus, string> = {
+  linked:                         "Linked",
+  no_portal_account:              "No portal account",
+  portal_account_without_patient: "Portal only",
+  archived:                       "Archived",
+  unknown:                        "Unknown",
+};
+
+const CLEANUP_HINT_LABELS: Record<ReconciliationCleanupHint, string> = {
+  likely_test_demo:     "Likely test/demo",
+  no_portal_account:    "No portal account",
+  linked_portal_account:"Linked portal account",
+  needs_manual_review:  "Needs manual review",
+};
+
+function reconciliationStatusClass(status: ReconciliationPortalStatus): string {
+  if (status === "linked") return "bg-emerald-50 text-emerald-700 border-emerald-200";
+  if (status === "no_portal_account") return "bg-amber-50 text-amber-800 border-amber-200";
+  if (status === "portal_account_without_patient") return "bg-sky-50 text-sky-700 border-sky-200";
+  if (status === "archived") return "bg-gray-100 text-gray-600 border-gray-200";
+  return "bg-gray-50 text-gray-500 border-gray-200";
+}
+
+function cleanupHintClass(hint: ReconciliationCleanupHint): string {
+  if (hint === "likely_test_demo") return "bg-red-50 text-red-700 border-red-200";
+  if (hint === "no_portal_account") return "bg-amber-50 text-amber-800 border-amber-200";
+  if (hint === "linked_portal_account") return "bg-emerald-50 text-emerald-700 border-emerald-200";
+  return "bg-gray-50 text-gray-600 border-gray-200";
+}
+
+function matchesReconciliationFilter(row: ReconciliationRow, filter: ReconciliationFilter): boolean {
+  if (filter === "all") return true;
+  if (filter === "linked") return row.portalAccountStatus === "linked";
+  if (filter === "no_portal_account") return row.portalAccountStatus === "no_portal_account";
+  if (filter === "likely_test_demo") return row.cleanupHint === "likely_test_demo";
+  return row.cleanupHint === "needs_manual_review";
+}
+
+function ReconciliationPanel({
+  report,
+  loading,
+  error,
+  activeFilter,
+  onFilterChange,
+}: {
+  report: ReconciliationReport | null;
+  loading: boolean;
+  error: string | null;
+  activeFilter: ReconciliationFilter;
+  onFilterChange: (filter: ReconciliationFilter) => void;
+}) {
+  const filteredRows = report?.rows.filter((row) => matchesReconciliationFilter(row, activeFilter)) ?? [];
+  const rows = filteredRows.slice(0, 12);
+  const summary = report?.summary;
+
+  return (
+    <section className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+      <div className="border-b border-gray-200 px-5 py-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-deep-teal">Read-only reconciliation</p>
+            <h2 className="mt-1 text-base font-semibold text-gray-800">Patients vs Portal Accounts</h2>
+            <p className="mt-1 text-sm text-gray-500">Review-only comparison for cleanup planning. No records are changed here.</p>
+          </div>
+          {loading && (
+            <span className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-medium text-gray-500">
+              Loading
+            </span>
+          )}
+        </div>
+      </div>
+
+      {error ? (
+        <div className="px-5 py-4 text-sm text-amber-800 bg-amber-50 border-b border-amber-100">
+          {error}
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-px bg-gray-100 text-sm lg:grid-cols-6">
+            {[
+              ["Active patients", summary?.totalActivePatients],
+              ["Active portal accounts", summary?.totalActivePortalAccounts],
+              ["Linked", summary?.patientsWithLinkedPortalAccount],
+              ["No portal account", summary?.patientsWithoutPortalAccount],
+              ["Portal only", summary?.portalAccountsWithoutActivePatientRecord],
+              ["Archived excluded", summary?.archivedPatientsExcludedFromActiveLists],
+            ].map(([label, value]) => (
+              <div key={label} className="bg-white px-4 py-3">
+                <p className="text-2xl font-bold tabular-nums text-navy">{typeof value === "number" ? value : "—"}</p>
+                <p className="mt-0.5 text-xs font-medium uppercase tracking-wide text-gray-500">{label}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="space-y-4 px-5 py-4">
+            <div className="flex flex-wrap gap-2">
+              {RECONCILIATION_FILTERS.map((filter) => (
+                <button
+                  key={filter.value}
+                  type="button"
+                  onClick={() => onFilterChange(filter.value)}
+                  className={cn(
+                    "rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+                    activeFilter === filter.value
+                      ? "border-[#0B5C6C] bg-[#0B5C6C] text-white"
+                      : "border-gray-200 bg-white text-gray-600 hover:border-[#0B5C6C]/40"
+                  )}
+                >
+                  {filter.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="overflow-x-auto rounded-lg border border-gray-200">
+              <table className="w-full min-w-[820px] border-collapse text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200 bg-gray-50">
+                    {["Patient", "MSID", "Source", "Created", "Portal", "Password", "Cleanup hint"].map((heading) => (
+                      <th key={heading} className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        {heading}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {rows.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">
+                        {loading ? "Loading reconciliation rows..." : "No rows match this filter."}
+                      </td>
+                    </tr>
+                  ) : (
+                    rows.map((row) => (
+                      <tr key={`${row.portalAccountStatus}-${row.msid}`} className="hover:bg-gray-50">
+                        <td className="px-3 py-3 font-medium text-gray-800">{row.patientName || "—"}</td>
+                        <td className="px-3 py-3 font-mono text-xs text-gray-700">{row.msid || "—"}</td>
+                        <td className="px-3 py-3 text-xs text-gray-600">{row.source || "—"}</td>
+                        <td className="px-3 py-3 text-xs text-gray-600">{formatNzDateTime(row.createdAt)}</td>
+                        <td className="px-3 py-3">
+                          <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${reconciliationStatusClass(row.portalAccountStatus)}`}>
+                            {PORTAL_STATUS_LABELS[row.portalAccountStatus]}
+                          </span>
+                        </td>
+                        <td className="px-3 py-3 text-xs text-gray-600">{humanizeLabel(row.passwordStatus)}</td>
+                        <td className="px-3 py-3">
+                          <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${cleanupHintClass(row.cleanupHint)}`}>
+                            {CLEANUP_HINT_LABELS[row.cleanupHint]}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+            {filteredRows.length > rows.length && (
+              <p className="text-xs text-gray-500">Showing first {rows.length} of {filteredRows.length} matching reconciliation rows.</p>
+            )}
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
 function FundingBadge({ amount }: { amount: number }) {
   const cls =
     amount >= 200 ? "bg-green-50 text-[#0B5C6C] border border-green-200" :
@@ -705,6 +919,10 @@ export default function AdminPatientsPage() {
   const [drawerOpen,       setDrawerOpen]       = useState(false);
   const [drawerMsid,       setDrawerMsid]       = useState<string | null>(null);
   const [drawerName,       setDrawerName]       = useState<string | undefined>(undefined);
+  const [reconciliationReport, setReconciliationReport] = useState<ReconciliationReport | null>(null);
+  const [reconciliationLoading, setReconciliationLoading] = useState(true);
+  const [reconciliationError, setReconciliationError] = useState<string | null>(null);
+  const [reconciliationFilter, setReconciliationFilter] = useState<ReconciliationFilter>("all");
 
   function toggleTableSort(key: string) {
     if (tableSortKey === key) {
@@ -775,6 +993,36 @@ export default function AdminPatientsPage() {
     }
 
     loadPatients();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadReconciliation() {
+      setReconciliationLoading(true);
+      setReconciliationError(null);
+      try {
+        const res = await fetch("/api/admin/reconciliation/patients-portal", {
+          cache: "no-store",
+          credentials: "include",
+        });
+        if (!res.ok) throw new Error("Unable to load reconciliation");
+        const data = (await res.json()) as ReconciliationReport;
+        if (!cancelled) setReconciliationReport(data);
+      } catch {
+        if (!cancelled) {
+          setReconciliationReport(null);
+          setReconciliationError("Patients and portal accounts reconciliation could not be loaded.");
+        }
+      } finally {
+        if (!cancelled) setReconciliationLoading(false);
+      }
+    }
+
+    loadReconciliation();
     return () => {
       cancelled = true;
     };
@@ -954,6 +1202,14 @@ export default function AdminPatientsPage() {
           active={worklistMode === "safety_checks"} />
         <SummaryCard label="Eligible now"        value={eligibleNow}     accent="text-emerald-700" href="/admin/patients?filter=eligible" />
       </div>
+
+      <ReconciliationPanel
+        report={reconciliationReport}
+        loading={reconciliationLoading}
+        error={reconciliationError}
+        activeFilter={reconciliationFilter}
+        onFilterChange={setReconciliationFilter}
+      />
 
       {/* Search + Filter & Sort button */}
       <div className="flex flex-wrap items-center gap-3">
