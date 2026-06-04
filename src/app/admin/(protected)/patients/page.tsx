@@ -59,7 +59,7 @@ interface PatientSummary {
   created_by?: string;
 }
 
-type ReconciliationFilter = "all" | "linked" | "no_portal_account" | "likely_test_demo" | "needs_manual_review";
+type ReconciliationFilter = "all" | "linked" | "no_portal_account" | "likely_test_demo" | "needs_manual_review" | "archived";
 
 type ReconciliationPortalStatus =
   | "linked"
@@ -475,6 +475,7 @@ const RECONCILIATION_FILTERS: Array<{ value: ReconciliationFilter; label: string
   { value: "no_portal_account",   label: "No portal account" },
   { value: "likely_test_demo",    label: "Likely test/demo" },
   { value: "needs_manual_review", label: "Needs manual review" },
+  { value: "archived",            label: "Archived" },
 ];
 
 const PORTAL_STATUS_LABELS: Record<ReconciliationPortalStatus, string> = {
@@ -512,6 +513,7 @@ function matchesReconciliationFilter(row: ReconciliationRow, filter: Reconciliat
   if (filter === "linked") return row.portalAccountStatus === "linked";
   if (filter === "no_portal_account") return row.portalAccountStatus === "no_portal_account";
   if (filter === "likely_test_demo") return row.cleanupHint === "likely_test_demo";
+  if (filter === "archived") return row.portalAccountStatus === "archived";
   return row.cleanupHint === "needs_manual_review";
 }
 
@@ -538,6 +540,7 @@ function ReconciliationPanel({
   onFilterChange: (filter: ReconciliationFilter) => void;
   onArchiveSuccess: () => Promise<void>;
 }) {
+  const [expanded, setExpanded] = useState(false);
   const [archiveMsid, setArchiveMsid] = useState<string | null>(null);
   const [archiveConfirmation, setArchiveConfirmation] = useState("");
   const [archiveReason, setArchiveReason] = useState("");
@@ -547,16 +550,15 @@ function ReconciliationPanel({
   const rows = filteredRows.slice(0, 12);
   const summary = report?.summary;
   const activeArchiveRow = archiveMsid ? rows.find((row) => row.msid === archiveMsid) : null;
-  const needsManualReviewCount = report?.rows.filter((row) => row.cleanupHint === "needs_manual_review").length ?? 0;
-  const visibleFilters = RECONCILIATION_FILTERS.filter((filter) => (
-    filter.value !== "needs_manual_review" || needsManualReviewCount > 0
-  ));
-
-  useEffect(() => {
-    if (activeFilter === "needs_manual_review" && needsManualReviewCount === 0) {
-      onFilterChange("all");
-    }
-  }, [activeFilter, needsManualReviewCount, onFilterChange]);
+  const isAligned = summary?.patientsWithoutPortalAccount === 0 && summary.portalAccountsWithoutActivePatientRecord === 0;
+  const summaryItems = [
+    ["Active Patients", summary?.totalActivePatients],
+    ["Active Portal Accounts", summary?.totalActivePortalAccounts],
+    ["Linked", summary?.patientsWithLinkedPortalAccount],
+    ["No portal account", summary?.patientsWithoutPortalAccount],
+    ["Portal only", summary?.portalAccountsWithoutActivePatientRecord],
+    ["Archived excluded", summary?.archivedPatientsExcludedFromActiveLists],
+  ] as const;
 
   function resetArchiveAction() {
     setArchiveMsid(null);
@@ -593,46 +595,51 @@ function ReconciliationPanel({
 
   return (
     <section className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-      <div className="border-b border-gray-200 px-5 py-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className={cn("px-5 py-4", expanded && "border-b border-gray-200")}>
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-deep-teal">Controlled reconciliation</p>
-            <h2 className="mt-1 text-base font-semibold text-gray-800">Patients vs Portal Accounts</h2>
-            <p className="mt-1 text-sm text-gray-500">Compare active patient records with portal access and archive selected no-portal cleanup records.</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-deep-teal">Admin cleanup</p>
+            <h2 className="mt-1 text-base font-semibold text-gray-800">Patients and Portal Accounts</h2>
+            <p className="mt-1 text-sm text-gray-500">
+              {isAligned
+                ? "Patient records and portal accounts are currently aligned."
+                : "Review patient and portal account alignment for cleanup."}
+            </p>
           </div>
-          {loading && (
-            <span className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-medium text-gray-500">
-              Loading
-            </span>
-          )}
+          <div className="flex items-center gap-2">
+            {loading && (
+              <span className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-medium text-gray-500">
+                Loading
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => setExpanded((value) => !value)}
+              className="rounded-lg border border-[#0B5C6C] bg-white px-3 py-2 text-sm font-semibold text-[#0B5C6C] hover:bg-[#0B5C6C]/5"
+            >
+              {expanded ? "Hide cleanup details" : "Show cleanup details"}
+            </button>
+          </div>
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-3 text-sm md:grid-cols-3 xl:grid-cols-6">
+          {summaryItems.map(([label, value]) => (
+            <div key={label} className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
+              <p className="text-lg font-bold tabular-nums text-navy">{typeof value === "number" ? value : "—"}</p>
+              <p className="mt-0.5 text-xs font-medium uppercase tracking-wide text-gray-500">{label}</p>
+            </div>
+          ))}
         </div>
       </div>
 
-      {error ? (
-        <div className="px-5 py-4 text-sm text-amber-800 bg-amber-50 border-b border-amber-100">
+      {expanded && error ? (
+        <div className="px-5 py-4 text-sm text-amber-800 bg-amber-50">
           {error}
         </div>
-      ) : (
+      ) : expanded ? (
         <>
-          <div className="grid grid-cols-2 gap-px bg-gray-100 text-sm lg:grid-cols-6">
-            {[
-              ["Active patients", summary?.totalActivePatients],
-              ["Active portal accounts", summary?.totalActivePortalAccounts],
-              ["Linked", summary?.patientsWithLinkedPortalAccount],
-              ["No portal account", summary?.patientsWithoutPortalAccount],
-              ["Portal only", summary?.portalAccountsWithoutActivePatientRecord],
-              ["Archived excluded", summary?.archivedPatientsExcludedFromActiveLists],
-            ].map(([label, value]) => (
-              <div key={label} className="bg-white px-4 py-3">
-                <p className="text-2xl font-bold tabular-nums text-navy">{typeof value === "number" ? value : "—"}</p>
-                <p className="mt-0.5 text-xs font-medium uppercase tracking-wide text-gray-500">{label}</p>
-              </div>
-            ))}
-          </div>
-
           <div className="space-y-4 px-5 py-4">
             <div className="flex flex-wrap gap-2">
-              {visibleFilters.map((filter) => (
+              {RECONCILIATION_FILTERS.map((filter) => (
                 <button
                   key={filter.value}
                   type="button"
@@ -653,7 +660,7 @@ function ReconciliationPanel({
               <table className="w-full min-w-[980px] border-collapse text-sm">
                 <thead>
                   <tr className="border-b border-gray-200 bg-gray-50">
-                    {["Patient", "MSID", "Source", "Created", "Portal", "Password", "Cleanup hint", "Action"].map((heading) => (
+                    {["Patient", "MSID", "Source", "Created / archived", "Portal", "Password", "Cleanup hint", "Action"].map((heading) => (
                       <th key={heading} className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                         {heading}
                       </th>
@@ -761,7 +768,7 @@ function ReconciliationPanel({
             )}
           </div>
         </>
-      )}
+      ) : null}
     </section>
   );
 }

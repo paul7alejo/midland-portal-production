@@ -149,7 +149,7 @@ export async function GET() {
       return {
         patientName: patient.name,
         msid: normalizeMsid(patient.portal_id),
-        source: 'archived_patient',
+        source: patient.archive_source || 'archived_patient',
         createdAt: patient.archived_at,
         portalAccountStatus,
         passwordStatus: 'unknown' as PasswordStatus,
