@@ -17,6 +17,8 @@ export type AdminAuditAction =
   | 'PORTAL_ACCOUNT_RESTORED'
   | 'LINKED_PATIENT_ARCHIVED'
   | 'LINKED_PATIENT_RESTORED'
+  | 'PATIENT_RECONCILIATION_ARCHIVE_REQUESTED'
+  | 'PATIENT_RECONCILIATION_ARCHIVED'
 
 export interface AdminAuditParams {
   action: AdminAuditAction

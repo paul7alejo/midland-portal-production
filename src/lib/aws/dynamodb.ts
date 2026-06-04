@@ -78,6 +78,7 @@ export interface PatientRecord {
   archived_by?: string
   archived_by_email?: string
   archive_source?: string
+  archive_reason?: string
   purge_after?: string
 }
 
@@ -415,6 +416,8 @@ export async function archivePatientByMsid(params: {
   adminSub: string
   adminEmail: string
   orgId: string
+  archiveSource?: string
+  archiveReason?: string
 }): Promise<{ ok: true; patientId: string } | { ok: false; reason: 'not_found' | 'already_archived' | 'error'; message?: string }> {
   const patient = await getPatientByMSID(params.msid, params.orgId)
   if (!patient) return { ok: false, reason: 'not_found' }
@@ -430,7 +433,8 @@ export async function archivePatientByMsid(params: {
       UpdateExpression:
         'SET archive_status = :archived, archived_at = :now, archived_by = :sub,' +
         ' archived_by_email = :email, archive_source = :source, purge_after = :purgeAfter,' +
-        ' updated_at = :now, updated_by = :sub, updated_by_email = :email',
+        ' updated_at = :now, updated_by = :sub, updated_by_email = :email' +
+        (params.archiveReason ? ', archive_reason = :archiveReason' : ''),
       ExpressionAttributeNames: {
         '#archiveStatus': 'archive_status',
       },
@@ -439,8 +443,9 @@ export async function archivePatientByMsid(params: {
         ':now':        now,
         ':sub':        params.adminSub,
         ':email':      params.adminEmail,
-        ':source':     'portal_account_deleted',
+        ':source':     params.archiveSource ?? 'portal_account_deleted',
         ':purgeAfter': purgeAfter,
+        ...(params.archiveReason ? { ':archiveReason': params.archiveReason } : {}),
       },
     }))
   } catch (err: unknown) {
