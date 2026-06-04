@@ -33,10 +33,41 @@ const TEST_DEMO_PATTERNS = [
   'phase one',
 ]
 
+type ReconciliationPortalUser = {
+  msid?: string
+  name?: string
+  role?: string
+  customRole?: string
+  'custom:role'?: string
+  isDev?: string | boolean
+  customIsDev?: string | boolean
+  'custom:is_dev'?: string | boolean
+}
+
 function normalizeMsid(msid?: string): string {
   const value = (msid ?? '').trim()
   if (!value) return ''
   return value.startsWith('MS-') ? value : `MS-${value}`
+}
+
+function normalizeText(value?: string): string {
+  return (value ?? '').trim().toLowerCase().replace(/\s+/g, ' ')
+}
+
+function isTruthyFlag(value: string | boolean | undefined): boolean {
+  if (typeof value === 'boolean') return value
+  const normalized = normalizeText(value)
+  return normalized === 'true' || normalized === '1' || normalized === 'yes'
+}
+
+function isAdminOrSystemPortalUser(user: ReconciliationPortalUser): boolean {
+  const msid = normalizeMsid(user.msid)
+  if (msid === 'MS-000000') return true
+  if (normalizeText(user.name) === 'midland admin') return true
+
+  const role = normalizeText(user.role ?? user.customRole ?? user['custom:role'])
+  if (role === 'admin' || role === 'system') return true
+  return isTruthyFlag(user.isDev) || isTruthyFlag(user.customIsDev) || isTruthyFlag(user['custom:is_dev'])
 }
 
 function sourceLabel(source?: string): string {
@@ -77,7 +108,8 @@ export async function GET() {
     ])
 
     const archivedMsids = new Set(archivedPatients.map((patient) => normalizeMsid(patient.portal_id)))
-    const activePortalUsers = portalUsers.filter((user) => !archivedMsids.has(normalizeMsid(user.msid)))
+    const patientPortalUsers = portalUsers.filter((user) => !isAdminOrSystemPortalUser(user))
+    const activePortalUsers = patientPortalUsers.filter((user) => !archivedMsids.has(normalizeMsid(user.msid)))
     const activePatientMsids = new Set(patients.map((patient) => normalizeMsid(patient.portal_id)))
     const activePortalMsids = new Set(activePortalUsers.map((user) => normalizeMsid(user.msid)))
 

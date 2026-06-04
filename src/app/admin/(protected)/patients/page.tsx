@@ -515,9 +515,12 @@ function matchesReconciliationFilter(row: ReconciliationRow, filter: Reconciliat
   return row.cleanupHint === "needs_manual_review";
 }
 
+function hasValidReconciliationMsid(msid: string): boolean {
+  return /^MS-\d+$/.test(msid.trim());
+}
+
 function canArchiveReconciliationPatient(row: ReconciliationRow): boolean {
-  return row.portalAccountStatus === "no_portal_account" &&
-    (row.cleanupHint === "likely_test_demo" || row.cleanupHint === "needs_manual_review");
+  return row.portalAccountStatus === "no_portal_account" && hasValidReconciliationMsid(row.msid);
 }
 
 function ReconciliationPanel({
@@ -544,6 +547,16 @@ function ReconciliationPanel({
   const rows = filteredRows.slice(0, 12);
   const summary = report?.summary;
   const activeArchiveRow = archiveMsid ? rows.find((row) => row.msid === archiveMsid) : null;
+  const needsManualReviewCount = report?.rows.filter((row) => row.cleanupHint === "needs_manual_review").length ?? 0;
+  const visibleFilters = RECONCILIATION_FILTERS.filter((filter) => (
+    filter.value !== "needs_manual_review" || needsManualReviewCount > 0
+  ));
+
+  useEffect(() => {
+    if (activeFilter === "needs_manual_review" && needsManualReviewCount === 0) {
+      onFilterChange("all");
+    }
+  }, [activeFilter, needsManualReviewCount, onFilterChange]);
 
   function resetArchiveAction() {
     setArchiveMsid(null);
@@ -619,7 +632,7 @@ function ReconciliationPanel({
 
           <div className="space-y-4 px-5 py-4">
             <div className="flex flex-wrap gap-2">
-              {RECONCILIATION_FILTERS.map((filter) => (
+              {visibleFilters.map((filter) => (
                 <button
                   key={filter.value}
                   type="button"
