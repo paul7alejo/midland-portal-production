@@ -13,6 +13,7 @@ import {
 import { listPortalUsers } from '@/lib/aws/cognito-admin'
 import {
   queuePatientNotification,
+  getLatestNotificationForRequest,
   type NotificationTriggerStatus,
 } from '@/lib/aws/notifications'
 
@@ -101,6 +102,18 @@ export async function GET(request: NextRequest) {
   const admin = await getAdminUser()
   if (!admin || !isAuthorizedAdmin(admin)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  // Notification summary branch — returns persisted notification state for a single request
+  const notifRequest = request.nextUrl.searchParams.get('notifRequest')
+  if (notifRequest) {
+    try {
+      const notification = await getLatestNotificationForRequest(notifRequest)
+      return NextResponse.json({ notification })
+    } catch (err) {
+      console.error('admin/orders GET notifRequest ERROR:', err instanceof Error ? err.message : String(err))
+      return NextResponse.json({ notification: null })
+    }
   }
 
   try {
@@ -257,6 +270,8 @@ export async function PATCH(request: NextRequest) {
   let notificationQueue: {
     ok: boolean
     scheduledFor?: string
+    notificationId?: string
+    supersededCount?: number
     reason?: string
     step?: string
     hasNotificationsTableName?: boolean
@@ -273,7 +288,12 @@ export async function PATCH(request: NextRequest) {
         orgId:         ORG_ID,
       })
       notificationQueue = queueResult.ok
-        ? { ok: true, scheduledFor: queueResult.scheduledFor }
+        ? {
+            ok:              true,
+            scheduledFor:    queueResult.scheduledFor,
+            notificationId:  queueResult.notificationId,
+            supersededCount: queueResult.supersededCount,
+          }
         : {
             ok: false,
             reason: queueResult.reason,

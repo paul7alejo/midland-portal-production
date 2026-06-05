@@ -962,6 +962,66 @@ function ReportDrawer({
   );
 }
 
+// ─── Notification queue state ─────────────────────────────────────────────────
+
+interface OrderNotifState {
+  ok:              boolean;
+  scheduledFor?:   string;
+  notificationId?: string;
+  supersededCount?: number;
+  reason?:         string;
+  triggerStatus?:  string;  // display label e.g. "Approved"
+}
+
+// Maps DynamoDB trigger_status values to admin-facing display labels
+const TRIGGER_STATUS_DISPLAY: Record<string, string> = {
+  approved:       "Approved",
+  sent:           "Sent",
+  declined:       "Declined",
+  needs_followup: "Needs Follow-Up",
+};
+
+// notifState meanings:
+//   undefined  = not yet loaded (fetch in progress)
+//   null       = loaded, no queued notification
+//   object     = loaded, has queued or failed notification state
+function NotificationSection({ notifState }: { notifState: OrderNotifState | null | undefined }) {
+  return (
+    <div className="border-t border-gray-100 pt-4">
+      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Patient notification</p>
+      {notifState === undefined ? (
+        <p className="text-xs text-gray-400">—</p>
+      ) : notifState === null ? (
+        <p className="text-xs text-gray-400">No patient notification is queued for this status.</p>
+      ) : notifState.ok ? (
+        <div className="rounded-lg border border-[#74C0A2]/30 bg-[#74C0A2]/5 px-3 py-2.5 space-y-1.5">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-[#74C0A2]/20 text-[#0B5C6C] border border-[#74C0A2]/35">
+              Queued
+            </span>
+            {notifState.triggerStatus && (
+              <span className="text-xs text-gray-600">{notifState.triggerStatus}</span>
+            )}
+          </div>
+          {notifState.scheduledFor && (
+            <p className="text-xs text-gray-500">Scheduled: {formatHistoryDate(notifState.scheduledFor)}</p>
+          )}
+          <p className="text-xs text-gray-500">Channel: Email</p>
+          {notifState.supersededCount !== undefined && notifState.supersededCount > 0 && (
+            <p className="text-xs text-amber-600">
+              {notifState.supersededCount} previous queued notification{notifState.supersededCount !== 1 ? "s" : ""} superseded.
+            </p>
+          )}
+        </div>
+      ) : (
+        <div className="rounded-lg border border-amber-200/70 bg-amber-50/60 px-3 py-2.5">
+          <p className="text-xs text-amber-700">Notification queue unavailable. Status update was saved.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── RequestReviewDrawer types + helpers ─────────────────────────────────────
 
 type RequestHistoryState = "idle" | "loading" | "loaded" | "error";
@@ -1025,6 +1085,7 @@ interface RequestReviewDrawerProps {
   onStatusChange: (order: Order, status: OrderStatus) => void;
   onFundingReviewToggle: (order: Order) => void;
   onViewPatient: () => void;
+  notifState?: OrderNotifState | null | undefined;
 }
 
 function RequestReviewDrawer({
@@ -1033,6 +1094,7 @@ function RequestReviewDrawer({
   statusLoading, fundingReviewLoading,
   onStatusChange, onFundingReviewToggle,
   onViewPatient,
+  notifState,
 }: RequestReviewDrawerProps) {
   const [tab, setTab] = useState<ReviewTab>("request");
 
@@ -1166,6 +1228,7 @@ function RequestReviewDrawer({
           {!order ? (
             <p className="text-sm text-gray-400">No request selected.</p>
           ) : tab === "request" ? (
+            <div className="space-y-5">
             <dl className="space-y-4">
               <div>
                 <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Reference</dt>
@@ -1227,6 +1290,8 @@ function RequestReviewDrawer({
                 </dd>
               </div>
             </dl>
+            <NotificationSection notifState={notifState} />
+            </div>
           ) : tab === "funding" ? (
             <div className="space-y-5">
               <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
@@ -1521,6 +1586,7 @@ export default function AdminOrdersPage() {
   const [reportOpen,          setReportOpen]          = useState(false);
   const [reviewDrawerOpen,    setReviewDrawerOpen]    = useState(false);
   const [reviewOrderId,       setReviewOrderId]       = useState<string | null>(null);
+  const [notifStates,         setNotifStates]         = useState<Map<string, OrderNotifState | null>>(new Map());
   const [kpiActiveFilter,     setKpiActiveFilter]     = useState<KpiActiveFilter | null>(null);
   const [chartDateFilter,     setChartDateFilter]     = useState<Date | null>(null);
   const [hoveredChartIndex,   setHoveredChartIndex]   = useState<number | null>(null);
@@ -1547,6 +1613,48 @@ export default function AdminOrdersPage() {
       .catch(() => { /* orders stays empty; EmptyState renders */ })
       .finally(() => setOrdersLoading(false));
   }, []);
+
+  // Fetch persisted notification state when the review drawer opens for an order not already in local state
+  const reviewOrderIdForNotif = reviewDrawerOpen ? reviewOrderId : null;
+  useEffect(() => {
+    if (!reviewOrderIdForNotif) return;
+    const order = orders.find((o) => o.id === reviewOrderIdForNotif);
+    if (!order || notifStates.has(order.id)) return;
+
+    const requestId = order.requestId;
+    fetch(`/api/admin/orders?notifRequest=${encodeURIComponent(requestId)}`, { credentials: "include" })
+      .then((r) => r.ok ? r.json() : Promise.reject())
+      .then((data: unknown) => {
+        const payload = data as Record<string, unknown>;
+        const notif = payload.notification && typeof payload.notification === 'object'
+          ? payload.notification as Record<string, unknown>
+          : null;
+        setNotifStates((prev) => {
+          const next = new Map(prev);
+          if (notif && notif.delivery_status === 'queued') {
+            next.set(order.id, {
+              ok:              true,
+              scheduledFor:    typeof notif.scheduled_for    === 'string' ? notif.scheduled_for    : undefined,
+              supersededCount: typeof notif.supersededCount  === 'number' ? notif.supersededCount  : undefined,
+              triggerStatus:   typeof notif.trigger_status   === 'string'
+                ? (TRIGGER_STATUS_DISPLAY[notif.trigger_status] ?? notif.trigger_status as string)
+                : undefined,
+            });
+          } else {
+            next.set(order.id, null);
+          }
+          return next;
+        });
+      })
+      .catch(() => {
+        setNotifStates((prev) => {
+          const next = new Map(prev);
+          next.set(order.id, null);
+          return next;
+        });
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reviewOrderIdForNotif]);
 
   const kpiCounts = useMemo(() => {
     const real    = orders.filter((o) => !isAdminRow(o));
@@ -2018,10 +2126,31 @@ const reviewOrder = useMemo(
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: order.id, status: DB_STATUS[status] }),
       });
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json().catch(() => ({})) as Record<string, unknown>;
       setOrders((prev) =>
         prev.map((o) => (o.id === order.id ? { ...o, status, updatedDate: formatToday() } : o))
       );
+      const nq = data.notificationQueue && typeof data.notificationQueue === 'object'
+        ? data.notificationQueue as Record<string, unknown>
+        : null;
+      setNotifStates((prev) => {
+        const next = new Map(prev);
+        if (nq !== null) {
+          next.set(order.id, {
+            ok:              nq.ok === true,
+            scheduledFor:    typeof nq.scheduledFor === 'string'    ? nq.scheduledFor    : undefined,
+            notificationId:  typeof nq.notificationId === 'string'  ? nq.notificationId  : undefined,
+            supersededCount: typeof nq.supersededCount === 'number' ? nq.supersededCount : undefined,
+            reason:          typeof nq.reason === 'string'          ? nq.reason          : undefined,
+            triggerStatus:   status,
+          });
+        } else {
+          // Non-trigger status or no notification queued — mark explicitly as null (not unknown)
+          next.set(order.id, null);
+        }
+        return next;
+      });
     } catch {
       setStatusError(`Failed to update status for ${order.requestId}.`);
     } finally {
@@ -2744,6 +2873,11 @@ const reviewOrder = useMemo(
         onStatusChange={handleStatusChange}
         onFundingReviewToggle={handleFundingReviewToggle}
         onViewPatient={() => reviewOrder && handleReviewToPatient(reviewOrder)}
+        notifState={
+          reviewOrder
+            ? (notifStates.has(reviewOrder.id) ? notifStates.get(reviewOrder.id) : undefined)
+            : undefined
+        }
       />
 
       <PatientDrawer
