@@ -254,7 +254,16 @@ export async function PATCH(request: NextRequest) {
   }
 
   // Queue patient notification for actionable statuses — non-blocking, never fails the request
-  let notificationQueue: { ok: boolean; scheduledFor?: string; reason?: string } | undefined
+  let notificationQueue: {
+    ok: boolean
+    scheduledFor?: string
+    reason?: string
+    step?: string
+    hasNotificationsTableName?: boolean
+    errorName?: string
+    awsHttpStatus?: number
+    awsRequestId?: string
+  } | undefined
   if (NOTIFICATION_STATUSES.has(status as ReorderStatus)) {
     if (patientMsid) {
       const queueResult = await queuePatientNotification({
@@ -265,10 +274,32 @@ export async function PATCH(request: NextRequest) {
       })
       notificationQueue = queueResult.ok
         ? { ok: true, scheduledFor: queueResult.scheduledFor }
-        : { ok: false, reason: queueResult.reason }
+        : {
+            ok: false,
+            reason: queueResult.reason,
+            step: queueResult.step,
+            hasNotificationsTableName: queueResult.hasNotificationsTableName,
+            errorName: queueResult.errorName,
+            awsHttpStatus: queueResult.awsHttpStatus,
+            awsRequestId: queueResult.awsRequestId,
+          }
     } else {
-      notificationQueue = { ok: false, reason: 'queue_unavailable' }
-      console.warn('[notifications] skipping queue — patientMsid unavailable', { orderId: id })
+      notificationQueue = {
+        ok: false,
+        reason: 'queue_unavailable',
+        step: 'patient_context',
+        hasNotificationsTableName: Boolean(process.env.NOTIFICATIONS_TABLE_NAME),
+        errorName: 'MissingPatientMsid',
+      }
+      console.warn('[notifications] skipping queue — patientMsid unavailable', {
+        action: 'queue_patient_notification',
+        step: 'patient_context',
+        request_id: requestReference ?? id,
+        patient_msid: null,
+        trigger_status: status,
+        hasNotificationsTableName: Boolean(process.env.NOTIFICATIONS_TABLE_NAME),
+        errorName: 'MissingPatientMsid',
+      })
     }
   }
 
