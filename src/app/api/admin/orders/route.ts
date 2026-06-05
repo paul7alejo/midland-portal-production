@@ -11,12 +11,18 @@ import {
   type ReorderStatus,
 } from '@/lib/aws/dynamodb'
 import { listPortalUsers } from '@/lib/aws/cognito-admin'
+import {
+  queuePatientNotification,
+  type NotificationTriggerStatus,
+} from '@/lib/aws/notifications'
 
 const ORG_ID = 'midland-sleep'
 
 const VALID_STATUSES = new Set<ReorderStatus>([
   'new', 'reviewing', 'approved', 'sent', 'delivered', 'declined', 'needs_followup',
 ])
+
+const NOTIFICATION_STATUSES = new Set<ReorderStatus>(['approved', 'sent', 'declined', 'needs_followup'])
 
 const STATUS_DISPLAY: Record<ReorderStatus, string> = {
   new:            'New',
@@ -247,5 +253,27 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'Unable to update request status' }, { status: 500 })
   }
 
-  return NextResponse.json({ ok: true })
+  // Queue patient notification for actionable statuses — non-blocking, never fails the request
+  let notificationQueue: { ok: boolean; scheduledFor?: string; reason?: string } | undefined
+  if (NOTIFICATION_STATUSES.has(status as ReorderStatus)) {
+    if (patientMsid) {
+      const queueResult = await queuePatientNotification({
+        patientMsid,
+        requestId:     requestReference ?? id,
+        triggerStatus: status as NotificationTriggerStatus,
+        orgId:         ORG_ID,
+      })
+      notificationQueue = queueResult.ok
+        ? { ok: true, scheduledFor: queueResult.scheduledFor }
+        : { ok: false, reason: queueResult.reason }
+    } else {
+      notificationQueue = { ok: false, reason: 'queue_unavailable' }
+      console.warn('[notifications] skipping queue — patientMsid unavailable', { orderId: id })
+    }
+  }
+
+  return NextResponse.json({
+    ok: true,
+    ...(notificationQueue !== undefined && { notificationQueue }),
+  })
 }
