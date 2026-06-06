@@ -199,11 +199,23 @@ function downloadReportCsv(params: {
   URL.revokeObjectURL(url);
 }
 
-function downloadCsv(rows: Order[]) {
-  const headers = ["Reference", "Patient", "MSID", "Items", "Status", "Source", "Date"];
+function downloadCsv(rows: Order[], notifStates: Map<string, { ok: boolean } | null>) {
+  const headers = [
+    "Reference", "Patient", "MSID", "Items", "Status", "Source", "Date",
+    "Needs Funding Review", "Notification Queued",
+  ];
   const lines = rows.map((o) =>
-    [o.requestId, o.patient, o.msid, o.items || o.itemDescription || "",
-     o.status, o.source ?? "", o.date]
+    [
+      o.requestId,
+      o.patient,
+      o.msid,
+      o.items || o.itemDescription || "",
+      o.status,
+      o.source ?? "",
+      o.date,
+      o.needsFundingReview ? "Yes" : "No",
+      notifStates.get(o.id)?.ok === true ? "Yes" : "No",
+    ]
       .map(csvEscape)
       .join(",")
   );
@@ -2285,6 +2297,14 @@ const reviewOrder = useMemo(
               Approve selected ({selectedVisible.length})
             </button>
           )}
+          <button
+            type="button"
+            onClick={() => downloadCsv(visibleOrders, notifStates)}
+            className="flex items-center gap-2 px-4 py-2.5 border border-gray-300 rounded-lg text-base font-medium
+                       bg-white text-gray-700 hover:border-[#0B5C6C] min-h-[44px] whitespace-nowrap transition-colors"
+          >
+            Export current view
+          </button>
           <button
             type="button"
             onClick={() => setReportOpen(true)}
