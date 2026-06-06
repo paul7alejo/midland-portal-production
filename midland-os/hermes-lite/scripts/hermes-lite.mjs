@@ -2,9 +2,11 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const root = process.cwd();
-const hermesDir = path.join(root, "midland-os", "hermes-lite");
+const scriptPath = fileURLToPath(import.meta.url);
+const scriptDir = path.dirname(scriptPath);
+const hermesDir = path.resolve(scriptDir, "..");
 const promptsDir = path.join(hermesDir, "prompts");
 
 const command = process.argv[2];
