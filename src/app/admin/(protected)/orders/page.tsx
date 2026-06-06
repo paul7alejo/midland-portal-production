@@ -343,6 +343,15 @@ const STATUS_BAR_COLOR: Record<OrderStatus, string> = {
   Declined:          "bg-red-400",
   "Needs Follow-Up": "bg-orange-400",
 };
+const STATUS_LIFECYCLE_COPY: Record<OrderStatus, string> = {
+  New:               "Patient request has been received and is waiting for staff review.",
+  Reviewing:         "Staff are checking the request, entitlement, and next action.",
+  Approved:          "Request has been approved and can be prepared for fulfilment.",
+  Sent:              "Supplies have been sent or are being dispatched to the patient.",
+  Delivered:         "Request is complete. Patient can submit a future request when appropriate.",
+  Declined:          "Request was not approved. Staff should ensure the patient has clear next steps.",
+  "Needs Follow-Up": "Staff need to contact or review the patient before the request can progress.",
+};
 const REPORT_SOURCE_OPTIONS: ReportSource[] = ["patient_portal", "support_request", "admin_created", "other"];
 const REPORT_SOURCE_LABEL: Record<ReportSource, string> = {
   patient_portal:  "Portal",
@@ -997,7 +1006,13 @@ const TRIGGER_STATUS_DISPLAY: Record<string, string> = {
 //   undefined  = not yet loaded (fetch in progress)
 //   null       = loaded, no queued notification
 //   object     = loaded, has queued or failed notification state
-function NotificationSection({ notifState }: { notifState: OrderNotifState | null | undefined }) {
+function NotificationSection({
+  notifState,
+  orderStatus,
+}: {
+  notifState: OrderNotifState | null | undefined;
+  orderStatus?: OrderStatus;
+}) {
   return (
     <div className="border-t border-gray-100 pt-4">
       <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Patient notification</p>
@@ -1015,6 +1030,9 @@ function NotificationSection({ notifState }: { notifState: OrderNotifState | nul
               <span className="text-xs text-gray-600">{notifState.triggerStatus}</span>
             )}
           </div>
+          <p className="text-xs text-gray-500 leading-5">
+            A patient communication is queued based on the latest notification-triggering status change.
+          </p>
           {notifState.scheduledFor && (
             <p className="text-xs text-gray-500">Scheduled: {formatHistoryDate(notifState.scheduledFor)}</p>
           )}
@@ -1022,6 +1040,11 @@ function NotificationSection({ notifState }: { notifState: OrderNotifState | nul
           {notifState.supersededCount !== undefined && notifState.supersededCount > 0 && (
             <p className="text-xs text-amber-600">
               {notifState.supersededCount} previous queued notification{notifState.supersededCount !== 1 ? "s" : ""} superseded.
+            </p>
+          )}
+          {orderStatus === "Delivered" && (
+            <p className="text-xs text-gray-400 leading-5">
+              Delivered does not create a new notification. This queued item may relate to the previous Sent update.
             </p>
           )}
         </div>
@@ -1263,6 +1286,7 @@ function RequestReviewDrawer({
                   {statusLoading.has(order.id) && (
                     <p className="text-[10px] font-medium uppercase tracking-wide text-gray-400">Saving…</p>
                   )}
+                  <p className="text-xs text-gray-400 leading-5">{STATUS_LIFECYCLE_COPY[order.status]}</p>
                 </dd>
               </div>
               <div>
@@ -1302,7 +1326,7 @@ function RequestReviewDrawer({
                 </dd>
               </div>
             </dl>
-            <NotificationSection notifState={notifState} />
+            <NotificationSection notifState={notifState} orderStatus={order.status} />
             </div>
           ) : tab === "funding" ? (
             <div className="space-y-5">
