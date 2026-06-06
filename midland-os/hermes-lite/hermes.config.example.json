@@ -1,0 +1,24 @@
+{
+  "projectName": "Midland Sleep Portal",
+  "businessName": "OneOfZero Systems",
+  "defaultBranch": "phase-2a-admin-ops",
+  "protectedPaths": [
+    "src/app/api/**",
+    "src/lib/aws/**",
+    "src/components/AuthProvider.tsx",
+    "src/middleware.ts",
+    "package.json",
+    "package-lock.json"
+  ],
+  "verificationCommands": [
+    "npx tsc --noEmit",
+    "npm run build"
+  ],
+  "rules": [
+    "Prefer surgical edits.",
+    "Do not change backend, auth, middleware, DynamoDB, Cognito, NHI, patient portal, checkout, or audit logic unless explicitly scoped.",
+    "No raw NHI, encrypted NHI, NHI hash, patient email, phone, address, Cognito sub, tokens, or secrets in outputs.",
+    "No markdown docs unless explicitly requested.",
+    "Every implementation task must have allowed files, forbidden files, acceptance criteria, and verification commands."
+  ]
+}
