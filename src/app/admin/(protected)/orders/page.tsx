@@ -1587,6 +1587,7 @@ export default function AdminOrdersPage() {
   const [reviewDrawerOpen,    setReviewDrawerOpen]    = useState(false);
   const [reviewOrderId,       setReviewOrderId]       = useState<string | null>(null);
   const [notifStates,         setNotifStates]         = useState<Map<string, OrderNotifState | null>>(new Map());
+  const [notifQueuedFilter,   setNotifQueuedFilter]   = useState(false);
   const [kpiActiveFilter,     setKpiActiveFilter]     = useState<KpiActiveFilter | null>(null);
   const [chartDateFilter,     setChartDateFilter]     = useState<Date | null>(null);
   const [hoveredChartIndex,   setHoveredChartIndex]   = useState<number | null>(null);
@@ -1613,6 +1614,46 @@ export default function AdminOrdersPage() {
       .catch(() => { /* orders stays empty; EmptyState renders */ })
       .finally(() => setOrdersLoading(false));
   }, []);
+
+  // Batch-fetch notification summaries for all real orders when the order list loads
+  useEffect(() => {
+    const toFetch = orders.filter((o) => !o.isDemo && !o.localOnly && !notifStates.has(o.id));
+    if (toFetch.length === 0) return;
+    Promise.allSettled(
+      toFetch.map((order) =>
+        fetch(`/api/admin/orders?notifRequest=${encodeURIComponent(order.requestId)}`, { credentials: "include" })
+          .then((r) => (r.ok ? r.json() : Promise.reject()))
+          .then((data: unknown) => ({ orderId: order.id, data }))
+          .catch(() => ({ orderId: order.id, data: null }))
+      )
+    ).then((results) => {
+      setNotifStates((prev) => {
+        const next = new Map(prev);
+        for (const result of results) {
+          if (result.status === "fulfilled") {
+            const { orderId, data } = result.value as { orderId: string; data: Record<string, unknown> | null };
+            const notif = data?.notification && typeof data.notification === "object"
+              ? (data.notification as Record<string, unknown>)
+              : null;
+            if (notif && notif.delivery_status === "queued") {
+              next.set(orderId, {
+                ok:              true,
+                scheduledFor:    typeof notif.scheduled_for   === "string" ? notif.scheduled_for   : undefined,
+                supersededCount: typeof notif.supersededCount === "number" ? notif.supersededCount : undefined,
+                triggerStatus:   typeof notif.trigger_status  === "string"
+                  ? (TRIGGER_STATUS_DISPLAY[notif.trigger_status] ?? (notif.trigger_status as string))
+                  : undefined,
+              });
+            } else {
+              next.set(orderId, null);
+            }
+          }
+        }
+        return next;
+      });
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orders]);
 
   // Fetch persisted notification state when the review drawer opens for an order not already in local state
   const reviewOrderIdForNotif = reviewDrawerOpen ? reviewOrderId : null;
@@ -1760,6 +1801,7 @@ const reviewOrder = useMemo(
     setSortOpt(null);
     setKpiActiveFilter(null);
     setChartDateFilter(null);
+    setNotifQueuedFilter(false);
   }
 
   function handleStatusTab(tab: StatusTab) {
@@ -1875,6 +1917,10 @@ const reviewOrder = useMemo(
       orders.filter((o) => forceRealRows ? !isAdminRow(o) : showAdminRows || !isAdminRow(o))
     );
 
+    if (notifQueuedFilter) {
+      result = result.filter((o) => notifStates.get(o.id)?.ok === true);
+    }
+
     if (sortOpt) {
       result.sort((a, b) => {
         if (sortOpt === "newest")  return parseDateForSort(b.date) - parseDateForSort(a.date);
@@ -1894,7 +1940,7 @@ const reviewOrder = useMemo(
     }
 
     return result;
-  }, [orders, statusTab, statusFilters, typeFilters, dateRange, customDateFrom, customDateTo, sortOpt, showAdminRows, kpiActiveFilter, chartDateFilter]);
+  }, [orders, statusTab, statusFilters, typeFilters, dateRange, customDateFrom, customDateTo, sortOpt, showAdminRows, kpiActiveFilter, chartDateFilter, notifQueuedFilter, notifStates]);
 
   const chartWindow = useMemo(() => {
     const today = new Date();
@@ -1973,7 +2019,7 @@ const reviewOrder = useMemo(
     typeFilters.size > 0
   );
 
-  const activeFilterCount = statusFilters.size + typeFilters.size + (dateRange ? 1 : 0) + (sortOpt ? 1 : 0) + (kpiActiveFilter ? 1 : 0) + (chartDateFilter ? 1 : 0);
+  const activeFilterCount = statusFilters.size + typeFilters.size + (dateRange ? 1 : 0) + (sortOpt ? 1 : 0) + (kpiActiveFilter ? 1 : 0) + (chartDateFilter ? 1 : 0) + (notifQueuedFilter ? 1 : 0);
 
   const kpiChipLabel: Record<KpiActiveFilter, string> = {
     requestsThisMonth:  "This month",
@@ -2000,6 +2046,7 @@ const reviewOrder = useMemo(
           : "Older";
 
   const filterChips: { key: string; label: string; onRemove: () => void }[] = [
+    ...(notifQueuedFilter ? [{ key: "notifQueued", label: "Notification queued", onRemove: () => setNotifQueuedFilter(false) }] : []),
     ...(kpiActiveFilter ? [{ key: "kpi", label: kpiChipLabel[kpiActiveFilter], onRemove: () => setKpiActiveFilter(null) }] : []),
     ...(chartDateFilter ? [{
       key: "chartDate",
@@ -2564,6 +2611,18 @@ const reviewOrder = useMemo(
         >
           {showAdminRows ? "Hide test rows" : "Show test rows"}
         </button>
+        <button
+          type="button"
+          onClick={() => setNotifQueuedFilter((v) => !v)}
+          className={cn(
+            "text-sm font-medium px-3 py-1.5 rounded-lg border transition-colors",
+            notifQueuedFilter
+              ? "border-[#74C0A2] bg-[#74C0A2]/10 text-[#0B5C6C]"
+              : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
+          )}
+        >
+          Notification queued
+        </button>
         {filterChips.map((chip) => (
           <span
             key={chip.key}
@@ -2629,10 +2688,16 @@ const reviewOrder = useMemo(
               <tbody className="divide-y divide-gray-100">
                 {visibleOrders.map((order) => {
                   const isSelected = selected.has(order.id);
+                  const hasNotif = notifStates.get(order.id)?.ok === true;
                   return (
                     <tr
                       key={order.id}
-                      className={`transition-colors ${isSelected ? "bg-teal-50" : "hover:bg-gray-50"}`}
+                      className={cn(
+                        "transition-colors",
+                        isSelected ? "bg-teal-50"
+                        : hasNotif ? "bg-[#74C0A2]/5 hover:bg-[#74C0A2]/10"
+                        : "hover:bg-gray-50"
+                      )}
                     >
                       <td className="px-3 py-3">
                         <input
@@ -2644,7 +2709,7 @@ const reviewOrder = useMemo(
                         />
                       </td>
                       {/* REF */}
-                      <td className="px-3 py-3">
+                      <td className={cn("px-3 py-3", hasNotif && "border-l-2 border-l-[#74C0A2] pl-2")}>
                         <div className="flex items-center gap-1.5 flex-wrap">
                           {order.needsFundingReview && (
                             <span className="h-2 w-2 rounded-full bg-amber-400 shrink-0" title="Needs funding review" />
@@ -2653,7 +2718,10 @@ const reviewOrder = useMemo(
                             type="button"
                             onClick={() => handleReviewRequest(order)}
                             aria-label={`Review request ${order.requestId}`}
-                            className="font-mono text-sm font-semibold text-[#0B5C6C] hover:underline whitespace-nowrap text-left"
+                            className={cn(
+                              "font-mono text-sm text-[#0B5C6C] hover:underline whitespace-nowrap text-left",
+                              hasNotif ? "font-bold" : "font-semibold"
+                            )}
                           >
                             {order.requestId}
                           </button>
@@ -2663,6 +2731,13 @@ const reviewOrder = useMemo(
                             </span>
                           )}
                         </div>
+                        {hasNotif && (
+                          <div className="mt-1">
+                            <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded bg-[#74C0A2]/20 text-[#0B5C6C] border border-[#74C0A2]/40 whitespace-nowrap">
+                              Notification queued
+                            </span>
+                          </div>
+                        )}
                         <div className="mt-0.5 text-xs font-mono text-gray-400">{order.msid}</div>
                       </td>
                       {/* PATIENT */}
