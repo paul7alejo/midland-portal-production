@@ -2324,10 +2324,11 @@ const reviewOrder = useMemo(
           <button
             type="button"
             onClick={() => downloadCsv(visibleOrders, notifStates)}
+            title={`Export ${visibleOrders.length} row${visibleOrders.length === 1 ? "" : "s"} — respects active tab, filters, and sort order`}
             className="flex items-center gap-2 px-4 py-2.5 border border-gray-300 rounded-lg text-base font-medium
                        bg-white text-gray-700 hover:border-[#0B5C6C] min-h-[44px] whitespace-nowrap transition-colors"
           >
-            Export current view
+            Export current view ({visibleOrders.length})
           </button>
           <button
             type="button"
