@@ -1,3 +1,39 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+interface DeliveredOrderSummary {
+  id: string;
+  referenceNumber: string;
+  patient: string;
+  msid: string;
+  items: string;
+  status: string;
+  createdDate: string;
+  updatedDate?: string;
+  estimatedFundedAmount: number | null;
+  needsFundingReview: boolean;
+}
+
+interface EntitlementSummary {
+  deliveredOrdersThisYear: number;
+  nominalFundingUsedEstimate: number;
+  requestsNeedingFundingReview: number;
+  recentDeliveredOrders: DeliveredOrderSummary[];
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function formatEstimate(amount: number | null): string {
+  if (amount === null || amount === undefined) return "—";
+  return `$${amount.toFixed(2)}`;
+}
+
+// ── Sub-components ────────────────────────────────────────────────────────────
+
 function SummaryCard({
   label,
   value,
@@ -25,14 +61,14 @@ function SummaryCard({
 
 function PhaseChip({ label, phase }: { label: string; phase: "live" | "phase3" | "later" }) {
   const phaseLabel = {
-    live: "Live in Phase 2",
+    live:   "Live in Phase 2",
     phase3: "Planned for Phase 3",
-    later: "Later phase",
+    later:  "Later phase",
   };
   const phaseClass = {
-    live: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    live:   "bg-emerald-50 text-emerald-700 border-emerald-200",
     phase3: "bg-gray-100 text-gray-600 border-gray-200",
-    later: "bg-white text-gray-500 border-gray-200",
+    later:  "bg-white text-gray-500 border-gray-200",
   };
   return (
     <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3">
@@ -59,7 +95,39 @@ function CapabilityGroup({
   );
 }
 
+// ── Page ──────────────────────────────────────────────────────────────────────
+
 export default function AdminEntitlementPage() {
+  const [summary, setSummary] = useState<EntitlementSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch("/api/admin/entitlement", { credentials: "include" });
+        if (!res.ok) throw new Error("Unable to load funding summary");
+        const data = (await res.json()) as EntitlementSummary;
+        if (!cancelled) setSummary(data);
+      } catch {
+        if (!cancelled) setError("Funding summary could not be loaded.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const currentYear = new Date().getFullYear();
+
   return (
     <div className="space-y-8">
       {/* Header */}
@@ -76,39 +144,65 @@ export default function AdminEntitlementPage() {
         <p className="text-sm font-semibold text-[#0B5C6C] mb-1">Phase 2 — Visibility only</p>
         <p className="text-sm text-[#0B5C6C]/80">
           No deductions are applied. No orders are created from this page. No payments are processed.
-          Full entitlement deduction and checkout are Phase 3 scope.
+          All dollar figures are estimates based on request data only. Full entitlement deduction and
+          checkout are Phase 3 scope.
         </p>
       </div>
 
-      {/* Summary cards */}
+      {/* Live summary cards */}
       <div>
-        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Entitlement concept — current defaults</h2>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <SummaryCard
-            label="Default annual allowance"
-            value="$250"
-            sub="Reference value only"
-            theme="teal"
-          />
-          <SummaryCard
-            label="Used amount"
-            value="Not yet tracked"
-            sub="requires Phase 3 deduction logic"
-            theme="neutral"
-          />
-          <SummaryCard
-            label="Remaining"
-            value="Not yet calculated"
-            sub="requires Phase 3 deduction logic"
-            theme="neutral"
-          />
-          <SummaryCard
-            label="Eligibility status"
-            value="Visibility only"
-            sub="No checkout effect"
-            theme="amber"
-          />
-        </div>
+        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+          Live summary — {currentYear}
+        </h2>
+
+        {loading ? (
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            {[0, 1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-[0_2px_12px_rgba(0,0,0,0.04)]"
+              >
+                <div className="h-3 w-24 rounded bg-gray-100 mb-3 animate-pulse" />
+                <div className="h-7 w-16 rounded bg-gray-100 animate-pulse" />
+              </div>
+            ))}
+          </div>
+        ) : error ? (
+          <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4">
+            <p className="text-sm text-red-700">{error}</p>
+          </div>
+        ) : summary ? (
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <SummaryCard
+              label="Delivered orders this year"
+              value={String(summary.deliveredOrdersThisYear)}
+              sub={`Calendar year ${currentYear}`}
+              theme="teal"
+            />
+            <SummaryCard
+              label="Nominal funding used (est.)"
+              value={formatEstimate(summary.nominalFundingUsedEstimate)}
+              sub="Estimate only — no deduction applied"
+              theme="teal"
+            />
+            <SummaryCard
+              label="Default annual allowance"
+              value="$250"
+              sub="Reference value only"
+              theme="neutral"
+            />
+            <SummaryCard
+              label="Needs funding review"
+              value={String(summary.requestsNeedingFundingReview)}
+              sub={
+                summary.requestsNeedingFundingReview > 0
+                  ? "Review in Patient Requests"
+                  : "No requests flagged"
+              }
+              theme={summary.requestsNeedingFundingReview > 0 ? "amber" : "neutral"}
+            />
+          </div>
+        ) : null}
       </div>
 
       {/* Funding review workflow */}
@@ -126,13 +220,96 @@ export default function AdminEntitlementPage() {
               <li>Review flags help staff triage requests before any Phase 3 automation exists.</li>
             </ul>
           </div>
-          <a
+          <Link
             href="/admin/orders"
             className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-[#0B5C6C] bg-white px-4 py-2.5 text-sm font-semibold text-[#0B5C6C] transition-colors hover:bg-[#0B5C6C]/[0.06]"
           >
             View requests needing funding review
-          </a>
+          </Link>
         </div>
+      </div>
+
+      {/* Recent delivered orders */}
+      <div>
+        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+          Recent delivered orders
+        </h2>
+
+        {loading ? (
+          <div className="rounded-xl border border-gray-200 bg-white px-5 py-8 text-center text-sm text-gray-400">
+            Loading…
+          </div>
+        ) : error ? (
+          <div className="rounded-xl border border-gray-200 bg-gray-50 px-5 py-6 text-sm text-gray-500">
+            Recent orders could not be loaded.
+          </div>
+        ) : !summary || summary.recentDeliveredOrders.length === 0 ? (
+          <div className="rounded-xl border border-gray-200 bg-gray-50 px-5 py-6">
+            <p className="text-sm text-gray-500">No delivered orders to show yet.</p>
+            <p className="mt-1 text-xs text-gray-400">
+              Delivered orders will appear here once requests have been completed.
+            </p>
+          </div>
+        ) : (
+          <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-100 bg-amber-50">
+              <p className="text-xs text-amber-700 font-medium">
+                Estimate only — funding figures are based on request data. No entitlement deduction has been applied.
+              </p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100 font-mono text-[11px] uppercase tracking-[0.08em] text-gray-500">
+                    <th className="px-4 py-3 font-medium">Reference</th>
+                    <th className="px-4 py-3 font-medium">Patient</th>
+                    <th className="px-4 py-3 font-medium">MSID</th>
+                    <th className="px-4 py-3 font-medium">Items</th>
+                    <th className="px-4 py-3 font-medium">Completed</th>
+                    <th className="px-4 py-3 font-medium text-right">Est. funded</th>
+                    <th className="px-4 py-3 font-medium">Review flag</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {summary.recentDeliveredOrders.map((order) => (
+                    <tr
+                      key={order.id}
+                      className="border-b border-gray-50 last:border-0 hover:bg-gray-50"
+                    >
+                      <td className="px-4 py-3 font-mono text-xs text-[#0B5C6C] font-semibold whitespace-nowrap">
+                        {order.referenceNumber}
+                      </td>
+                      <td className="px-4 py-3 text-gray-800 whitespace-nowrap">
+                        {order.patient}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs text-gray-500 whitespace-nowrap">
+                        {order.msid}
+                      </td>
+                      <td className="px-4 py-3 text-gray-700 max-w-[200px] truncate" title={order.items}>
+                        {order.items}
+                      </td>
+                      <td className="px-4 py-3 text-gray-500 whitespace-nowrap text-xs">
+                        {order.updatedDate ?? order.createdDate}
+                      </td>
+                      <td className="px-4 py-3 text-right font-semibold text-emerald-700 whitespace-nowrap tabular-nums">
+                        {formatEstimate(order.estimatedFundedAmount)}
+                      </td>
+                      <td className="px-4 py-3">
+                        {order.needsFundingReview ? (
+                          <span className="inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+                            Flagged
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Capability map */}
@@ -143,6 +320,7 @@ export default function AdminEntitlementPage() {
             <PhaseChip label="Funding source captured on import" phase="live" />
             <PhaseChip label="Entitlement visibility in admin patient drawer" phase="live" />
             <PhaseChip label="Funding review flags in Orders" phase="live" />
+            <PhaseChip label="Delivered order count and nominal estimate (this page)" phase="live" />
           </CapabilityGroup>
           <CapabilityGroup title="Planned for Phase 3">
             <PhaseChip label="Entitlement deduction logic on order placement" phase="phase3" />
