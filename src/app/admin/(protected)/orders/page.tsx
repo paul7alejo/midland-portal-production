@@ -352,6 +352,15 @@ const STATUS_LIFECYCLE_COPY: Record<OrderStatus, string> = {
   Declined:          "Request was not approved. Staff should ensure the patient has clear next steps.",
   "Needs Follow-Up": "Staff need to contact or review the patient before the request can progress.",
 };
+const STATUS_QUEUE_COPY: Record<OrderStatus, string> = {
+  New:               "Awaiting staff review",
+  Reviewing:         "Under review",
+  Approved:          "Ready to prepare",
+  Sent:              "Dispatched",
+  Delivered:         "Completed",
+  Declined:          "Not proceeding",
+  "Needs Follow-Up": "Follow-up required",
+};
 const REPORT_SOURCE_OPTIONS: ReportSource[] = ["patient_portal", "support_request", "admin_created", "other"];
 const REPORT_SOURCE_LABEL: Record<ReportSource, string> = {
   patient_portal:  "Portal",
@@ -380,7 +389,7 @@ const STATUS_TABS: { key: StatusTab; label: string }[] = [
   { key: "Delivered",            label: "Delivered" },
   { key: "Declined",             label: "Declined" },
   { key: "Needs Follow-Up",      label: "Needs Follow-Up" },
-  { key: "Needs Funding Review", label: "Needs Funding Review" },
+  { key: "Needs Funding Review", label: "Funding Check" },
 ];
 
 const DEMO_REQUESTS: Order[] = [
@@ -2097,7 +2106,7 @@ const reviewOrder = useMemo(
   const kpiChipLabel: Record<KpiActiveFilter, string> = {
     requestsThisMonth:  "This month",
     newRequests:        "New requests",
-    needsFundingReview: "Needs funding review",
+    needsFundingReview: "Funding check required",
     deliveredThisMonth: "Delivered · this month",
     declinedThisMonth:  "Declined · this month",
   };
@@ -2392,7 +2401,7 @@ const reviewOrder = useMemo(
           [
             { key: "requestsThisMonth"  as KpiActiveFilter, label: "Requests this month",   count: opKpiStats.requestsThisMonth,  dot: "bg-gray-400",       countCls: "text-gray-900",   sub: null },
             { key: "newRequests"        as KpiActiveFilter, label: "New requests",           count: opKpiStats.newRequests,        dot: "bg-[#0B5C6C]",      countCls: "text-[#0B5C6C]",  sub: null },
-            { key: "needsFundingReview" as KpiActiveFilter, label: "Needs funding review",   count: opKpiStats.needsFundingReview, dot: "bg-amber-400",      countCls: opKpiStats.needsFundingReview > 0 ? "text-amber-700" : "text-gray-900", sub: null },
+            { key: "needsFundingReview" as KpiActiveFilter, label: "Funding check required", count: opKpiStats.needsFundingReview, dot: "bg-amber-400",      countCls: opKpiStats.needsFundingReview > 0 ? "text-amber-700" : "text-gray-900", sub: opKpiStats.needsFundingReview > 0 ? "Requires staff check" : null },
             { key: "deliveredThisMonth" as KpiActiveFilter, label: "Delivered requests",     count: opKpiStats.deliveredThisMonth, dot: "bg-emerald-500",    countCls: "text-emerald-700", sub: "Created this month" },
             { key: "declinedThisMonth"  as KpiActiveFilter, label: "Declined requests",      count: opKpiStats.declinedThisMonth,  dot: "bg-rose-400",       countCls: opKpiStats.declinedThisMonth > 0 ? "text-rose-700" : "text-gray-900", sub: "Created this month" },
           ] as const
@@ -2794,7 +2803,9 @@ const reviewOrder = useMemo(
                       <td className={cn("px-3 py-3", hasNotif && "border-l-2 border-l-[#74C0A2] pl-2")}>
                         <div className="flex items-center gap-1.5 flex-wrap">
                           {order.needsFundingReview && (
-                            <span className="h-2 w-2 rounded-full bg-amber-400 shrink-0" title="Needs funding review" />
+                            <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 whitespace-nowrap shrink-0">
+                              Funding check
+                            </span>
                           )}
                           <button
                             type="button"
@@ -2895,6 +2906,9 @@ const reviewOrder = useMemo(
                           {(order.isDemo || order.localOnly) && !statusLoading.has(order.id) && (
                             <p className="text-[10px] font-medium uppercase tracking-wide text-blue-600">Local-only</p>
                           )}
+                          {!statusLoading.has(order.id) && (
+                            <p className="text-[10px] text-gray-400 leading-4">{STATUS_QUEUE_COPY[order.status]}</p>
+                          )}
                         </div>
                       </td>
                       {/* CREATED */}
@@ -2923,7 +2937,7 @@ const reviewOrder = useMemo(
                                 : "border-gray-200 text-gray-500 hover:border-amber-300 hover:text-amber-700"
                             )}
                           >
-                            {fundingReviewLoading.has(order.id) ? "…" : order.needsFundingReview ? "Unflag" : "Flag funding"}
+                            {fundingReviewLoading.has(order.id) ? "…" : order.needsFundingReview ? "Clear funding check" : "Flag: funding check"}
                           </button>
                         </div>
                       </td>
