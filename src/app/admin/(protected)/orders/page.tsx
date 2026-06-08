@@ -1264,14 +1264,17 @@ function RequestReviewDrawer({
             <p className="text-sm text-gray-400">No request selected.</p>
           ) : tab === "request" ? (
             <div className="space-y-5">
-            <dl className="space-y-4">
-              <div>
-                <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Reference</dt>
-                <dd className="mt-1 font-mono text-sm font-semibold text-gray-800">{order.requestId}</dd>
+
+              {/* Requested items */}
+              <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5">Requested items</p>
+                <p className="text-sm text-gray-800 leading-5">{order.items || order.itemDescription || "—"}</p>
               </div>
+
+              {/* Status + lifecycle interpretation */}
               <div>
-                <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Status</dt>
-                <dd className="mt-1 space-y-1">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Status</p>
+                <div className="flex items-center gap-2 flex-wrap">
                   <select
                     value={order.status}
                     onChange={(e) => onStatusChange(order, e.target.value as OrderStatus)}
@@ -1286,47 +1289,81 @@ function RequestReviewDrawer({
                   {statusLoading.has(order.id) && (
                     <p className="text-[10px] font-medium uppercase tracking-wide text-gray-400">Saving…</p>
                   )}
-                  <p className="text-xs text-gray-400 leading-5">{STATUS_LIFECYCLE_COPY[order.status]}</p>
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Source</dt>
-                <dd className="mt-1"><SourceBadge source={order.source} /></dd>
-              </div>
-              <div>
-                <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Created</dt>
-                <dd className="mt-1 text-sm text-gray-700">{order.date}</dd>
-              </div>
-              <div>
-                <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Items</dt>
-                <dd className="mt-1 text-sm text-gray-700">{order.items || order.itemDescription || "—"}</dd>
-              </div>
-              {order.contactPreference && (
-                <div>
-                  <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Contact preference</dt>
-                  <dd className="mt-1 text-sm text-gray-700">{order.contactPreference}</dd>
                 </div>
-              )}
-              <div>
-                <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Funding review</dt>
-                <dd className="mt-1">
-                  <button
-                    type="button"
-                    onClick={() => onFundingReviewToggle(order)}
-                    disabled={fundingReviewLoading.has(order.id)}
-                    className={cn(
-                      "text-sm font-medium px-3 py-1.5 rounded-lg border transition-colors disabled:opacity-60",
-                      order.needsFundingReview
-                        ? "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
-                        : "border-gray-200 text-gray-500 hover:border-amber-300 hover:text-amber-700"
-                    )}
-                  >
-                    {fundingReviewLoading.has(order.id) ? "…" : order.needsFundingReview ? "Flagged — click to clear" : "Not flagged — click to flag"}
-                  </button>
-                </dd>
+                <p className="mt-2 text-xs text-gray-500 leading-5">{STATUS_LIFECYCLE_COPY[order.status]}</p>
               </div>
-            </dl>
-            <NotificationSection notifState={notifState} orderStatus={order.status} />
+
+              {/* Funding context + review flag */}
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Funding</p>
+                <div className="rounded-lg border border-amber-200/70 bg-amber-50/50 px-3 py-2 mb-3">
+                  <p className="text-xs text-amber-800">Phase 2 visibility only — no deduction, payment, or reservation applied.</p>
+                </div>
+                {(order.estimatedItemAmount !== null || order.estimatedFundedAmount !== null) && (
+                  <dl className="divide-y divide-gray-100 mb-3">
+                    <div className="flex justify-between items-center py-2">
+                      <dt className="text-xs text-gray-600">Est. item amount</dt>
+                      <dd className="text-xs font-semibold text-gray-800">{formatEstimate(order.estimatedItemAmount)}</dd>
+                    </div>
+                    <div className="flex justify-between items-center py-2">
+                      <dt className="text-xs text-emerald-700">Est. funded</dt>
+                      <dd className="text-xs font-semibold text-emerald-700">{formatEstimate(order.estimatedFundedAmount)}</dd>
+                    </div>
+                    {order.estimatedPatientCopay !== null && order.estimatedPatientCopay !== undefined && order.estimatedPatientCopay > 0 && (
+                      <div className="flex justify-between items-center py-2">
+                        <dt className="text-xs text-gray-600">Est. co-pay</dt>
+                        <dd className="text-xs font-semibold text-gray-800">{formatEstimate(order.estimatedPatientCopay)}</dd>
+                      </div>
+                    )}
+                  </dl>
+                )}
+                <button
+                  type="button"
+                  onClick={() => onFundingReviewToggle(order)}
+                  disabled={fundingReviewLoading.has(order.id)}
+                  className={cn(
+                    "w-full text-left text-sm font-medium px-3 py-2 rounded-lg border transition-colors disabled:opacity-60",
+                    order.needsFundingReview
+                      ? "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                      : "border-gray-200 text-gray-500 hover:border-amber-300 hover:text-amber-700"
+                  )}
+                >
+                  {fundingReviewLoading.has(order.id) ? "…" : order.needsFundingReview ? "Funding review: flagged — click to clear" : "Funding review: not flagged — click to flag"}
+                </button>
+                {order.reviewReason && (
+                  <p className="mt-1.5 text-xs text-gray-500">Reason: {order.reviewReason}</p>
+                )}
+              </div>
+
+              {/* Metadata */}
+              <dl className="divide-y divide-gray-100">
+                <div className="flex justify-between items-center py-2.5">
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Reference</dt>
+                  <dd className="font-mono text-xs font-semibold text-gray-800">{order.requestId}</dd>
+                </div>
+                <div className="flex justify-between items-center py-2.5">
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Source</dt>
+                  <dd><SourceBadge source={order.source} /></dd>
+                </div>
+                <div className="flex justify-between items-center py-2.5">
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Created</dt>
+                  <dd className="text-xs text-gray-700">{order.date}</dd>
+                </div>
+                {order.updatedDate && order.updatedDate !== order.date && (
+                  <div className="flex justify-between items-center py-2.5">
+                    <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Updated</dt>
+                    <dd className="text-xs text-gray-700">{order.updatedDate}</dd>
+                  </div>
+                )}
+                {order.contactPreference && (
+                  <div className="flex justify-between items-center py-2.5">
+                    <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Contact pref.</dt>
+                    <dd className="text-xs text-gray-700">{order.contactPreference}</dd>
+                  </div>
+                )}
+              </dl>
+
+              <NotificationSection notifState={notifState} orderStatus={order.status} />
             </div>
           ) : tab === "funding" ? (
             <div className="space-y-5">
