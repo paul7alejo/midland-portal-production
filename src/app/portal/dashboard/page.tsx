@@ -92,7 +92,7 @@ function getStatusConfig(status: string | null | undefined): RequestStatusConfig
     case "new":
       return {
         title: "Your supply request has been received",
-        body: "Midland Sleep will review your request and let you know the next step.",
+        body: "Midland Sleep will review your request.",
         steps: [
           { label: "Submitted", state: "completed" },
           { label: "Under review", state: "active" },
@@ -104,7 +104,7 @@ function getStatusConfig(status: string | null | undefined): RequestStatusConfig
     case "reviewing":
       return {
         title: "Your supply request is being reviewed",
-        body: "Midland Sleep is checking your request and the next action.",
+        body: "The team is checking your request and will update you when it progresses.",
         steps: [
           { label: "Submitted", state: "completed" },
           { label: "Under review", state: "active" },
@@ -128,8 +128,8 @@ function getStatusConfig(status: string | null | undefined): RequestStatusConfig
       };
     case "sent":
       return {
-        title: "Your supply request has been sent",
-        body: "Your supplies are being prepared or dispatched.",
+        title: "Your supplies have been sent",
+        body: "Your request is on its way or being dispatched.",
         steps: [
           { label: "Approved", state: "completed" },
           { label: "Dispatched", state: "active" },
@@ -142,7 +142,7 @@ function getStatusConfig(status: string | null | undefined): RequestStatusConfig
     case "delivered":
       return {
         title: "Your supply request is complete",
-        body: "You can submit another request when you need supplies again.",
+        body: "You can submit a new request when you need supplies again.",
         steps: [
           { label: "Approved", state: "completed" },
           { label: "Dispatched", state: "completed" },
@@ -154,8 +154,8 @@ function getStatusConfig(status: string | null | undefined): RequestStatusConfig
       };
     case "declined":
       return {
-        title: "Please contact Midland Sleep about your request",
-        body: "Your request could not be approved online. Midland Sleep can help explain the next step.",
+        title: "Your request could not be approved",
+        body: "Please contact Midland Sleep if you have questions.",
         steps: [
           { label: "Submitted", state: "completed" },
           { label: "Reviewed", state: "completed" },
@@ -168,7 +168,7 @@ function getStatusConfig(status: string | null | undefined): RequestStatusConfig
     case "needs_followup":
       return {
         title: "Midland Sleep will contact you",
-        body: "The team needs to check a detail before your request can progress.",
+        body: "The team needs to confirm a few details before progressing your request.",
         steps: [
           { label: "Submitted", state: "completed" },
           { label: "Reviewed", state: "completed" },
@@ -181,8 +181,8 @@ function getStatusConfig(status: string | null | undefined): RequestStatusConfig
     case null:
     case undefined:
       return {
-        title: "No active supply request",
-        body: "When you need CPAP supplies, you can request them from your portal.",
+        title: "You can request supplies when needed",
+        body: "Use the request supplies page when you need replacement CPAP supplies.",
         steps: [],
         tone: "neutral",
         ctaLabel: "Request supplies",

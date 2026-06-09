@@ -96,23 +96,23 @@ const BLOCKING_STATUSES_PATIENT = new Set<ReorderStatus>([
 ]);
 
 const CURRENT_REQUEST_HEADING: Record<ReorderStatus, string> = {
-  new:            "Midland Sleep is reviewing your request",
-  reviewing:      "Midland Sleep is reviewing your request",
-  approved:       "Your request has been approved",
-  sent:           "Your supplies have been dispatched",
+  new:            "Your supply request has been received",
+  reviewing:      "Your supply request is being reviewed",
+  approved:       "Your supply request has been approved",
+  sent:           "Your supplies have been sent",
   delivered:      "Your supply request is complete",
-  declined:       "Your request could not be approved through the portal",
-  needs_followup: "Midland Sleep needs to follow up with you",
+  declined:       "Your request could not be approved",
+  needs_followup: "Midland Sleep will contact you",
 };
 
 const CURRENT_REQUEST_MESSAGE: Record<ReorderStatus, string> = {
-  new:            "Your request has been received and will be reviewed by Midland Sleep staff. Please allow 5–7 business days.",
-  reviewing:      "Your request has been received and will be reviewed by Midland Sleep staff. Please allow 5–7 business days.",
-  approved:       "Midland Sleep has approved your supply request. Our team will prepare your items and contact you if anything else is needed.",
-  sent:           "Your supplies have been dispatched. Please allow 2–3 business days for delivery.",
-  delivered:      "Your supplies have been delivered or completed by Midland Sleep. You can submit another supply request when needed.",
-  declined:       "Please contact Midland Sleep to discuss your options or get help with your equipment.",
-  needs_followup: "Our team needs to confirm a few details before this request can proceed. Midland Sleep will contact you.",
+  new:            "Midland Sleep will review your request.",
+  reviewing:      "The team is checking your request and will update you when it progresses.",
+  approved:       "Midland Sleep will prepare your supplies.",
+  sent:           "Your request is on its way or being dispatched.",
+  delivered:      "You can submit a new request when you need supplies again.",
+  declined:       "Please contact Midland Sleep if you have questions.",
+  needs_followup: "The team needs to confirm a few details before progressing your request.",
 };
 
 interface CurrentReorderRequest {
