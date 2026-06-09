@@ -1118,6 +1118,36 @@ function formatHistoryDate(iso: string): string {
   }).format(d);
 }
 
+// ─── Entitlement estimate helper ─────────────────────────────────────────────
+
+function calcFundingBreakdown(order: Order) {
+  const allowance = DEFAULT_ANNUAL_ALLOWANCE;
+  const requested = order.estimatedItemAmount;
+  if (requested === null) {
+    return {
+      requested:     null,
+      allowance,
+      funded:        order.estimatedFundedAmount        ?? null,
+      copay:         order.estimatedPatientCopay        ?? null,
+      remaining:     order.estimatedRemainingAfter      ?? null,
+      overAllowance: false,
+      dataAvailable: false,
+    };
+  }
+  const funded    = order.estimatedFundedAmount   ?? Math.min(requested, allowance);
+  const copay     = order.estimatedPatientCopay   ?? Math.max(0, requested - funded);
+  const remaining = order.estimatedRemainingAfter ?? Math.max(0, allowance - funded);
+  return {
+    requested,
+    allowance,
+    funded,
+    copay,
+    remaining,
+    overAllowance: requested > allowance,
+    dataAvailable: true,
+  };
+}
+
 // ─── RequestReviewDrawer ──────────────────────────────────────────────────────
 
 interface RequestReviewDrawerProps {
@@ -1376,32 +1406,82 @@ function RequestReviewDrawer({
             </div>
           ) : tab === "funding" ? (
             <div className="space-y-5">
+
+              {/* Phase 2 banner */}
               <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
                 <p className="text-sm text-amber-800">
                   <span className="font-semibold">Phase 2 visibility only.</span>{" "}
                   No entitlement deduction, payment, or inventory reservation is applied.
                 </p>
               </div>
-              <dl className="divide-y divide-gray-100">
-                <div className="flex justify-between items-center py-3">
-                  <dt className="text-sm text-gray-600">Est. item amount</dt>
-                  <dd className="text-sm font-semibold text-gray-800">{formatEstimate(order.estimatedItemAmount)}</dd>
-                </div>
-                <div className="flex justify-between items-center py-3">
-                  <dt className="text-sm text-emerald-700">Est. funded</dt>
-                  <dd className="text-sm font-semibold text-emerald-700">{formatEstimate(order.estimatedFundedAmount)}</dd>
-                </div>
-                <div className="flex justify-between items-center py-3">
-                  <dt className="text-sm text-gray-600">Est. patient co-pay</dt>
-                  <dd className="text-sm font-semibold text-gray-800">{formatEstimate(order.estimatedPatientCopay)}</dd>
-                </div>
-                <div className="flex justify-between items-center py-3">
-                  <dt className="text-sm text-gray-600">Remaining after</dt>
-                  <dd className="text-sm font-semibold text-gray-800">{formatEstimate(order.estimatedRemainingAfter)}</dd>
-                </div>
-              </dl>
+
+              {/* Allowance estimate breakdown */}
+              {(() => {
+                const fb = calcFundingBreakdown(order);
+                return (
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-3">
+                      Allowance estimate — request level
+                    </p>
+                    {!fb.dataAvailable && (
+                      <p className="mb-3 text-xs text-gray-400 leading-5">
+                        Item amount not available for this request type. Entitlement estimates cannot be fully calculated.
+                      </p>
+                    )}
+                    <dl className="divide-y divide-gray-100">
+                      <div className="flex justify-between items-center py-3">
+                        <dt className="text-sm text-gray-600">Requested amount</dt>
+                        <dd className="text-sm font-semibold text-gray-800">
+                          {fb.requested !== null ? formatEstimate(fb.requested) : <span className="text-gray-400 font-normal">Not available</span>}
+                        </dd>
+                      </div>
+                      <div className="flex justify-between items-center py-3">
+                        <dt className="text-sm text-gray-400">Annual allowance (ref.)</dt>
+                        <dd className="text-sm text-gray-400">${fb.allowance.toFixed(0)}.00</dd>
+                      </div>
+                      <div className="flex justify-between items-center py-3">
+                        <dt className="text-sm font-medium text-emerald-700">Est. funded</dt>
+                        <dd className="text-sm font-semibold text-emerald-700">
+                          {fb.funded !== null ? formatEstimate(fb.funded) : <span className="text-gray-400 font-normal">—</span>}
+                        </dd>
+                      </div>
+                      <div className="flex justify-between items-center py-3">
+                        <dt className={cn("text-sm", fb.copay !== null && fb.copay > 0 ? "text-orange-700 font-medium" : "text-gray-600")}>
+                          Est. patient co-pay
+                        </dt>
+                        <dd className={cn("text-sm font-semibold", fb.copay !== null && fb.copay > 0 ? "text-orange-700" : "text-gray-800")}>
+                          {fb.copay !== null ? formatEstimate(fb.copay) : <span className="text-gray-400 font-normal">—</span>}
+                        </dd>
+                      </div>
+                      <div className="flex justify-between items-center py-3">
+                        <dt className="text-sm text-gray-600">Est. remaining after</dt>
+                        <dd className="text-sm font-semibold text-gray-800">
+                          {fb.remaining !== null ? formatEstimate(fb.remaining) : <span className="text-gray-400 font-normal">—</span>}
+                        </dd>
+                      </div>
+                    </dl>
+                    {fb.overAllowance && (
+                      <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 space-y-1">
+                        <p className="text-xs font-semibold text-amber-800">
+                          Request exceeds annual allowance — funding check recommended.
+                        </p>
+                        <p className="text-xs text-amber-700">
+                          Estimated co-pay of {formatEstimate(fb.copay)} applies based on ${fb.allowance} allowance reference.
+                          Use the funding review flag to mark this for staff check.
+                        </p>
+                      </div>
+                    )}
+                    <p className="mt-3 text-[10px] text-gray-400 leading-4">
+                      Request-level estimate only. Patient-level allowance usage is not yet tracked in Phase 2.
+                      All figures are estimates — no deduction has been applied.
+                    </p>
+                  </div>
+                );
+              })()}
+
+              {/* Funding review */}
               <div>
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Funding review</p>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Funding review flag</p>
                 <button
                   type="button"
                   onClick={() => onFundingReviewToggle(order)}
