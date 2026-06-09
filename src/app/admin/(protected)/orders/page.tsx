@@ -1024,11 +1024,11 @@ function NotificationSection({
 }) {
   return (
     <div className="border-t border-gray-100 pt-4">
-      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Patient notification</p>
+      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Patient communication status</p>
       {notifState === undefined ? (
         <p className="text-xs text-gray-400">—</p>
       ) : notifState === null ? (
-        <p className="text-xs text-gray-400">No patient notification is queued for this status.</p>
+        <p className="text-xs text-gray-400">No patient communication is queued for this status.</p>
       ) : notifState.ok ? (
         <div className="rounded-lg border border-[#74C0A2]/30 bg-[#74C0A2]/5 px-3 py-2.5 space-y-1.5">
           <div className="flex items-center gap-2">
@@ -1036,30 +1036,33 @@ function NotificationSection({
               Queued
             </span>
             {notifState.triggerStatus && (
-              <span className="text-xs text-gray-600">{notifState.triggerStatus}</span>
+              <span className="text-xs text-gray-600">Triggered by: {notifState.triggerStatus}</span>
             )}
           </div>
           <p className="text-xs text-gray-500 leading-5">
-            A patient communication is queued based on the latest notification-triggering status change.
+            A patient communication is queued based on the latest status change.
           </p>
           {notifState.scheduledFor && (
             <p className="text-xs text-gray-500">Scheduled: {formatHistoryDate(notifState.scheduledFor)}</p>
           )}
           <p className="text-xs text-gray-500">Channel: Email</p>
+          <p className="text-xs text-gray-400 leading-5 italic">
+            No email has been sent yet. This is a queued communication record.
+          </p>
           {notifState.supersededCount !== undefined && notifState.supersededCount > 0 && (
             <p className="text-xs text-amber-600">
-              {notifState.supersededCount} previous queued notification{notifState.supersededCount !== 1 ? "s" : ""} superseded.
+              {notifState.supersededCount} earlier queued record{notifState.supersededCount !== 1 ? "s" : ""} superseded by this entry.
             </p>
           )}
           {orderStatus === "Delivered" && (
             <p className="text-xs text-gray-400 leading-5">
-              Delivered does not create a new notification. This queued item may relate to the previous Sent update.
+              Delivered does not create a new communication record. This entry may relate to the previous Sent update.
             </p>
           )}
         </div>
       ) : (
         <div className="rounded-lg border border-amber-200/70 bg-amber-50/60 px-3 py-2.5">
-          <p className="text-xs text-amber-700">Notification queue unavailable. Status update was saved.</p>
+          <p className="text-xs text-amber-700">Communication queue unavailable. Status update was saved.</p>
         </div>
       )}
     </div>
@@ -2234,7 +2237,7 @@ const reviewOrder = useMemo(
           : "Older";
 
   const filterChips: { key: string; label: string; onRemove: () => void }[] = [
-    ...(notifQueuedFilter ? [{ key: "notifQueued", label: "Notification queued", onRemove: () => setNotifQueuedFilter(false) }] : []),
+    ...(notifQueuedFilter ? [{ key: "notifQueued", label: "Communication queued", onRemove: () => setNotifQueuedFilter(false) }] : []),
     ...(kpiActiveFilter ? [{ key: "kpi", label: kpiChipLabel[kpiActiveFilter], onRemove: () => setKpiActiveFilter(null) }] : []),
     ...(chartDateFilter ? [{
       key: "chartDate",
@@ -2818,7 +2821,7 @@ const reviewOrder = useMemo(
               : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
           )}
         >
-          Notification queued
+          Communication queued
         </button>
         {filterChips.map((chip) => (
           <span
@@ -2933,7 +2936,7 @@ const reviewOrder = useMemo(
                         {hasNotif && (
                           <div className="mt-1">
                             <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded bg-[#74C0A2]/20 text-[#0B5C6C] border border-[#74C0A2]/40 whitespace-nowrap">
-                              Notification queued
+                              Communication queued
                             </span>
                           </div>
                         )}
