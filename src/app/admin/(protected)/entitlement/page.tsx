@@ -39,24 +39,36 @@ function SummaryCard({
   value,
   sub,
   theme = "neutral",
+  href,
 }: {
   label: string;
   value: string;
   sub?: string;
   theme?: "neutral" | "teal" | "amber";
+  href?: string;
 }) {
   const colors = {
     neutral: "bg-white border-gray-200 text-gray-800",
     teal:    "bg-[#0B5C6C]/[0.06] border-[#0B5C6C]/20 text-[#0B5C6C]",
     amber:   "bg-amber-50 border-amber-200 text-amber-800",
   };
-  return (
-    <div className={`rounded-xl border px-5 py-4 shadow-[0_2px_12px_rgba(0,0,0,0.04)] ${colors[theme]}`}>
+  const base = `rounded-xl border px-5 py-4 shadow-[0_2px_12px_rgba(0,0,0,0.04)] ${colors[theme]}`;
+  const inner = (
+    <>
       <p className="text-xs font-semibold uppercase tracking-wide opacity-60 mb-1">{label}</p>
       <p className="text-2xl font-bold">{value}</p>
       {sub && <p className="text-xs mt-1 opacity-60">{sub}</p>}
-    </div>
+      {href && <p className="text-[10px] mt-2 font-semibold uppercase tracking-wide opacity-50">View in Orders →</p>}
+    </>
   );
+  if (href) {
+    return (
+      <Link href={href} className={`${base} block transition-all hover:ring-2 hover:ring-[#0B5C6C]/25`}>
+        {inner}
+      </Link>
+    );
+  }
+  return <div className={base}>{inner}</div>;
 }
 
 function PhaseChip({ label, phase }: { label: string; phase: "live" | "phase3" | "later" }) {
@@ -178,12 +190,14 @@ export default function AdminEntitlementPage() {
               value={String(summary.deliveredOrdersThisYear)}
               sub={`Calendar year ${currentYear}`}
               theme="teal"
+              href="/admin/orders"
             />
             <SummaryCard
               label="Nominal funding used (est.)"
               value={formatEstimate(summary.nominalFundingUsedEstimate)}
               sub="Estimate only — no deduction applied"
               theme="teal"
+              href="/admin/orders"
             />
             <SummaryCard
               label="Default annual allowance"
@@ -200,6 +214,7 @@ export default function AdminEntitlementPage() {
                   : "No requests flagged"
               }
               theme={summary.requestsNeedingFundingReview > 0 ? "amber" : "neutral"}
+              href="/admin/orders"
             />
           </div>
         ) : null}

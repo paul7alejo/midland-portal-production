@@ -1460,6 +1460,32 @@ function RequestReviewDrawer({
                         </dd>
                       </div>
                     </dl>
+                    {fb.dataAvailable && (
+                      <div className="mt-3 rounded-lg bg-gray-50 border border-gray-200 px-4 py-2.5">
+                        <p className="text-xs text-gray-600 leading-5">
+                          {fb.overAllowance ? (
+                            <>
+                              <span className="font-semibold">{formatEstimate(fb.requested)}</span>
+                              {" requested exceeds "}
+                              <span className="font-semibold">${fb.allowance} allowance</span>
+                              {" — est. co-pay "}
+                              <span className="font-semibold text-orange-700">{formatEstimate(fb.copay)}</span>
+                              {", remaining "}
+                              <span className="font-semibold">{formatEstimate(fb.remaining)}</span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="font-semibold">${fb.allowance}</span>
+                              {" allowance − "}
+                              <span className="font-semibold text-emerald-700">{formatEstimate(fb.funded)}</span>
+                              {" est. funded = "}
+                              <span className="font-semibold">{formatEstimate(fb.remaining)}</span>
+                              {" remaining (est.)"}
+                            </>
+                          )}
+                        </p>
+                      </div>
+                    )}
                     {fb.overAllowance && (
                       <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 space-y-1">
                         <p className="text-xs font-semibold text-amber-800">
