@@ -1050,9 +1050,10 @@ function NotificationSection({
             No email has been sent yet. This is a queued communication record.
           </p>
           {notifState.supersededCount !== undefined && notifState.supersededCount > 0 && (
-            <p className="text-xs text-amber-600">
-              {notifState.supersededCount} earlier queued record{notifState.supersededCount !== 1 ? "s" : ""} superseded by this entry.
-            </p>
+            <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400" />
+              {notifState.supersededCount} earlier record{notifState.supersededCount !== 1 ? "s" : ""} superseded — previous communication superseded
+            </span>
           )}
           {orderStatus === "Delivered" && (
             <p className="text-xs text-gray-400 leading-5">
@@ -2934,10 +2935,16 @@ const reviewOrder = useMemo(
                           )}
                         </div>
                         {hasNotif && (
-                          <div className="mt-1">
-                            <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded bg-[#74C0A2]/20 text-[#0B5C6C] border border-[#74C0A2]/40 whitespace-nowrap">
-                              Communication queued
+                          <div className="mt-1 flex flex-col gap-0.5">
+                            <span className="inline-flex w-fit items-center gap-1 rounded-full border border-[#74C0A2]/40 bg-[#74C0A2]/20 px-2 py-0.5 text-xs font-semibold text-[#0B5C6C] whitespace-nowrap">
+                              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#0B5C6C]/50" />
+                              Patient communication queued
                             </span>
+                            {(notifStates.get(order.id)?.supersededCount ?? 0) > 0 && (
+                              <span className="inline-flex w-fit items-center rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 whitespace-nowrap">
+                                Previous communication superseded
+                              </span>
+                            )}
                           </div>
                         )}
                         <div className="mt-0.5 text-xs font-mono text-gray-400">{order.msid}</div>
