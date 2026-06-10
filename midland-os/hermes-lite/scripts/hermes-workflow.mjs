@@ -1,5 +1,10 @@
 #!/usr/bin/env node
-// hermes-workflow v0.6 — deterministic workflow rail, no API calls, no file writes
+// hermes-workflow v0.8 — deterministic workflow rail, no API calls
+// proof-log --append mode writes to an existing .md file with LOG confirmation
+
+import { existsSync, appendFileSync } from "node:fs";
+import { extname }                    from "node:path";
+import { createInterface }            from "node:readline/promises";
 
 // ─── Safety boundary (included in all generated outputs) ─────────────────────
 
@@ -42,7 +47,7 @@ function usage(missingFor) {
     console.error(`\nMissing required flag: --objective\n`);
   }
   console.log(`
-Hermes Workflow v0.6
+Hermes Workflow v0.8
 
 Usage:
   node midland-os/hermes-lite/scripts/hermes-workflow.mjs <command> [flags]
@@ -62,12 +67,15 @@ Flags (all optional except --objective):
   --requirements  Implementation requirements
   --acceptance    Acceptance criteria
   --claimed       Claimed changes made (for codex / proof-log)
+  --changes       Alias for --claimed (for proof-log)
   --files         Files changed (for proof-log)
   --commit        Git commit ID (for proof-log)
   --amplify       Amplify job ID / status (for proof-log)
   --verification  Verification result override (for proof-log)
   --browser       Browser proof note (for proof-log)
   --value         Business value delivered (for proof-log)
+  --append        Append to log file instead of printing to stdout (proof-log only)
+  --log-file      Target .md or .markdown file path (required with --append)
 
 Examples:
   node midland-os/hermes-lite/scripts/hermes-workflow.mjs task \\
@@ -95,8 +103,17 @@ Examples:
     --commit "07c9313" \\
     --amplify "Job 1042 SUCCEED" \\
     --files "src/app/admin/(protected)/orders/page.tsx" \\
-    --claimed "Added STATUS_QUEUE_COPY sub-labels and Funding Check tab" \\
+    --changes "Added STATUS_QUEUE_COPY sub-labels and Funding Check tab" \\
     --value "Staff can scan queue status at a glance without opening each order"
+
+  node midland-os/hermes-lite/scripts/hermes-workflow.mjs proof-log \\
+    --objective "Phase 2.9-3 Orders Fulfilment Queue Clarity" \\
+    --commit "07c9313" \\
+    --amplify "Job 1042 SUCCEED" \\
+    --files "src/app/admin/(protected)/orders/page.tsx" \\
+    --changes "Added STATUS_QUEUE_COPY sub-labels and Funding Check tab" \\
+    --value "Staff can scan queue status at a glance" \\
+    --append --log-file "/path/to/proof-log.md"
 
   node midland-os/hermes-lite/scripts/hermes-ship.mjs check
 `);
@@ -253,7 +270,7 @@ function generateProofLog(a) {
   const commit   = a.commit       || "(commit id not provided)";
   const amplify  = a.amplify      || "(Amplify job not provided)";
   const files    = a.files        || "(files not specified)";
-  const claimed  = a.claimed      || a.context || "(what changed not specified)";
+  const claimed  = a.claimed      || a.changes || a.context || "(what changed not specified)";
   const verify   = a.verification || `\`${VERIFY_CMD}\` — PASS`;
   const browser  = a.browser      || "Not captured.";
   const value    = a.value        || "(business value not specified)";
@@ -288,33 +305,94 @@ ${value}
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-const command = process.argv[2];
-const args    = parseArgs(process.argv.slice(3));
+async function main() {
+  const command = process.argv[2];
+  const args    = parseArgs(process.argv.slice(3));
 
-const COMMANDS = ["task", "claude", "codex", "proof-log"];
+  const COMMANDS = ["task", "claude", "codex", "proof-log"];
 
-if (!command || !COMMANDS.includes(command)) {
-  usage();
-  process.exit(command ? 1 : 0);
+  if (!command || !COMMANDS.includes(command)) {
+    usage();
+    process.exit(command ? 1 : 0);
+  }
+
+  if (!args.objective) {
+    usage(true);
+    console.error(`Run: node midland-os/hermes-lite/scripts/hermes-workflow.mjs ${command} --objective "..." [other flags]\n`);
+    process.exit(1);
+  }
+
+  switch (command) {
+    case "task":
+      console.log(generateTask(args));
+      break;
+    case "claude":
+      console.log(generateClaude(args));
+      break;
+    case "codex":
+      console.log(generateCodex(args));
+      break;
+    case "proof-log": {
+      const content = generateProofLog(args);
+
+      if (args.append !== "true") {
+        // stdout only — unchanged behaviour
+        console.log(content);
+        break;
+      }
+
+      // ── Append mode ──────────────────────────────────────────────────────────
+
+      if (!args["log-file"]) {
+        console.error("\n✗ --log-file is required when using --append\n");
+        console.error("  Example: --append --log-file path/to/proof-log.md\n");
+        process.exit(1);
+      }
+
+      const logFile = args["log-file"];
+      const ext     = extname(logFile).toLowerCase();
+
+      if (ext !== ".md" && ext !== ".markdown") {
+        console.error(`\n✗ --log-file must be a .md or .markdown file\n`);
+        console.error(`  Got: ${logFile}\n`);
+        process.exit(1);
+      }
+
+      if (!existsSync(logFile)) {
+        console.error(`\n✗ Log file does not exist: ${logFile}\n`);
+        console.error("  Hermes does not create log files. Create the file first, then use --append.\n");
+        process.exit(1);
+      }
+
+      // Preview
+      console.log("\n─── Preview ─────────────────────────────────────────────────────\n");
+      console.log(content);
+      console.log("─────────────────────────────────────────────────────────────────");
+      console.log(`\n  Target: ${logFile}`);
+      console.log("\n  Type exactly  LOG  to append, or anything else to abort.");
+
+      const rl = createInterface({ input: process.stdin, output: process.stdout });
+      let answer;
+      try {
+        answer = await rl.question("\n  Confirm: ");
+      } finally {
+        rl.close();
+      }
+
+      if (answer.trim() !== "LOG") {
+        console.log("\n  Aborted. No changes made.");
+        process.exit(0);
+      }
+
+      appendFileSync(logFile, "\n\n" + content, "utf8");
+      console.log(`\n  ✓ Appended to ${logFile}`);
+      break;
+    }
+  }
 }
 
-if (!args.objective) {
-  usage(true);
-  console.error(`Run: node midland-os/hermes-lite/scripts/hermes-workflow.mjs ${command} --objective "..." [other flags]\n`);
+main().catch((err) => {
+  console.error("\n✗ Hermes Workflow encountered an unexpected error.");
+  console.error(err?.message || String(err));
   process.exit(1);
-}
-
-switch (command) {
-  case "task":
-    console.log(generateTask(args));
-    break;
-  case "claude":
-    console.log(generateClaude(args));
-    break;
-  case "codex":
-    console.log(generateCodex(args));
-    break;
-  case "proof-log":
-    console.log(generateProofLog(args));
-    break;
-}
+});

@@ -37,9 +37,9 @@ node midland-os/hermes-lite/scripts/hermes-lite.mjs release
 node midland-os/hermes-lite/scripts/hermes-lite.mjs handoff
 node midland-os/hermes-lite/scripts/hermes-lite.mjs brief
 
-## Hermes Workflow v0.6
+## Hermes Workflow v0.8
 
-Deterministic workflow rail — generates task briefs, Claude prompts, Codex review prompts, and Obsidian proof logs locally. No API calls. No file writes.
+Deterministic workflow rail — generates task briefs, Claude prompts, Codex review prompts, and Obsidian proof logs locally. No API calls. Without `--append`, no file writes.
 
 ### task — structured task brief
 
@@ -76,7 +76,7 @@ node midland-os/hermes-lite/scripts/hermes-workflow.mjs codex \
   --forbidden "src/app/api/**, src/lib/aws/**"
 ```
 
-### proof-log — Obsidian-ready proof log section
+### proof-log — Obsidian-ready proof log section (stdout)
 
 ```sh
 node midland-os/hermes-lite/scripts/hermes-workflow.mjs proof-log \
@@ -84,9 +84,41 @@ node midland-os/hermes-lite/scripts/hermes-workflow.mjs proof-log \
   --commit "07c9313" \
   --amplify "Job 1042 SUCCEED" \
   --files "src/app/admin/(protected)/orders/page.tsx" \
-  --claimed "Added STATUS_QUEUE_COPY sub-labels and Funding Check tab" \
+  --changes "Added STATUS_QUEUE_COPY sub-labels and Funding Check tab" \
   --value "Staff can scan queue status at a glance without opening each order"
 ```
+
+`--changes` and `--claimed` are interchangeable — both map to the "What changed" field.
+
+### proof-log — append to existing log file
+
+```sh
+node midland-os/hermes-lite/scripts/hermes-workflow.mjs proof-log \
+  --objective "Phase 2.9-3 Orders Fulfilment Queue Clarity" \
+  --commit "07c9313" \
+  --amplify "Job 1042 SUCCEED" \
+  --files "src/app/admin/(protected)/orders/page.tsx" \
+  --changes "Added STATUS_QUEUE_COPY sub-labels and Funding Check tab" \
+  --value "Staff can scan queue status at a glance without opening each order" \
+  --append --log-file "midland-os/proof-log.md"
+```
+
+**Append mode behaviour:**
+- Requires `--log-file` — fails if missing.
+- Target file must already exist and have a `.md` or `.markdown` extension — fails closed if not.
+- Prints a full preview of the content that will be appended.
+- Requires typing exactly `LOG` to proceed — anything else aborts with no file write.
+- Appends `\n\n<content>` to the end of the file.
+
+**Security warning — never pass as CLI arguments:**
+- Raw NHI, encrypted NHI, or NHI hash
+- Patient email, phone number, or address
+- Admin email or Cognito sub / username
+- AWS keys, API keys, tokens, or session secrets
+- Raw audit payloads or clinical notes
+- `.env` values of any kind
+
+All CLI arguments appear in shell history. Use safe placeholder text for sensitive fields and fill them in manually after generating the log.
 
 ### ship check — full pre-ship verification
 
@@ -125,14 +157,6 @@ node midland-os/hermes-lite/scripts/hermes-release.mjs ship \
 - After push, prints the Amplify status command for manual review (does not run it).
 
 ## Verification
-
-Hermes Lite itself is tooling only.
-
-For Midland application work, always run:
-- npx tsc --noEmit
-- npm run build
-
-Or use the ship check shortcut above.
 
 Hermes Lite itself is tooling only.
 
