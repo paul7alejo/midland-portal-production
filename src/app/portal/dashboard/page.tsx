@@ -600,6 +600,9 @@ export default function DashboardPage() {
           </div>
           {currentRequest ? (
             <div className="mt-5 rounded-lg border border-sand bg-[#F5F3EE] p-4">
+              <p className="mb-2 font-mono text-xs uppercase tracking-wide text-charcoal/60">
+                Latest request update
+              </p>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <p className="font-mono text-base font-bold text-[#0B5C6C]">
                   {currentRequest.referenceNumber}
@@ -612,12 +615,17 @@ export default function DashboardPage() {
                 {requestedItems ?? "Supply request"}
               </p>
               <p className="mt-2 text-sm leading-6 text-charcoal/75">
-                Requested: {getRequestDate(currentRequest)}
+                {currentRequest.updatedAt
+                  ? `Last updated: ${formatDate(currentRequest.updatedAt)}`
+                  : `Submitted: ${formatDate(currentRequest.createdAt)}`}
+              </p>
+              <p className="mt-2 text-sm leading-5 text-charcoal/70">
+                {getStatusConfig(currentRequest.status).body}
               </p>
             </div>
           ) : (
             <p className="mt-5 text-base leading-7 text-charcoal/75">
-              No supply requests to show yet.
+              No active supply request.
             </p>
           )}
           <Link

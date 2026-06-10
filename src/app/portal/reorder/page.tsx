@@ -720,6 +720,16 @@ export default function ReorderPage() {
                 {formatDate(currentRequest.createdAt)}
               </dd>
             </div>
+            {currentRequest.updatedAt && currentRequest.updatedAt !== currentRequest.createdAt && (
+              <div>
+                <dt className="font-mono text-sm uppercase tracking-wide text-charcoal/70">
+                  Last updated
+                </dt>
+                <dd className="mt-1 text-lg font-semibold text-charcoal">
+                  {formatDate(currentRequest.updatedAt)}
+                </dd>
+              </div>
+            )}
             <div className="md:col-span-2">
               <dt className="font-mono text-sm uppercase tracking-wide text-charcoal/70">
                 Items requested
@@ -749,9 +759,12 @@ export default function ReorderPage() {
             </a>
           </div>
         ) : (
-          <div className="rounded-2xl border border-sand bg-white p-6 md:p-7">
+          <div className="rounded-2xl border border-sand bg-white p-6 md:p-7 space-y-3">
             <p className="text-lg font-medium leading-7 text-charcoal">
-              Contact Midland Sleep if you need to make changes to this request.
+              Your request is being processed. We will be in touch when it progresses.
+            </p>
+            <p className="text-base leading-6 text-charcoal/75">
+              If you need to change or cancel your request, please contact Midland Sleep.
             </p>
           </div>
         )
