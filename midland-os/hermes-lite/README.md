@@ -96,7 +96,43 @@ node midland-os/hermes-lite/scripts/hermes-ship.mjs check
 
 Runs: git status, git diff, tsc, build. Stops on first failure.
 
+## Hermes Release v0.7
+
+Supervised ship runner — scoped git add / commit / push with mandatory SHIP confirmation. Never runs `git add .`. Never commits files outside `--files`. Never runs AWS commands.
+
+### ship — commit and push listed files
+
+```sh
+node midland-os/hermes-lite/scripts/hermes-release.mjs ship \
+  --message "Phase 2.9-5B admin communication status clarity" \
+  --files "src/app/admin/(protected)/orders/page.tsx"
+```
+
+Multiple files (comma-separated):
+
+```sh
+node midland-os/hermes-lite/scripts/hermes-release.mjs ship \
+  --message "Phase 2.9-5A+5B patient and admin communication clarity" \
+  --files "src/app/portal/dashboard/page.tsx,src/app/portal/reorder/page.tsx,src/app/admin/(protected)/orders/page.tsx"
+```
+
+**Safety rules:**
+- Fails if any changed/untracked file is not listed in `--files` (dirty scope guard).
+- Fails if any listed file is not actually changed.
+- Runs `hermes-ship check` (tsc + build) before asking for confirmation.
+- Warns loudly if any listed file matches a high-risk path (API routes, auth, DynamoDB, middleware, package files, `.env`, `amplify.yml`).
+- Requires typing exactly `SHIP` to proceed — anything else aborts with no changes.
+- After push, prints the Amplify status command for manual review (does not run it).
+
 ## Verification
+
+Hermes Lite itself is tooling only.
+
+For Midland application work, always run:
+- npx tsc --noEmit
+- npm run build
+
+Or use the ship check shortcut above.
 
 Hermes Lite itself is tooling only.
 
