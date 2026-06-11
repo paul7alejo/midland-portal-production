@@ -47,8 +47,8 @@ const STATUS_LABELS: Record<ReorderStatus, string> = {
   approved: "Approved",
   sent: "Sent",
   delivered: "Delivered",
-  declined: "Contact clinic",
-  needs_followup: "Follow-up needed",
+  declined: "Contact us",
+  needs_followup: "We'll be in touch",
 };
 
 const TONE_STYLES: Record<
@@ -92,7 +92,7 @@ function getStatusConfig(status: string | null | undefined): RequestStatusConfig
     case "new":
       return {
         title: "Your supply request has been received",
-        body: "Midland Sleep will review your request.",
+        body: "Midland Sleep will review your request. Staff will check your eligibility and availability before confirming supplies.",
         steps: [
           { label: "Submitted", state: "completed" },
           { label: "Under review", state: "active" },
@@ -103,8 +103,8 @@ function getStatusConfig(status: string | null | undefined): RequestStatusConfig
       };
     case "reviewing":
       return {
-        title: "Your supply request is being reviewed",
-        body: "The team is checking your request and will update you when it progresses.",
+        title: "Staff are reviewing your request",
+        body: "Staff are checking the details of your request and will be in touch when it progresses.",
         steps: [
           { label: "Submitted", state: "completed" },
           { label: "Under review", state: "active" },
@@ -115,7 +115,7 @@ function getStatusConfig(status: string | null | undefined): RequestStatusConfig
       };
     case "approved":
       return {
-        title: "Your supply request has been approved",
+        title: "Approved — staff are preparing your supplies",
         body: "Midland Sleep will prepare your supplies.",
         steps: [
           { label: "Submitted", state: "completed" },
@@ -128,8 +128,8 @@ function getStatusConfig(status: string | null | undefined): RequestStatusConfig
       };
     case "sent":
       return {
-        title: "Your supplies have been sent",
-        body: "Your request is on its way or being dispatched.",
+        title: "On the way",
+        body: "Your supplies have been dispatched or are on their way.",
         steps: [
           { label: "Approved", state: "completed" },
           { label: "Dispatched", state: "active" },
@@ -154,8 +154,8 @@ function getStatusConfig(status: string | null | undefined): RequestStatusConfig
       };
     case "declined":
       return {
-        title: "Your request could not be approved",
-        body: "Please contact Midland Sleep if you have questions.",
+        title: "Please contact Midland Sleep about this request",
+        body: "Our team will be happy to discuss your options.",
         steps: [
           { label: "Submitted", state: "completed" },
           { label: "Reviewed", state: "completed" },
@@ -167,12 +167,12 @@ function getStatusConfig(status: string | null | undefined): RequestStatusConfig
       };
     case "needs_followup":
       return {
-        title: "Midland Sleep will contact you",
-        body: "The team needs to confirm a few details before progressing your request.",
+        title: "Our team will contact you shortly",
+        body: "Our team will reach out to confirm a few details before your request progresses.",
         steps: [
           { label: "Submitted", state: "completed" },
           { label: "Reviewed", state: "completed" },
-          { label: "Follow-up needed", state: "active" },
+          { label: "We'll be in touch", state: "active" },
         ],
         tone: "amber",
         ctaLabel: "Contact Midland Sleep",

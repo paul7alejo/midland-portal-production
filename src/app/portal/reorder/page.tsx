@@ -106,22 +106,22 @@ const BLOCKING_STATUSES_PATIENT = new Set<ReorderStatus>([
 
 const CURRENT_REQUEST_HEADING: Record<ReorderStatus, string> = {
   new:            "Your supply request has been received",
-  reviewing:      "Your supply request is being reviewed",
-  approved:       "Your supply request has been approved",
-  sent:           "Your supplies have been sent",
+  reviewing:      "Staff are reviewing your request",
+  approved:       "Approved — staff are preparing your supplies",
+  sent:           "On the way",
   delivered:      "Your supply request is complete",
-  declined:       "Your request could not be approved",
-  needs_followup: "Midland Sleep will contact you",
+  declined:       "Please contact Midland Sleep about this request",
+  needs_followup: "Our team will contact you shortly",
 };
 
 const CURRENT_REQUEST_MESSAGE: Record<ReorderStatus, string> = {
-  new:            "Midland Sleep will review your request.",
-  reviewing:      "The team is checking your request and will update you when it progresses.",
+  new:            "Staff will check your eligibility and availability before confirming supplies.",
+  reviewing:      "Staff are reviewing the details of your request and will be in touch when it progresses.",
   approved:       "Midland Sleep will prepare your supplies.",
-  sent:           "Your request is on its way or being dispatched.",
+  sent:           "Your supplies have been dispatched or are on their way.",
   delivered:      "You can submit a new request when you need supplies again.",
-  declined:       "Please contact Midland Sleep if you have questions.",
-  needs_followup: "The team needs to confirm a few details before progressing your request.",
+  declined:       "Please call or email Midland Sleep — our team can discuss your options.",
+  needs_followup: "Our team will contact you to confirm a few details before your request progresses.",
 };
 
 interface CurrentReorderRequest {
@@ -139,13 +139,13 @@ interface CurrentReorderRequest {
 }
 
 const STATUS_LABELS: Record<ReorderStatus, string> = {
-  new:            "New",
+  new:            "Received",
   reviewing:      "Being reviewed",
   approved:       "Approved",
   sent:           "Sent",
   delivered:      "Delivered",
-  declined:       "Declined",
-  needs_followup: "Needs follow-up",
+  declined:       "Contact us",
+  needs_followup: "We'll be in touch",
 };
 
 const STATUS_BADGE_CLS: Record<ReorderStatus, string> = {
@@ -838,8 +838,8 @@ export default function ReorderPage() {
                         </p>
                         <p className="text-sm text-charcoal/55 mt-1 leading-5">
                           {(CATALOGUE_COUNTS[item.item_type] ?? 0) === 1
-                            ? "1 related catalogue item — staff will confirm availability during review"
-                            : `${CATALOGUE_COUNTS[item.item_type] ?? 0} related catalogue items — staff will confirm availability during review`}
+                            ? "1 related catalogue item — helps staff match your request. Staff will confirm availability during review."
+                            : `${CATALOGUE_COUNTS[item.item_type] ?? 0} related catalogue items — help staff match your request. Staff will confirm availability during review.`}
                         </p>
                       </div>
                       <span
@@ -855,7 +855,7 @@ export default function ReorderPage() {
                     </div>
                     <div className="mt-4 flex flex-wrap items-center gap-2">
                       <span className="inline-flex rounded-full bg-seafoam-pale px-3 py-1 text-sm font-medium text-deep-teal">
-                        Available now
+                        Available for staff review
                       </span>
                       <span className="inline-flex rounded-full border border-sand bg-white px-3 py-1 text-sm font-medium text-charcoal/70">
                         Replacement item
@@ -880,7 +880,7 @@ export default function ReorderPage() {
                     Some items may require staff review. Midland Sleep staff will confirm availability before arranging supply.
                   </p>
                   <p className="mt-3 text-sm text-charcoal/60">
-                    No entitlement is deducted, no payment is taken, and no inventory is reserved in this phase.
+                    Staff will check your eligibility and availability before confirming supplies.
                   </p>
                 </div>
               </div>
