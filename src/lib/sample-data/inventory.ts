@@ -40,6 +40,8 @@ export interface InventoryProduct {
   unit: string;
   locations: InventoryLocation[];
   requestCategory: RequestCategory | null;
+  requestCategoryKey: string | null;
+  requestCategoryLabel: string | null;
   compatibilityNote: string;
   history: InventoryHistoryEntry[];
   notes: InventoryNote[];
@@ -69,6 +71,8 @@ export const SAMPLE_PRODUCTS: InventoryProduct[] = [
       { name: "Hamilton Admin", stock: 4 },
     ],
     requestCategory: "Complete mask kit",
+    requestCategoryKey: "complete_mask_kit",
+    requestCategoryLabel: "Complete Mask Kit",
     compatibilityNote:
       "Compatible with AirFit F30i headgear and cushion. Suitable for full-face therapy. Prescription required.",
     history: [
@@ -139,6 +143,8 @@ export const SAMPLE_PRODUCTS: InventoryProduct[] = [
       { name: "Hamilton Admin", stock: 3 },
     ],
     requestCategory: "Complete mask kit",
+    requestCategoryKey: "complete_mask_kit",
+    requestCategoryLabel: "Complete Mask Kit",
     compatibilityNote:
       "Lightweight nasal pillow design. Compatible with AirSense 10 and 11 CPAP devices. Prescription required.",
     history: [
@@ -180,6 +186,8 @@ export const SAMPLE_PRODUCTS: InventoryProduct[] = [
     unit: "Each",
     locations: [{ name: "Waikato Clinic", stock: 6 }],
     requestCategory: "Mask cushion",
+    requestCategoryKey: "mask_cushion",
+    requestCategoryLabel: "Mask Cushion",
     compatibilityNote:
       "Fits AirFit F30i full face mask frame (small size). Replacement component only — frame sold separately.",
     history: [
@@ -224,6 +232,8 @@ export const SAMPLE_PRODUCTS: InventoryProduct[] = [
       { name: "Hamilton Admin", stock: 8 },
     ],
     requestCategory: "Headgear",
+    requestCategoryKey: "headgear",
+    requestCategoryLabel: "Headgear",
     compatibilityNote:
       "Designed exclusively for AirFit F30i mask frame. Available in standard size only.",
     history: [
@@ -268,6 +278,8 @@ export const SAMPLE_PRODUCTS: InventoryProduct[] = [
       { name: "Hamilton Admin", stock: 15 },
     ],
     requestCategory: "Filters",
+    requestCategoryKey: "filters",
+    requestCategoryLabel: "Filters",
     compatibilityNote:
       "Fits AirSense 10 and AirSense 11 series devices. Replace every 1–3 months or as directed.",
     history: [
@@ -309,6 +321,8 @@ export const SAMPLE_PRODUCTS: InventoryProduct[] = [
     unit: "Each",
     locations: [{ name: "Waikato Clinic", stock: 2 }],
     requestCategory: null,
+    requestCategoryKey: null,
+    requestCategoryLabel: null,
     compatibilityNote:
       "AutoSet algorithm adjusts pressure automatically. Requires compatible mask, tubing, and humidifier chamber.",
     history: [
@@ -350,6 +364,8 @@ export const SAMPLE_PRODUCTS: InventoryProduct[] = [
     unit: "Each",
     locations: [{ name: "Hamilton Admin", stock: 1 }],
     requestCategory: null,
+    requestCategoryKey: null,
+    requestCategoryLabel: null,
     compatibilityNote:
       "Integrated heated humidifier. Compatible with Fisher & Paykel mask range. Patient-purchase item.",
     history: [
@@ -400,6 +416,8 @@ export const SAMPLE_PRODUCTS: InventoryProduct[] = [
       { name: "Hamilton Admin", stock: 3 },
     ],
     requestCategory: "Complete mask kit",
+    requestCategoryKey: "complete_mask_kit",
+    requestCategoryLabel: "Complete Mask Kit",
     compatibilityNote:
       "Soft-seal nasal mask suitable for side-sleepers. Compatible with SleepStyle 650 and most Fisher & Paykel CPAP range.",
     history: [

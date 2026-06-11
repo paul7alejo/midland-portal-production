@@ -13,7 +13,6 @@ import {
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type CategoryFilter = "All" | ProductCategory;
-type StockFilter    = "All" | "Alert";
 type SortKey        = "stock-asc" | "stock-desc" | "name-asc" | "name-desc";
 
 const CATEGORY_CHIPS: CategoryFilter[] = [
@@ -61,16 +60,29 @@ function FundingChip({ type, selected, onClick }: {
   );
 }
 
-function StockDot({ status }: { status: "ok" | "low" | "critical" }) {
+function StockBadge({ status, count }: { status: "ok" | "low" | "critical"; count: number }) {
+  if (status === "ok")
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 px-2 py-0.5 text-xs font-medium whitespace-nowrap" style={{ background: "#D1FAE5", color: "#065F46" }}>
+        <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: "#10B981" }} />
+        <span className="tabular-nums">{count}</span>
+        <span>In Stock</span>
+      </span>
+    );
+  if (status === "low")
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 px-2 py-0.5 text-xs font-medium whitespace-nowrap" style={{ background: "#FEF3C7", color: "#92400E" }}>
+        <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: "#F59E0B" }} />
+        <span className="tabular-nums">{count}</span>
+        <span>Low Stock</span>
+      </span>
+    );
   return (
-    <span
-      className={cn(
-        "h-2 w-2 rounded-full shrink-0",
-        status === "ok"       && "bg-emerald-500",
-        status === "low"      && "bg-amber-500",
-        status === "critical" && "bg-red-500"
-      )}
-    />
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-red-300 px-2 py-0.5 text-xs font-medium whitespace-nowrap" style={{ background: "#FEE2E2", color: "#991B1B" }}>
+      <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: "#EF4444" }} />
+      <span className="tabular-nums">{count}</span>
+      <span>Critical</span>
+    </span>
   );
 }
 
@@ -79,7 +91,8 @@ function StockDot({ status }: { status: "ok" | "low" | "critical" }) {
 export default function InventoryPage() {
   const [search,         setSearch]         = useState("");
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("All");
-  const [stockFilter,    setStockFilter]    = useState<StockFilter>("All");
+  const [filterLow,      setFilterLow]      = useState(false);
+  const [filterCritical, setFilterCritical] = useState(false);
   const [fundingGovt,    setFundingGovt]    = useState(false);
   const [fundingPatient, setFundingPatient] = useState(false);
   const [sort,           setSort]           = useState<SortKey>("name-asc");
@@ -115,8 +128,11 @@ export default function InventoryPage() {
     }
 
     // Stock alert
-    if (stockFilter === "Alert") {
-      list = list.filter((p) => stockStatus(p) !== "ok");
+    if (filterLow || filterCritical) {
+      list = list.filter((p) => {
+        const s = stockStatus(p);
+        return (filterLow && s === "low") || (filterCritical && s === "critical");
+      });
     }
 
     // Funding (OR if both selected → show all; neither → show all)
@@ -139,7 +155,32 @@ export default function InventoryPage() {
     });
 
     return list;
-  }, [search, categoryFilter, stockFilter, fundingGovt, fundingPatient, sort]);
+  }, [search, categoryFilter, filterLow, filterCritical, fundingGovt, fundingPatient, sort]);
+
+  // KPI base: responds to category + funding filters only (not stock or search)
+  const kpiProducts = useMemo(() => {
+    let list = SAMPLE_PRODUCTS.slice();
+    if (categoryFilter !== "All") list = list.filter((p) => p.category === categoryFilter);
+    if (fundingGovt || fundingPatient) {
+      list = list.filter(
+        (p) =>
+          (fundingGovt    && p.fundingType === "govt_funded") ||
+          (fundingPatient && p.fundingType === "patient_purchase")
+      );
+    }
+    return list;
+  }, [categoryFilter, fundingGovt, fundingPatient]);
+
+  const kpiData = useMemo(() => {
+    const linked = new Set(kpiProducts.filter((p) => p.requestCategoryKey).map((p) => p.requestCategoryKey));
+    return {
+      total:    kpiProducts.length,
+      linked:   linked.size,
+      govt:     kpiProducts.filter((p) => p.fundingType === "govt_funded").length,
+      low:      kpiProducts.filter((p) => stockStatus(p) === "low").length,
+      critical: kpiProducts.filter((p) => stockStatus(p) === "critical").length,
+    };
+  }, [kpiProducts]);
 
   return (
     <>
@@ -230,19 +271,34 @@ export default function InventoryPage() {
 
             <div className="h-5 w-px bg-gray-200 mx-1 hidden sm:block" />
 
-            {/* Stock alert chip */}
+            {/* Stock alert chips */}
             <button
               type="button"
-              onClick={() => setStockFilter(stockFilter === "Alert" ? "All" : "Alert")}
+              onClick={() => setFilterLow(!filterLow)}
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors min-h-[32px]",
-                stockFilter === "Alert"
-                  ? "border-amber-500 bg-amber-500 text-white"
+                filterLow
+                  ? "border-[#F59E0B]"
                   : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
               )}
+              style={filterLow ? { background: "#FEF3C7", color: "#92400E" } : {}}
             >
-              <span className={cn("h-1.5 w-1.5 rounded-full", stockFilter === "Alert" ? "bg-white" : "bg-amber-500")} />
-              Low / Critical
+              <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: filterLow ? "#F59E0B" : "#D97706" }} />
+              Low Stock
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterCritical(!filterCritical)}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors min-h-[32px]",
+                filterCritical
+                  ? "border-[#DC2626]"
+                  : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
+              )}
+              style={filterCritical ? { background: "#FEE2E2", color: "#991B1B" } : {}}
+            >
+              <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: filterCritical ? "#EF4444" : "#F87171" }} />
+              Critical
             </button>
 
             <div className="h-5 w-px bg-gray-200 mx-1 hidden sm:block" />
@@ -267,6 +323,96 @@ export default function InventoryPage() {
           </div>
         </div>
 
+        {/* KPI strip */}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          {/* 1 — Sample Items */}
+          <div className="rounded-lg border border-[#E6D3A3] bg-white p-4 shadow-sm">
+            <div className="flex items-start justify-between gap-2 mb-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100 shrink-0">
+                <svg className="h-5 w-5 text-[#333333]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
+                </svg>
+              </div>
+              <span className="text-2xl font-bold tabular-nums text-[#333333]">{kpiData.total}</span>
+            </div>
+            <p className="text-sm font-semibold text-[#333333]">Sample Items</p>
+            <p className="text-xs text-gray-400 mt-0.5">Reference catalogue</p>
+          </div>
+
+          {/* 2 — Linked Categories */}
+          <div className="rounded-lg border border-[#E6D3A3] bg-white p-4 shadow-sm">
+            <div className="flex items-start justify-between gap-2 mb-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg shrink-0" style={{ background: "#E6F4F4" }}>
+                <svg className="h-5 w-5" style={{ color: "#0B5C6C" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+                </svg>
+              </div>
+              <span className="text-2xl font-bold tabular-nums" style={{ color: "#0B5C6C" }}>{kpiData.linked}</span>
+            </div>
+            <p className="text-sm font-semibold" style={{ color: "#0B5C6C" }}>Linked Categories</p>
+            <p className="text-xs text-gray-400 mt-0.5">Patient request types</p>
+          </div>
+
+          {/* 3 — Govt Funded */}
+          <div className="rounded-lg border border-[#E6D3A3] bg-white p-4 shadow-sm">
+            <div className="flex items-start justify-between gap-2 mb-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg shrink-0" style={{ background: "#F0FAF7" }}>
+                <svg className="h-5 w-5" style={{ color: "#065F46" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                </svg>
+              </div>
+              <span className="text-2xl font-bold tabular-nums" style={{ color: "#065F46" }}>{kpiData.govt}</span>
+            </div>
+            <p className="text-sm font-semibold" style={{ color: "#065F46" }}>Govt Funded</p>
+            <p className="text-xs text-gray-400 mt-0.5">Sample data only</p>
+          </div>
+
+          {/* 4 — Low Stock */}
+          <div className="rounded-lg border border-[#E6D3A3] bg-white p-4 shadow-sm">
+            <div className="flex items-start justify-between gap-2 mb-3">
+              <div className="relative flex h-9 w-9 items-center justify-center rounded-lg shrink-0" style={{ background: "#FEF3C7" }}>
+                <svg className="h-5 w-5" style={{ color: "#92400E" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                </svg>
+                {kpiData.low > 0 && (
+                  <span className="absolute -top-1 -right-1">
+                    <span className="relative flex h-2.5 w-2.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                      <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-amber-500" />
+                    </span>
+                  </span>
+                )}
+              </div>
+              <span className="text-2xl font-bold tabular-nums" style={{ color: "#92400E" }}>{kpiData.low}</span>
+            </div>
+            <p className="text-sm font-semibold" style={{ color: "#92400E" }}>Low Stock</p>
+            <p className="text-xs text-gray-400 mt-0.5">Sample data only</p>
+          </div>
+
+          {/* 5 — Critical */}
+          <div className="rounded-lg border border-[#E6D3A3] bg-white p-4 shadow-sm">
+            <div className="flex items-start justify-between gap-2 mb-3">
+              <div className="relative flex h-9 w-9 items-center justify-center rounded-lg shrink-0" style={{ background: "#FEE2E2" }}>
+                <svg className="h-5 w-5" style={{ color: "#991B1B" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 2.25h7.5l4.5 4.5v10.5a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25v-13.5A2.25 2.25 0 015.25 2.25H8.25z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8.25v4.5m0 3h.008v.008H12v-.008z" />
+                </svg>
+                {kpiData.critical > 0 && (
+                  <span className="absolute -top-1 -right-1">
+                    <span className="relative flex h-2.5 w-2.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                      <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
+                    </span>
+                  </span>
+                )}
+              </div>
+              <span className="text-2xl font-bold tabular-nums" style={{ color: "#991B1B" }}>{kpiData.critical}</span>
+            </div>
+            <p className="text-sm font-semibold" style={{ color: "#991B1B" }}>Critical</p>
+            <p className="text-xs text-gray-400 mt-0.5">Sample data only</p>
+          </div>
+        </div>
+
         {/* Results count */}
         {filteredProducts.length < SAMPLE_PRODUCTS.length && (
           <p className="text-sm text-gray-400">
@@ -283,7 +429,8 @@ export default function InventoryPage() {
               onClick={() => {
                 setSearch("");
                 setCategoryFilter("All");
-                setStockFilter("All");
+                setFilterLow(false);
+                setFilterCritical(false);
                 setFundingGovt(false);
                 setFundingPatient(false);
               }}
@@ -344,17 +491,9 @@ export default function InventoryPage() {
                         </div>
                       </div>
 
-                      {/* Stock count + dot */}
-                      <div className="shrink-0 flex items-center gap-2 min-w-[56px] justify-end">
-                        <span className={cn(
-                          "text-sm font-semibold tabular-nums",
-                          status === "critical" ? "text-red-600"  :
-                          status === "low"      ? "text-amber-600" :
-                          "text-gray-700"
-                        )}>
-                          {product.totalStock}
-                        </span>
-                        <StockDot status={status} />
+                      {/* Stock badge */}
+                      <div className="shrink-0">
+                        <StockBadge status={status} count={product.totalStock} />
                       </div>
 
                       {/* Chevron */}

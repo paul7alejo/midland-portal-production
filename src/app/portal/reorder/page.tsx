@@ -17,6 +17,15 @@ import {
   saveDeliveryAddress,
   type DeliveryAddress,
 } from "@/lib/patientDeliveryAddress";
+import { SAMPLE_PRODUCTS } from "@/lib/sample-data/inventory";
+
+// Count of catalogue items linked to each patient request category (static — sample data only)
+const CATALOGUE_COUNTS: Record<string, number> = {
+  cushion:  SAMPLE_PRODUCTS.filter((p) => p.requestCategoryKey === "mask_cushion").length,
+  headgear: SAMPLE_PRODUCTS.filter((p) => p.requestCategoryKey === "headgear").length,
+  mask_kit: SAMPLE_PRODUCTS.filter((p) => p.requestCategoryKey === "complete_mask_kit").length,
+  filter:   SAMPLE_PRODUCTS.filter((p) => p.requestCategoryKey === "filters").length,
+};
 
 const ITEM_LABELS: Record<string, string> = {
   cushion: "Mask cushion",
@@ -826,6 +835,11 @@ export default function ReorderPage() {
                         </p>
                         <p className="text-base text-charcoal/80 mt-1 leading-6">
                           {ITEM_DESCRIPTIONS[item.item_type]}
+                        </p>
+                        <p className="text-sm text-charcoal/55 mt-1 leading-5">
+                          {(CATALOGUE_COUNTS[item.item_type] ?? 0) === 1
+                            ? "1 related catalogue item — staff will confirm availability during review"
+                            : `${CATALOGUE_COUNTS[item.item_type] ?? 0} related catalogue items — staff will confirm availability during review`}
                         </p>
                       </div>
                       <span

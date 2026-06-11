@@ -21,21 +21,21 @@ interface Props {
 function StockBadge({ status }: { status: StockStatus }) {
   if (status === "ok")
     return (
-      <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
-        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-        In stock
+      <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 px-2.5 py-0.5 text-xs font-medium" style={{ background: "#D1FAE5", color: "#065F46" }}>
+        <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: "#10B981" }} />
+        In Stock
       </span>
     );
   if (status === "low")
     return (
-      <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700">
-        <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-        Low stock
+      <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 px-2.5 py-0.5 text-xs font-medium" style={{ background: "#FEF3C7", color: "#92400E" }}>
+        <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: "#F59E0B" }} />
+        Low Stock
       </span>
     );
   return (
-    <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2.5 py-0.5 text-xs font-medium text-red-700">
-      <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+    <span className="inline-flex items-center gap-1 rounded-full border border-red-200 px-2.5 py-0.5 text-xs font-medium" style={{ background: "#FEE2E2", color: "#991B1B" }}>
+      <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: "#EF4444" }} />
       Critical
     </span>
   );
@@ -147,41 +147,51 @@ function GeneralTab({
         </div>
       </div>
 
-      {/* Patient request category link */}
+      {/* Patient Request Relationship */}
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-3">
-          Patient request workflow
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-3 flex items-center gap-1.5">
+          <svg className="h-4 w-4 text-[#0B5C6C]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+          </svg>
+          Patient Request Relationship
         </p>
-        <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
-          <div className="flex items-start gap-3 px-4 py-3 border-b border-gray-100">
-            <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#0B5C6C]/10">
-              <svg className="h-3.5 w-3.5 text-[#0B5C6C]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-              </svg>
+        {product.requestCategoryKey ? (
+          <div className="rounded-md border p-3 space-y-2.5" style={{ background: "#E6F4F4", borderColor: "rgba(11,92,108,0.20)" }}>
+            <div className="flex items-start justify-between gap-3">
+              <span className="text-sm text-gray-500 shrink-0">Request category</span>
+              <span className="text-sm font-semibold text-right" style={{ color: "#0B5C6C" }}>{product.requestCategoryLabel}</span>
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-gray-700">Related request category</p>
-              {product.requestCategory ? (
-                <p className="mt-0.5 text-sm text-[#0B5C6C] font-medium">{product.requestCategory}</p>
-              ) : (
-                <p className="mt-0.5 text-sm text-gray-400 italic">
-                  Not mapped to a patient request category. Device orders are handled directly with the supplier.
-                </p>
-              )}
+            <div className="flex items-start justify-between gap-3">
+              <span className="text-sm text-gray-500 shrink-0">Portal flow</span>
+              <span className="text-sm text-right text-gray-700">Request Supplies → Step 1</span>
             </div>
-          </div>
-          <div className="flex items-start gap-3 px-4 py-3">
-            <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-100">
-              <svg className="h-3.5 w-3.5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-gray-700">Compatibility note</p>
-              <p className="mt-0.5 text-sm text-gray-500 leading-5">{product.compatibilityNote}</p>
+            <div className="border-t pt-2.5" style={{ borderColor: "rgba(11,92,108,0.15)" }}>
+              <p className="text-sm leading-5 flex items-start gap-1.5" style={{ color: "#92400E" }}>
+                <svg className="h-4 w-4 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                </svg>
+                <span>
+                  <span className="font-semibold">Phase 2 note:</span>{" "}
+                  Reference linkage only. No stock is reserved or deducted when a patient submits a request. Staff confirm product allocation manually.
+                </span>
+              </p>
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="rounded-md border p-3" style={{ background: "#E6F4F4", borderColor: "rgba(11,92,108,0.20)" }}>
+            <p className="text-sm text-gray-500 leading-5">
+              This item has no linked patient request category. It is managed through direct staff ordering only.
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Compatibility note */}
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+          Compatibility
+        </p>
+        <p className="text-sm text-gray-600 leading-5">{product.compatibilityNote}</p>
       </div>
 
       {/* Reference-only callout */}
