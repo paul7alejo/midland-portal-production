@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { signOut } from "@/lib/aws/cognito";
 import {
   LayoutDashboard,
+  Inbox,
   Users,
   ShoppingCart,
   PackageSearch,
@@ -52,16 +53,23 @@ export default function AdminSidebar({ collapsed, onToggle }: AdminSidebarProps)
     {
       label: "MAIN",
       items: [
-        { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
+        { href: "/admin",          label: "Dashboard",     icon: LayoutDashboard },
+        { href: "/admin/activity", label: "Activity Inbox", icon: Inbox },
       ],
     },
     {
       label: "PATIENT OPERATIONS",
       items: [
-        { href: "/admin/patients",  label: "Patients",  icon: Users },
-        { href: "/admin/orders",    label: "Orders",    icon: ShoppingCart },
-        { href: "/admin/outreach",  label: "Outreach",  icon: Mail },
-        { href: "/admin/inventory", label: "Inventory", icon: PackageSearch },
+        { href: "/admin/patients", label: "Patients", icon: Users },
+        { href: "/admin/orders",   label: "Orders",   icon: ShoppingCart },
+        { href: "/admin/outreach", label: "Outreach", icon: Mail },
+      ],
+    },
+    {
+      label: "SUPPLY OPERATIONS",
+      items: [
+        { href: "/admin/inventory",   label: "Inventory",   icon: PackageSearch },
+        { href: "/admin/entitlement", label: "Entitlement", icon: Gift },
       ],
     },
     {
@@ -69,13 +77,7 @@ export default function AdminSidebar({ collapsed, onToggle }: AdminSidebarProps)
       items: [
         { href: "/admin/import",   label: "Import",   icon: Upload },
         { href: "/admin/segments", label: "Segments", icon: Target },
-      ],
-    },
-    {
-      label: "FINANCE & FUNDING",
-      items: [
-        { href: "/admin/entitlement", label: "Entitlement", icon: Gift },
-        { href: "/admin/reports",     label: "Reports",     icon: BarChart3 },
+        { href: "/admin/reports",  label: "Reports",  icon: BarChart3 },
       ],
     },
     {
