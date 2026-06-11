@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-// hermes-workflow v0.8 — deterministic workflow rail, no API calls
+// hermes-workflow v0.8.1 — deterministic workflow rail, no API calls
 // proof-log --append mode writes to an existing .md file with LOG confirmation
+// proof-log placeholder guard blocks unfilled tokens before append
 
 import { existsSync, appendFileSync } from "node:fs";
 import { extname }                    from "node:path";
@@ -20,6 +21,30 @@ const SAFETY_ITEMS = [
 const SAFETY_BLOCK = SAFETY_ITEMS.map((s) => `- ${s}`).join("\n");
 
 const VERIFY_CMD = "node midland-os/hermes-lite/scripts/hermes-ship.mjs check";
+
+// ─── Placeholder guard ────────────────────────────────────────────────────────
+// Blocks unfilled template tokens from being appended to the proof log.
+// In stdout mode these produce a warning only.
+
+const PLACEHOLDER_PATTERNS = [
+  "[ACTUAL",
+  "[NEW COMMIT",
+  "[JOB ID]",
+  "PASTE_",
+  "REAL_JOB_ID",
+  "REAL_SHORT_HASH",
+  "TODO",
+  "TBD",
+  "<commit>",
+  "<job>",
+  "your commit",
+  "your job",
+];
+
+function findPlaceholders(content) {
+  const lower = content.toLowerCase();
+  return PLACEHOLDER_PATTERNS.filter((p) => lower.includes(p.toLowerCase()));
+}
 
 // ─── Arg parser ───────────────────────────────────────────────────────────────
 
@@ -47,7 +72,7 @@ function usage(missingFor) {
     console.error(`\nMissing required flag: --objective\n`);
   }
   console.log(`
-Hermes Workflow v0.8
+Hermes Workflow v0.8.1
 
 Usage:
   node midland-os/hermes-lite/scripts/hermes-workflow.mjs <command> [flags]
@@ -334,9 +359,15 @@ async function main() {
       break;
     case "proof-log": {
       const content = generateProofLog(args);
+      const hits    = findPlaceholders(content);
 
       if (args.append !== "true") {
-        // stdout only — unchanged behaviour
+        // stdout only — warn if placeholders present, but do not fail
+        if (hits.length > 0) {
+          console.error("\n⚠  Warning: proof-log contains placeholder tokens:");
+          hits.forEach((h) => console.error(`     ${h}`));
+          console.error("   Replace with real values before appending to a log file.\n");
+        }
         console.log(content);
         break;
       }
@@ -361,6 +392,16 @@ async function main() {
       if (!existsSync(logFile)) {
         console.error(`\n✗ Log file does not exist: ${logFile}\n`);
         console.error("  Hermes does not create log files. Create the file first, then use --append.\n");
+        process.exit(1);
+      }
+
+      // ── Placeholder guard — hard fail before preview ──────────────────────
+
+      if (hits.length > 0) {
+        console.error("\n✗ Proof-log contains placeholder values. Fix before appending.\n");
+        console.error("  Placeholder tokens found:");
+        hits.forEach((h) => console.error(`    ${h}`));
+        console.error("\n  Replace with the real commit hash and Amplify job/status, then re-run.\n");
         process.exit(1);
       }
 

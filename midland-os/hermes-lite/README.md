@@ -106,9 +106,22 @@ node midland-os/hermes-lite/scripts/hermes-workflow.mjs proof-log \
 **Append mode behaviour:**
 - Requires `--log-file` — fails if missing.
 - Target file must already exist and have a `.md` or `.markdown` extension — fails closed if not.
+- Scans content for placeholder tokens before preview — fails closed if any are found (see below).
 - Prints a full preview of the content that will be appended.
 - Requires typing exactly `LOG` to proceed — anything else aborts with no file write.
 - Appends `\n\n<content>` to the end of the file.
+
+**Placeholder guard (append mode):**
+
+Append mode blocks the following unfilled placeholder tokens and exits non-zero before showing the LOG prompt:
+
+```
+[ACTUAL   [NEW COMMIT   [JOB ID]   PASTE_   REAL_JOB_ID
+REAL_SHORT_HASH   TODO   TBD   <commit>   <job>
+your commit   your job
+```
+
+If any of these are detected, replace them with the real commit hash and Amplify job/status before re-running. Stdout-only mode (without `--append`) prints a warning for placeholders but does not fail.
 
 **Security warning — never pass as CLI arguments:**
 - Raw NHI, encrypted NHI, or NHI hash
