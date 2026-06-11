@@ -1,5 +1,7 @@
 // Static sample activity data — no live events, no writes, no notifications.
-// Phase 3 will replace with real event stream from DynamoDB.
+// Phase 3 will replace with real event stream from DynamoDB audit, orders, and portal-accounts.
+// Real read-only sources identified: /api/admin/audit, /api/admin/orders, /api/admin/portal-accounts.
+// Import history and communications queue have no GET endpoints yet — those remain sample/reference.
 
 export type ActivityArea =
   | "Orders"
@@ -27,11 +29,21 @@ export interface ActivityItem {
   priority: ActivityPriority;
   title: string;
   summary: string;
-  time: string;
+  /** ISO 8601 — used for date range filters and sort. Computed at module load. */
+  timestamp: string;
   reference?: string;
   actionLabel: string;
   actionHref: string;
   filters: ActivityFilterId[];
+}
+
+// Timestamps are computed relative to now at module load so "Today" is always current.
+function ts(daysAgo: number, hhmm: string): string {
+  const d = new Date();
+  d.setDate(d.getDate() - daysAgo);
+  const [h, m] = hhmm.split(":").map(Number);
+  d.setHours(h, m, 0, 0);
+  return d.toISOString();
 }
 
 export const SAMPLE_ACTIVITY: ActivityItem[] = [
@@ -42,7 +54,7 @@ export const SAMPLE_ACTIVITY: ActivityItem[] = [
     title: "Supply request submitted — awaiting staff review",
     summary:
       "A patient submitted a supply request (cushion, headgear). No staff action has been recorded yet.",
-    time: "Today, 10:14 am",
+    timestamp: ts(0, "10:14"),
     reference: "REQ-0041",
     actionLabel: "View order",
     actionHref: "/admin/orders",
@@ -55,7 +67,7 @@ export const SAMPLE_ACTIVITY: ActivityItem[] = [
     title: "Supply request submitted",
     summary:
       "Patient submitted a filter replacement request through the portal. Ready for staff review.",
-    time: "Today, 9:02 am",
+    timestamp: ts(0, "09:02"),
     reference: "REQ-0040",
     actionLabel: "View order",
     actionHref: "/admin/orders",
@@ -68,7 +80,7 @@ export const SAMPLE_ACTIVITY: ActivityItem[] = [
     title: "Follow-up needed — patient has not responded",
     summary:
       "A communication was sent 7 days ago. The patient has not responded. Consider manual follow-up.",
-    time: "Today, 8:30 am",
+    timestamp: ts(0, "08:30"),
     actionLabel: "View outreach",
     actionHref: "/admin/outreach",
     filters: ["all", "attention", "communications", "safety"],
@@ -80,7 +92,7 @@ export const SAMPLE_ACTIVITY: ActivityItem[] = [
     title: "Communication superseded — patient re-requested",
     summary:
       "Patient submitted a new request while a previous communication was still queued. Previous version has been marked inactive.",
-    time: "Yesterday, 4:47 pm",
+    timestamp: ts(1, "16:47"),
     actionLabel: "View outreach",
     actionHref: "/admin/outreach",
     filters: ["all", "attention", "communications"],
@@ -92,7 +104,7 @@ export const SAMPLE_ACTIVITY: ActivityItem[] = [
     title: "Patient communication queued",
     summary:
       "Scheduled outreach communication has been queued and is awaiting staff review before dispatch.",
-    time: "Yesterday, 3:15 pm",
+    timestamp: ts(1, "15:15"),
     actionLabel: "View outreach",
     actionHref: "/admin/outreach",
     filters: ["all", "communications"],
@@ -104,7 +116,7 @@ export const SAMPLE_ACTIVITY: ActivityItem[] = [
     title: "Safety review completed",
     summary:
       "Routine safety review completed for patient. No concerns identified. No further action required.",
-    time: "Yesterday, 2:00 pm",
+    timestamp: ts(1, "14:00"),
     actionLabel: "View patient",
     actionHref: "/admin/patients",
     filters: ["all", "communications", "safety"],
@@ -116,7 +128,7 @@ export const SAMPLE_ACTIVITY: ActivityItem[] = [
     title: "Portal account locked",
     summary:
       "Account automatically locked after 5 failed login attempts. Awaiting staff review or patient contact.",
-    time: "Yesterday, 11:23 am",
+    timestamp: ts(1, "11:23"),
     actionLabel: "View account",
     actionHref: "/admin/portal-accounts",
     filters: ["all", "attention", "system"],
@@ -128,7 +140,7 @@ export const SAMPLE_ACTIVITY: ActivityItem[] = [
     title: "Password reset completed",
     summary:
       "Patient successfully reset their portal password using the email reset link.",
-    time: "2 days ago",
+    timestamp: ts(2, "14:30"),
     actionLabel: "View account",
     actionHref: "/admin/portal-accounts",
     filters: ["all", "system"],
@@ -140,7 +152,7 @@ export const SAMPLE_ACTIVITY: ActivityItem[] = [
     title: "Import batch completed",
     summary:
       "Scheduled import batch processed 47 patient records without errors.",
-    time: "2 days ago",
+    timestamp: ts(2, "09:00"),
     reference: "BATCH-20260609",
     actionLabel: "View import",
     actionHref: "/admin/import",
@@ -153,7 +165,7 @@ export const SAMPLE_ACTIVITY: ActivityItem[] = [
     title: "Item stock is critical",
     summary:
       "AirSense 11 AutoSet CPAP has only 2 units remaining. Reorder threshold is 5. Contact supplier for urgent replenishment.",
-    time: "3 days ago",
+    timestamp: ts(3, "08:00"),
     actionLabel: "View inventory",
     actionHref: "/admin/inventory",
     filters: ["all", "attention", "inventory"],
@@ -165,7 +177,7 @@ export const SAMPLE_ACTIVITY: ActivityItem[] = [
     title: "Item approaching low stock",
     summary:
       "AirFit P10 Nasal Pillow Mask has 8 units remaining. Reorder threshold is 10. Review for restocking.",
-    time: "3 days ago",
+    timestamp: ts(3, "07:45"),
     actionLabel: "View inventory",
     actionHref: "/admin/inventory",
     filters: ["all", "attention", "inventory"],
@@ -177,7 +189,7 @@ export const SAMPLE_ACTIVITY: ActivityItem[] = [
     title: "Entitlement estimate reviewed",
     summary:
       "Patient entitlement reviewed and approved for standard govt-funded allocation for this period.",
-    time: "4 days ago",
+    timestamp: ts(4, "16:00"),
     actionLabel: "View patient",
     actionHref: "/admin/patients",
     filters: ["all", "orders"],

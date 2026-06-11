@@ -93,6 +93,7 @@ export default function InventoryPage() {
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("All");
   const [filterLow,      setFilterLow]      = useState(false);
   const [filterCritical, setFilterCritical] = useState(false);
+  const [filterLinked,   setFilterLinked]   = useState(false);
   const [fundingGovt,    setFundingGovt]    = useState(false);
   const [fundingPatient, setFundingPatient] = useState(false);
   const [sort,           setSort]           = useState<SortKey>("name-asc");
@@ -135,6 +136,11 @@ export default function InventoryPage() {
       });
     }
 
+    // Linked categories
+    if (filterLinked) {
+      list = list.filter((p) => p.requestCategoryKey !== null);
+    }
+
     // Funding (OR if both selected → show all; neither → show all)
     if (fundingGovt || fundingPatient) {
       list = list.filter(
@@ -155,7 +161,7 @@ export default function InventoryPage() {
     });
 
     return list;
-  }, [search, categoryFilter, filterLow, filterCritical, fundingGovt, fundingPatient, sort]);
+  }, [search, categoryFilter, filterLow, filterCritical, filterLinked, fundingGovt, fundingPatient, sort]);
 
   // KPI base: responds to category + funding filters only (not stock or search)
   const kpiProducts = useMemo(() => {
@@ -325,8 +331,13 @@ export default function InventoryPage() {
 
         {/* KPI strip */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          {/* 1 — Sample Items */}
-          <div className="rounded-lg border border-[#E6D3A3] bg-white p-4 shadow-sm">
+          {/* 1 — Sample Items (reset all KPI filters) */}
+          <button
+            type="button"
+            onClick={() => { setFilterLinked(false); setFilterLow(false); setFilterCritical(false); setFundingGovt(false); setFundingPatient(false); setCategoryFilter("All"); }}
+            className={cn("rounded-lg border bg-white p-4 shadow-sm text-left transition-shadow hover:shadow-md focus:outline-none focus-visible:ring-2", !filterLinked && !filterLow && !filterCritical && !fundingGovt && !fundingPatient && categoryFilter === "All" ? "border-[#0B5C6C] ring-2 ring-[#0B5C6C]/25" : "border-[#E6D3A3]")}
+            title="Show all items"
+          >
             <div className="flex items-start justify-between gap-2 mb-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100 shrink-0">
                 <svg className="h-5 w-5 text-[#333333]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -337,10 +348,15 @@ export default function InventoryPage() {
             </div>
             <p className="text-sm font-semibold text-[#333333]">Sample Items</p>
             <p className="text-xs text-gray-400 mt-0.5">Reference catalogue</p>
-          </div>
+          </button>
 
           {/* 2 — Linked Categories */}
-          <div className="rounded-lg border border-[#E6D3A3] bg-white p-4 shadow-sm">
+          <button
+            type="button"
+            onClick={() => setFilterLinked(!filterLinked)}
+            className={cn("rounded-lg border bg-white p-4 shadow-sm text-left transition-shadow hover:shadow-md focus:outline-none focus-visible:ring-2", filterLinked ? "border-[#0B5C6C] ring-2 ring-[#0B5C6C]/25" : "border-[#E6D3A3]")}
+            title="Filter to linked catalogue items"
+          >
             <div className="flex items-start justify-between gap-2 mb-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-lg shrink-0" style={{ background: "#E6F4F4" }}>
                 <svg className="h-5 w-5" style={{ color: "#0B5C6C" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -351,10 +367,15 @@ export default function InventoryPage() {
             </div>
             <p className="text-sm font-semibold" style={{ color: "#0B5C6C" }}>Linked Categories</p>
             <p className="text-xs text-gray-400 mt-0.5">Patient request types</p>
-          </div>
+          </button>
 
           {/* 3 — Govt Funded */}
-          <div className="rounded-lg border border-[#E6D3A3] bg-white p-4 shadow-sm">
+          <button
+            type="button"
+            onClick={() => setFundingGovt(!fundingGovt)}
+            className={cn("rounded-lg border bg-white p-4 shadow-sm text-left transition-shadow hover:shadow-md focus:outline-none focus-visible:ring-2", fundingGovt ? "border-emerald-500 ring-2 ring-emerald-500/25" : "border-[#E6D3A3]")}
+            title="Filter to govt-funded items"
+          >
             <div className="flex items-start justify-between gap-2 mb-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-lg shrink-0" style={{ background: "#F0FAF7" }}>
                 <svg className="h-5 w-5" style={{ color: "#065F46" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -365,10 +386,15 @@ export default function InventoryPage() {
             </div>
             <p className="text-sm font-semibold" style={{ color: "#065F46" }}>Govt Funded</p>
             <p className="text-xs text-gray-400 mt-0.5">Sample data only</p>
-          </div>
+          </button>
 
           {/* 4 — Low Stock */}
-          <div className="rounded-lg border border-[#E6D3A3] bg-white p-4 shadow-sm">
+          <button
+            type="button"
+            onClick={() => setFilterLow(!filterLow)}
+            className={cn("rounded-lg border bg-white p-4 shadow-sm text-left transition-shadow hover:shadow-md focus:outline-none focus-visible:ring-2", filterLow ? "border-[#F59E0B] ring-2 ring-[#F59E0B]/25" : "border-[#E6D3A3]")}
+            title="Filter to low-stock items"
+          >
             <div className="flex items-start justify-between gap-2 mb-3">
               <div className="relative flex h-9 w-9 items-center justify-center rounded-lg shrink-0" style={{ background: "#FEF3C7" }}>
                 <svg className="h-5 w-5" style={{ color: "#92400E" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -387,10 +413,15 @@ export default function InventoryPage() {
             </div>
             <p className="text-sm font-semibold" style={{ color: "#92400E" }}>Low Stock</p>
             <p className="text-xs text-gray-400 mt-0.5">Sample data only</p>
-          </div>
+          </button>
 
           {/* 5 — Critical */}
-          <div className="rounded-lg border border-[#E6D3A3] bg-white p-4 shadow-sm">
+          <button
+            type="button"
+            onClick={() => setFilterCritical(!filterCritical)}
+            className={cn("rounded-lg border bg-white p-4 shadow-sm text-left transition-shadow hover:shadow-md focus:outline-none focus-visible:ring-2", filterCritical ? "border-red-500 ring-2 ring-red-500/25" : "border-[#E6D3A3]")}
+            title="Filter to critical-stock items"
+          >
             <div className="flex items-start justify-between gap-2 mb-3">
               <div className="relative flex h-9 w-9 items-center justify-center rounded-lg shrink-0" style={{ background: "#FEE2E2" }}>
                 <svg className="h-5 w-5" style={{ color: "#991B1B" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -410,7 +441,7 @@ export default function InventoryPage() {
             </div>
             <p className="text-sm font-semibold" style={{ color: "#991B1B" }}>Critical</p>
             <p className="text-xs text-gray-400 mt-0.5">Sample data only</p>
-          </div>
+          </button>
         </div>
 
         {/* Results count */}
@@ -431,6 +462,7 @@ export default function InventoryPage() {
                 setCategoryFilter("All");
                 setFilterLow(false);
                 setFilterCritical(false);
+                setFilterLinked(false);
                 setFundingGovt(false);
                 setFundingPatient(false);
               }}
