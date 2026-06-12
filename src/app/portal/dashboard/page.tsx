@@ -535,7 +535,14 @@ export default function DashboardPage() {
         </section>
       )}
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(420px,1.25fr)_minmax(280px,0.85fr)_minmax(280px,0.85fr)] 2xl:grid-cols-[minmax(520px,1.35fr)_minmax(320px,0.85fr)_minmax(320px,0.85fr)]">
+      <div
+        className={cn(
+          "grid gap-5",
+          isCompletedRequest
+            ? "xl:grid-cols-[minmax(420px,1.25fr)_minmax(280px,0.85fr)] 2xl:grid-cols-[minmax(520px,1.35fr)_minmax(320px,0.85fr)]"
+            : "xl:grid-cols-[minmax(420px,1.25fr)_minmax(280px,0.85fr)_minmax(280px,0.85fr)] 2xl:grid-cols-[minmax(520px,1.35fr)_minmax(320px,0.85fr)_minmax(320px,0.85fr)]"
+        )}
+      >
 
         {/* CARD 1 — MY EQUIPMENT */}
         <section className="space-y-4 rounded-xl border border-[#E6D3A3] bg-white p-5 md:p-6">
@@ -671,48 +678,49 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* CARD 2 — RECENT REQUESTS */}
-        <section className="rounded-xl border border-[#E6D3A3] bg-white p-5 md:p-6">
-          <div className="border-b border-[#E6D3A3] pb-3">
-            <h2 className="font-display text-[28px] font-semibold leading-snug text-[#0B2A3C]">Recent Requests</h2>
-          </div>
-          {currentRequest ? (
-            <div className="mt-5 rounded-lg border border-sand bg-[#F5F3EE] p-4">
-              <p className="mb-2 font-mono text-xs uppercase tracking-wide text-charcoal/60">
-                Latest request update
-              </p>
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <p className="font-mono text-base font-bold text-[#0B5C6C]">
-                  {currentRequest.referenceNumber}
-                </p>
-                <span className="rounded-full bg-[#74C0A2]/20 px-3 py-1 text-sm font-semibold text-[#0B5C6C]">
-                  {STATUS_LABELS[currentRequest.status]}
-                </span>
-              </div>
-              <p className="mt-4 text-lg font-semibold leading-7 text-[#0B2A3C]">
-                {requestedItems ?? "Supply request"}
-              </p>
-              <p className="mt-2 text-sm leading-6 text-charcoal/75">
-                {currentRequest.updatedAt
-                  ? `Last updated: ${formatDate(currentRequest.updatedAt)}`
-                  : `Submitted: ${formatDate(currentRequest.createdAt)}`}
-              </p>
-              <p className="mt-2 text-sm leading-5 text-charcoal/70">
-                {getStatusConfig(currentRequest.status).body}
-              </p>
+        {!isCompletedRequest && (
+          <section className="rounded-xl border border-[#E6D3A3] bg-white p-5 md:p-6">
+            <div className="border-b border-[#E6D3A3] pb-3">
+              <h2 className="font-display text-[28px] font-semibold leading-snug text-[#0B2A3C]">Recent Requests</h2>
             </div>
-          ) : (
-            <p className="mt-5 text-base leading-7 text-charcoal/75">
-              No active supply request.
-            </p>
-          )}
-          <Link
-            href="/portal/reorder"
-            className="mt-5 inline-flex items-center text-base font-semibold text-[#0B5C6C] hover:underline"
-          >
-            View supply requests
-          </Link>
-        </section>
+            {currentRequest ? (
+              <div className="mt-5 rounded-lg border border-sand bg-[#F5F3EE] p-4">
+                <p className="mb-2 font-mono text-xs uppercase tracking-wide text-charcoal/60">
+                  Latest request update
+                </p>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <p className="font-mono text-base font-bold text-[#0B5C6C]">
+                    {currentRequest.referenceNumber}
+                  </p>
+                  <span className="rounded-full bg-[#74C0A2]/20 px-3 py-1 text-sm font-semibold text-[#0B5C6C]">
+                    {STATUS_LABELS[currentRequest.status]}
+                  </span>
+                </div>
+                <p className="mt-4 text-lg font-semibold leading-7 text-[#0B2A3C]">
+                  {requestedItems ?? "Supply request"}
+                </p>
+                <p className="mt-2 text-sm leading-6 text-charcoal/75">
+                  {currentRequest.updatedAt
+                    ? `Last updated: ${formatDate(currentRequest.updatedAt)}`
+                    : `Submitted: ${formatDate(currentRequest.createdAt)}`}
+                </p>
+                <p className="mt-2 text-sm leading-5 text-charcoal/70">
+                  {getStatusConfig(currentRequest.status).body}
+                </p>
+              </div>
+            ) : (
+              <p className="mt-5 text-base leading-7 text-charcoal/75">
+                No active supply request.
+              </p>
+            )}
+            <Link
+              href="/portal/reorder"
+              className="mt-5 inline-flex items-center text-base font-semibold text-[#0B5C6C] hover:underline"
+            >
+              View supply requests
+            </Link>
+          </section>
+        )}
 
         <div className="space-y-5">
           {/* CARD 2 — SAFETY AND MAINTENANCE */}
