@@ -5,13 +5,15 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import PortalSidebar from "@/components/layout/PortalSidebar";
 import AccountMenu from "@/components/portal/AccountMenu";
+import PortalUpdatesBell from "@/components/portal/PortalUpdatesBell";
 
 function TopBar() {
   const { patient } = useAuth();
   if (!patient) return null;
 
   return (
-    <div className="relative z-50 border-b border-sand bg-white px-4 py-2 md:px-8 hidden lg:flex items-center justify-end">
+    <div className="relative z-50 hidden items-center justify-end gap-3 border-b border-sand bg-white px-4 py-2 md:px-8 lg:flex">
+      <PortalUpdatesBell />
       <AccountMenu />
     </div>
   );
@@ -58,8 +60,11 @@ function PortalInner({ children }: { children: React.ReactNode }) {
           </p>
         </div>
         {patient && (
-          <div className="[&_button:hover]:bg-white/10 [&_p]:text-white [&_p+ p]:text-white/60 [&_svg]:text-white/60">
-            <AccountMenu />
+          <div className="flex items-center gap-2">
+            <PortalUpdatesBell className="[&_button]:border-white/20 [&_button]:bg-white/10 [&_button]:text-white [&_button]:shadow-none [&_button:hover]:bg-white/15" />
+            <div className="[&_button:hover]:bg-white/10 [&_p]:text-white [&_p+ p]:text-white/60 [&_svg]:text-white/60">
+              <AccountMenu />
+            </div>
           </div>
         )}
       </div>

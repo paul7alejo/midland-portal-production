@@ -442,6 +442,30 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {portalUpdates.length > 0 && (
+        <section className="mb-5 rounded-xl border border-[#74C0A2]/35 bg-[#EFF5F4] p-5 shadow-sm md:p-6">
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div className="min-w-0">
+              <p className="mb-1 font-mono text-xs uppercase tracking-[0.16em] text-[#0B5C6C]/70">
+                Update on your supply request
+              </p>
+              <h2 className="font-display text-[24px] font-semibold leading-tight text-[#0B2A3C] md:text-[28px]">
+                {portalUpdates[0].title}
+              </h2>
+              <p className="mt-2 text-lg leading-7 text-charcoal/75">
+                {portalUpdates[0].message}
+              </p>
+            </div>
+            <Link
+              href="#portal-updates"
+              className="inline-flex min-h-[48px] items-center justify-center rounded-lg border border-[#0B5C6C]/25 bg-white px-5 py-3 text-base font-semibold text-[#0B5C6C] transition-colors hover:bg-white/80"
+            >
+              View updates
+            </Link>
+          </div>
+        </section>
+      )}
+
       {/* Supply request status */}
       {isCompletedRequest && currentRequest ? (
         <section className="mb-5 rounded-xl border border-[#E6D3A3] bg-white p-5 shadow-sm md:p-6">
@@ -824,7 +848,7 @@ export default function DashboardPage() {
             </section>
           )}
 
-          <section className="rounded-xl border border-[#E6D3A3] bg-white p-5 md:p-6">
+          <section id="portal-updates" className="scroll-mt-6 rounded-xl border border-[#E6D3A3] bg-white p-5 md:p-6">
             <div className="border-b border-[#E6D3A3] pb-3">
               <h2 className="font-display text-[28px] font-semibold leading-snug text-[#0B2A3C]">Updates</h2>
             </div>
