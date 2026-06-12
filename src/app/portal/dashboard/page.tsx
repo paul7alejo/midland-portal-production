@@ -14,6 +14,8 @@ type ReorderStatus =
   | "approved"
   | "sent"
   | "delivered"
+  | "complete"
+  | "completed"
   | "declined"
   | "needs_followup";
 
@@ -47,6 +49,8 @@ const STATUS_LABELS: Record<ReorderStatus, string> = {
   approved: "Approved",
   sent: "Sent",
   delivered: "Delivered",
+  complete: "Complete",
+  completed: "Completed",
   declined: "Contact us",
   needs_followup: "We'll be in touch",
 };
@@ -140,6 +144,8 @@ function getStatusConfig(status: string | null | undefined): RequestStatusConfig
         ctaHref: "/portal/reorder",
       };
     case "delivered":
+    case "complete":
+    case "completed":
       return {
         title: "Your supply request is complete",
         body: "You can submit a new request when you need supplies again.",
@@ -259,6 +265,10 @@ function getRequestDate(request: CurrentReorderRequest): string {
   return formatDate(request.updatedAt ?? request.createdAt);
 }
 
+function isCompletedRequestStatus(status: string | null | undefined): boolean {
+  return status === "delivered" || status === "complete" || status === "completed";
+}
+
 export default function DashboardPage() {
   const { patient } = useAuth();
   const [currentRequest, setCurrentRequest] =
@@ -320,6 +330,7 @@ export default function DashboardPage() {
   const firstName = getFirstName(patient.name);
   const greeting = getNzGreeting();
   const requestedItems = formatRequestedItems(currentRequest);
+  const isCompletedRequest = isCompletedRequestStatus(currentRequest?.status);
 
   const config: RequestStatusConfig = requestLoading
     ? {
@@ -377,85 +388,152 @@ export default function DashboardPage() {
       </div>
 
       {/* Supply request status */}
-      <section className={cn("mb-5 rounded-xl border p-5 shadow-sm md:p-6", toneStyles.card)}>
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
-          <div className="min-w-0">
-            <p className="mb-1 font-mono text-xs uppercase tracking-[0.16em] text-charcoal/60">
-              Supply request status
-            </p>
-            <h2 className={cn("font-display text-[28px] font-semibold leading-tight md:text-[32px]", toneStyles.title)}>
-              {config.title}
-            </h2>
-            <p className="mt-2 max-w-3xl text-lg leading-7">{config.body}</p>
-          </div>
-          {config.ctaLabel && (
-            <Link
-              href={config.ctaHref}
-              className="inline-flex min-h-[52px] items-center justify-center rounded-lg bg-[#0B5C6C] px-6 py-3 text-lg font-medium text-white transition-colors hover:bg-[#0B5C6C]/90"
-            >
-              {config.ctaLabel}
-            </Link>
-          )}
-        </div>
-
-        {stepCount > 0 && (
-          <div aria-label="Supply request progress" className="mx-auto mt-6 max-w-5xl">
-            <div className="grid items-start" style={{ gridTemplateColumns: gridCols }}>
-              {config.steps.map((step, index) => (
-                <Fragment key={step.label}>
-                  <div className="flex min-w-0 flex-col items-center text-center">
-                    <div
-                      className={cn(
-                        "flex h-8 w-8 items-center justify-center rounded-full border-2",
-                        step.state === "completed" && "border-[#74C0A2] bg-[#74C0A2] text-white",
-                        step.state === "active"    && toneStyles.activeCircle,
-                        step.state === "active"    && "text-white",
-                        step.state === "future"    && "border-[#E6D3A3] bg-transparent"
-                      )}
-                      aria-hidden="true"
-                    >
-                      {step.state === "completed" ? (
-                        <span className="text-base font-bold leading-none">&#10003;</span>
-                      ) : step.state === "active" ? (
-                        <span className="h-2 w-2 rounded-full bg-white" />
-                      ) : null}
-                    </div>
-                    <p
-                      className={cn(
-                        "mt-2 text-sm leading-5 text-charcoal/60",
-                        step.state === "completed" && "font-medium text-[#74C0A2]",
-                        step.state === "active"    && cn("font-semibold", toneStyles.activeLabel)
-                      )}
-                    >
-                      {step.label}
-                    </p>
-                  </div>
-                  {index < stepCount - 1 && (
-                    <div
-                      className={cn(
-                        "mt-4 border-t-2",
-                        step.state === "completed"
-                          ? "border-[#74C0A2]"
-                          : "border-dashed border-[#E6D3A3]"
-                      )}
-                      aria-hidden="true"
-                    />
-                  )}
-                </Fragment>
-              ))}
+      {isCompletedRequest && currentRequest ? (
+        <section className="mb-5 rounded-xl border border-[#E6D3A3] bg-white p-5 shadow-sm md:p-6">
+          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+            <div className="min-w-0">
+              <p className="mb-1 font-mono text-xs uppercase tracking-[0.16em] text-charcoal/60">
+                Last supply request
+              </p>
+              <h2 className="font-display text-[28px] font-semibold leading-tight text-[#0B2A3C] md:text-[32px]">
+                Your supply request is complete
+              </h2>
+              <p className="mt-2 max-w-3xl text-lg leading-7 text-charcoal/75">
+                You can submit a new request when you need supplies again.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-3 lg:justify-end">
+              <Link
+                href="/portal/reorder"
+                className="inline-flex min-h-[52px] items-center justify-center rounded-lg bg-[#0B5C6C] px-6 py-3 text-lg font-medium text-white transition-colors hover:bg-[#0B5C6C]/90"
+              >
+                Request supplies again
+              </Link>
+              <Link
+                href="#request-history"
+                className="inline-flex min-h-[52px] items-center justify-center rounded-lg border border-[#E6D3A3] bg-white px-6 py-3 text-lg font-medium text-[#0B5C6C] transition-colors hover:border-[#0B5C6C]/40 hover:bg-[#F5F3EE]"
+              >
+                View request history
+              </Link>
             </div>
           </div>
-        )}
 
-        {requestedItems && currentRequest && (
-          <div className="mt-5 rounded-lg border border-white/60 bg-white/60 p-4 text-charcoal">
-            <p className="mb-1 font-mono text-xs uppercase tracking-wide text-charcoal/60">
-              Requested
-            </p>
-            <p className="text-lg font-semibold leading-7">{requestedItems}</p>
+          <div className="mt-5 grid gap-3 rounded-lg border border-[#E6D3A3] bg-[#F5F3EE] p-4 text-charcoal md:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <p className="mb-1 font-mono text-xs uppercase tracking-wide text-charcoal/60">
+                Reference
+              </p>
+              <p className="font-mono text-base font-semibold text-[#0B5C6C]">
+                {currentRequest.referenceNumber}
+              </p>
+            </div>
+            <div>
+              <p className="mb-1 font-mono text-xs uppercase tracking-wide text-charcoal/60">
+                Status
+              </p>
+              <span className="inline-flex rounded-full bg-[#74C0A2]/20 px-3 py-1 text-sm font-semibold text-[#0B5C6C]">
+                {STATUS_LABELS[currentRequest.status]}
+              </span>
+            </div>
+            <div>
+              <p className="mb-1 font-mono text-xs uppercase tracking-wide text-charcoal/60">
+                Requested
+              </p>
+              <p className="text-base font-semibold leading-6 text-[#0B2A3C]">
+                {requestedItems ?? "Supply request"}
+              </p>
+            </div>
+            <div>
+              <p className="mb-1 font-mono text-xs uppercase tracking-wide text-charcoal/60">
+                Last updated
+              </p>
+              <p className="text-base leading-6 text-charcoal/75">
+                {getRequestDate(currentRequest)}
+              </p>
+            </div>
           </div>
-        )}
-      </section>
+        </section>
+      ) : (
+        <section className={cn("mb-5 rounded-xl border p-5 shadow-sm md:p-6", toneStyles.card)}>
+          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+            <div className="min-w-0">
+              <p className="mb-1 font-mono text-xs uppercase tracking-[0.16em] text-charcoal/60">
+                Supply request status
+              </p>
+              <h2 className={cn("font-display text-[28px] font-semibold leading-tight md:text-[32px]", toneStyles.title)}>
+                {config.title}
+              </h2>
+              <p className="mt-2 max-w-3xl text-lg leading-7">{config.body}</p>
+            </div>
+            {config.ctaLabel && (
+              <Link
+                href={config.ctaHref}
+                className="inline-flex min-h-[52px] items-center justify-center rounded-lg bg-[#0B5C6C] px-6 py-3 text-lg font-medium text-white transition-colors hover:bg-[#0B5C6C]/90"
+              >
+                {config.ctaLabel}
+              </Link>
+            )}
+          </div>
+
+          {stepCount > 0 && (
+            <div aria-label="Supply request progress" className="mx-auto mt-6 max-w-5xl">
+              <div className="grid items-start" style={{ gridTemplateColumns: gridCols }}>
+                {config.steps.map((step, index) => (
+                  <Fragment key={step.label}>
+                    <div className="flex min-w-0 flex-col items-center text-center">
+                      <div
+                        className={cn(
+                          "flex h-8 w-8 items-center justify-center rounded-full border-2",
+                          step.state === "completed" && "border-[#74C0A2] bg-[#74C0A2] text-white",
+                          step.state === "active"    && toneStyles.activeCircle,
+                          step.state === "active"    && "text-white",
+                          step.state === "future"    && "border-[#E6D3A3] bg-transparent"
+                        )}
+                        aria-hidden="true"
+                      >
+                        {step.state === "completed" ? (
+                          <span className="text-base font-bold leading-none">&#10003;</span>
+                        ) : step.state === "active" ? (
+                          <span className="h-2 w-2 rounded-full bg-white" />
+                        ) : null}
+                      </div>
+                      <p
+                        className={cn(
+                          "mt-2 text-sm leading-5 text-charcoal/60",
+                          step.state === "completed" && "font-medium text-[#74C0A2]",
+                          step.state === "active"    && cn("font-semibold", toneStyles.activeLabel)
+                        )}
+                      >
+                        {step.label}
+                      </p>
+                    </div>
+                    {index < stepCount - 1 && (
+                      <div
+                        className={cn(
+                          "mt-4 border-t-2",
+                          step.state === "completed"
+                            ? "border-[#74C0A2]"
+                            : "border-dashed border-[#E6D3A3]"
+                        )}
+                        aria-hidden="true"
+                      />
+                    )}
+                  </Fragment>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {requestedItems && currentRequest && (
+            <div className="mt-5 rounded-lg border border-white/60 bg-white/60 p-4 text-charcoal">
+              <p className="mb-1 font-mono text-xs uppercase tracking-wide text-charcoal/60">
+                Requested
+              </p>
+              <p className="text-lg font-semibold leading-7">{requestedItems}</p>
+            </div>
+          )}
+        </section>
+      )}
 
       <div className="grid gap-5 xl:grid-cols-[minmax(420px,1.25fr)_minmax(280px,0.85fr)_minmax(280px,0.85fr)] 2xl:grid-cols-[minmax(520px,1.35fr)_minmax(320px,0.85fr)_minmax(320px,0.85fr)]">
 
@@ -689,6 +767,13 @@ export default function DashboardPage() {
             <p className="text-base leading-7 text-charcoal/80">
               Our team is available Monday to Friday, 8:30am to 5pm.
             </p>
+            <p className="mt-3 text-base leading-7 text-charcoal/75">
+              Need more supplies? You can{" "}
+              <Link href="/portal/reorder" className="font-medium text-deep-teal hover:underline">
+                submit another request
+              </Link>{" "}
+              and Midland Sleep staff will review it.
+            </p>
             <div className="mt-5 space-y-3 text-lg leading-7">
               <p>Call Midland Sleep on {phoneLink}</p>
               <p>Email {emailLink}</p>
@@ -698,8 +783,8 @@ export default function DashboardPage() {
 
       </div>
 
-      {currentRequest && requestedItems && (
-        <section className="mt-5 rounded-xl border border-[#E6D3A3] bg-white p-5 md:p-6">
+      {currentRequest && (
+        <section id="request-history" className="mt-5 scroll-mt-6 rounded-xl border border-[#E6D3A3] bg-white p-5 md:p-6">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#E6D3A3] pb-3">
             <h2 className="font-display text-[28px] font-semibold leading-snug text-[#0B2A3C]">My Supply Request History</h2>
             <Link href="/portal/reorder" className="text-base font-semibold text-[#0B5C6C] hover:underline">
@@ -720,7 +805,7 @@ export default function DashboardPage() {
                 <tr className="border-b border-sand/60 last:border-0">
                   <td className="py-4 pr-4 text-charcoal">{getRequestDate(currentRequest)}</td>
                   <td className="py-4 pr-4 font-mono font-semibold text-[#0B5C6C]">{currentRequest.referenceNumber}</td>
-                  <td className="py-4 pr-4 text-charcoal">{requestedItems}</td>
+                  <td className="py-4 pr-4 text-charcoal">{requestedItems ?? "Supply request"}</td>
                   <td className="py-4">
                     <span className="inline-flex rounded-full bg-[#74C0A2]/20 px-3 py-1 text-sm font-semibold text-[#0B5C6C]">
                       {STATUS_LABELS[currentRequest.status]}
