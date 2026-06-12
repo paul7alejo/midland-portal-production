@@ -30,6 +30,15 @@ interface CurrentReorderRequest {
   itemDescription?: string;
 }
 
+interface PatientPortalUpdate {
+  notification_id: string;
+  request_reference?: string;
+  request_status: ReorderStatus;
+  title: string;
+  message: string;
+  created_at: string;
+}
+
 type StepState = "completed" | "active" | "future";
 type StatusStep = { label: string; state: StepState };
 type StatusTone = "neutral" | "green" | "teal" | "rose" | "amber";
@@ -269,11 +278,24 @@ function isCompletedRequestStatus(status: string | null | undefined): boolean {
   return status === "delivered" || status === "complete" || status === "completed";
 }
 
+function formatUpdateDateTime(iso: string): string {
+  const date = new Date(iso);
+  if (isNaN(date.getTime())) return iso;
+  return date.toLocaleString("en-NZ", {
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 export default function DashboardPage() {
   const { patient } = useAuth();
   const [currentRequest, setCurrentRequest] =
     useState<CurrentReorderRequest | null>(null);
   const [requestLoading, setRequestLoading] = useState(false);
+  const [portalUpdates, setPortalUpdates] = useState<PatientPortalUpdate[]>([]);
+  const [updatesLoading, setUpdatesLoading] = useState(false);
 
   useEffect(() => {
     if (!patient?.userId) return;
@@ -303,6 +325,39 @@ export default function DashboardPage() {
     }
 
     void loadCurrentRequest();
+    return () => {
+      cancelled = true;
+    };
+  }, [patient?.userId]);
+
+  useEffect(() => {
+    if (!patient?.userId) return;
+    let cancelled = false;
+
+    async function loadPortalUpdates() {
+      setUpdatesLoading(true);
+      try {
+        configureCognito();
+        const token = await getIdToken();
+        if (!token) throw new Error("Session expired. Please log in again.");
+
+        const res = await fetch("/api/patient/data", {
+          headers: { "Authorization": `Bearer ${token}` },
+        });
+        const data = await res.json().catch(() => ({})) as {
+          updates?: PatientPortalUpdate[];
+        };
+        if (!cancelled && res.ok) {
+          setPortalUpdates(Array.isArray(data.updates) ? data.updates.slice(0, 3) : []);
+        }
+      } catch {
+        if (!cancelled) setPortalUpdates([]);
+      } finally {
+        if (!cancelled) setUpdatesLoading(false);
+      }
+    }
+
+    void loadPortalUpdates();
     return () => {
       cancelled = true;
     };
@@ -768,6 +823,44 @@ export default function DashboardPage() {
               </div>
             </section>
           )}
+
+          <section className="rounded-xl border border-[#E6D3A3] bg-white p-5 md:p-6">
+            <div className="border-b border-[#E6D3A3] pb-3">
+              <h2 className="font-display text-[28px] font-semibold leading-snug text-[#0B2A3C]">Updates</h2>
+            </div>
+            {updatesLoading ? (
+              <p className="mt-5 text-base leading-7 text-charcoal/75">
+                Checking for request updates...
+              </p>
+            ) : portalUpdates.length > 0 ? (
+              <div className="mt-5 space-y-4">
+                {portalUpdates.map((update) => (
+                  <article key={update.notification_id} className="rounded-lg border border-sand bg-[#F5F3EE] p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <h3 className="text-lg font-semibold leading-7 text-[#0B2A3C]">
+                        {update.title}
+                      </h3>
+                      <time className="text-sm leading-6 text-charcoal/55" dateTime={update.created_at}>
+                        {formatUpdateDateTime(update.created_at)}
+                      </time>
+                    </div>
+                    <p className="mt-1 text-base leading-6 text-charcoal/75">
+                      {update.message}
+                    </p>
+                    {update.request_reference && (
+                      <p className="mt-3 font-mono text-xs uppercase tracking-wide text-charcoal/55">
+                        Request {update.request_reference}
+                      </p>
+                    )}
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-5 text-base leading-7 text-charcoal/75">
+                No updates yet. Request updates will appear here after staff review.
+              </p>
+            )}
+          </section>
 
           {/* CARD 3 — NEED HELP */}
           <section className="relative overflow-hidden rounded-xl border border-[#E6D3A3] bg-white p-5 md:p-6">

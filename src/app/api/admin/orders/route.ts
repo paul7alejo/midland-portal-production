@@ -7,6 +7,7 @@ import {
   updateNeedsFundingReview,
   appendAuditLog,
   getReorderById,
+  createPatientPortalUpdate,
   type ReorderRecord,
   type ReorderStatus,
 } from '@/lib/aws/dynamodb'
@@ -266,7 +267,8 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'Unable to update request status' }, { status: 500 })
   }
 
-  // Queue patient notification for actionable statuses — non-blocking, never fails the request
+  // Queue patient notification for actionable statuses — non-blocking, never fails the request.
+  // This preserves the existing admin Orders UI notificationQueue contract.
   let notificationQueue: {
     ok: boolean
     scheduledFor?: string
@@ -323,8 +325,43 @@ export async function PATCH(request: NextRequest) {
     }
   }
 
+  // Create a calm portal-visible update for patients — non-blocking, never fails the status change.
+  let portalUpdate: {
+    ok: boolean
+    notificationId?: string
+    reason?: string
+    hasNotificationsTableName?: boolean
+    errorName?: string
+  } | undefined
+
+  if (patientMsid) {
+    const updateResult = await createPatientPortalUpdate({
+      patientMsid,
+      requestId:         id,
+      requestReference:  requestReference,
+      status:            status as ReorderStatus,
+      orgId:             ORG_ID,
+    })
+    portalUpdate = updateResult.ok
+      ? { ok: true, notificationId: updateResult.notificationId }
+      : {
+          ok: false,
+          reason: updateResult.reason,
+          hasNotificationsTableName: Boolean(process.env.NOTIFICATIONS_TABLE_NAME),
+          errorName: updateResult.errorName,
+        }
+  } else {
+    portalUpdate = {
+      ok: false,
+      reason: 'patient_context_unavailable',
+      hasNotificationsTableName: Boolean(process.env.NOTIFICATIONS_TABLE_NAME),
+      errorName: 'MissingPatientMsid',
+    }
+  }
+
   return NextResponse.json({
     ok: true,
     ...(notificationQueue !== undefined && { notificationQueue }),
+    ...(portalUpdate !== undefined && { portalUpdate }),
   })
 }

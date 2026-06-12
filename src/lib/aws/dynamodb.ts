@@ -162,6 +162,24 @@ export interface CommsRecord {
   [key: string]: unknown
 }
 
+export type PatientPortalUpdateStatus = ReorderStatus
+
+export interface PatientPortalUpdateRecord {
+  notification_id: string
+  org_id: string
+  patient_msid: string
+  request_id: string
+  request_reference?: string
+  type: 'request_status_update'
+  request_status: PatientPortalUpdateStatus
+  title: string
+  message: string
+  channel: 'portal'
+  delivery_status: 'visible'
+  created_at: string
+  read_at: null
+}
+
 export type ImportedPatientSummary = Pick<
   PatientRecord,
   | 'patient_id'
@@ -1314,6 +1332,131 @@ export async function getReorderById(
   const record = normalizeReorderRecord(res.Item as Record<string, NativeAttributeValue>)
   if (record.org_id !== orgId) return null
   return record
+}
+
+const PATIENT_PORTAL_UPDATE_COPY: Record<ReorderStatus, { title: string; message: string }> = {
+  new: {
+    title: 'Request received',
+    message: 'Your supply request has been received.',
+  },
+  reviewing: {
+    title: 'Request under review',
+    message: 'Midland Sleep staff are reviewing your request.',
+  },
+  approved: {
+    title: 'Request approved',
+    message: 'Your request has been approved. Staff are preparing your supplies.',
+  },
+  sent: {
+    title: 'Supplies on the way',
+    message: 'Your supplies have been dispatched.',
+  },
+  delivered: {
+    title: 'Supply request complete',
+    message: 'Your supply request is complete. You can submit another request when needed.',
+  },
+  needs_followup: {
+    title: 'We will contact you',
+    message: 'Midland Sleep staff will contact you if more information is needed.',
+  },
+  declined: {
+    title: 'Please contact Midland Sleep',
+    message: 'Please contact Midland Sleep about this request.',
+  },
+}
+
+export type PatientPortalUpdateWriteResult =
+  | { ok: true; notificationId: string }
+  | { ok: false; reason: 'notifications_table_unavailable' | 'write_failed'; errorName?: string }
+
+export async function createPatientPortalUpdate(params: {
+  patientMsid: string
+  requestId: string
+  requestReference?: string
+  status: ReorderStatus
+  orgId: string
+}): Promise<PatientPortalUpdateWriteResult> {
+  const tableName = process.env.NOTIFICATIONS_TABLE_NAME
+  if (!tableName) return { ok: false, reason: 'notifications_table_unavailable' }
+
+  const notificationId = randomUUID()
+  const createdAt = new Date().toISOString()
+  const copy = PATIENT_PORTAL_UPDATE_COPY[params.status]
+
+  try {
+    await docClient.send(new PutCommand({
+      TableName: tableName,
+      Item: {
+        notification_id:   notificationId,
+        org_id:            params.orgId,
+        patient_msid:      params.patientMsid,
+        request_id:        params.requestId,
+        request_reference: params.requestReference,
+        type:              'request_status_update',
+        request_status:    params.status,
+        title:             copy.title,
+        message:           copy.message,
+        channel:           'portal',
+        delivery_status:   'visible',
+        created_at:        createdAt,
+        read_at:           null,
+      } satisfies PatientPortalUpdateRecord,
+    }))
+    return { ok: true, notificationId }
+  } catch (err) {
+    return {
+      ok: false,
+      reason: 'write_failed',
+      errorName: err instanceof Error ? err.name : 'UnknownError',
+    }
+  }
+}
+
+export async function listPatientPortalUpdates(params: {
+  patientMsid: string
+  orgId: string
+  limit?: number
+}): Promise<PatientPortalUpdateRecord[]> {
+  const tableName = process.env.NOTIFICATIONS_TABLE_NAME
+  if (!tableName) return []
+  const withPrefix = params.patientMsid.startsWith('MS-') ? params.patientMsid : `MS-${params.patientMsid}`
+  const bareMsid = withPrefix.slice(3)
+
+  const items: PatientPortalUpdateRecord[] = []
+  let ExclusiveStartKey: Record<string, NativeAttributeValue> | undefined
+
+  do {
+    const res = await docClient.send(new ScanCommand({
+      TableName: tableName,
+      FilterExpression:
+        '(patient_msid = :patientMsid OR patient_msid = :withPrefix OR patient_msid = :bareMsid)' +
+        ' AND org_id = :orgId AND channel = :channel' +
+        ' AND delivery_status = :deliveryStatus AND #type = :type',
+      ExpressionAttributeNames: {
+        '#type': 'type',
+      },
+      ExpressionAttributeValues: {
+        ':patientMsid':     params.patientMsid,
+        ':withPrefix':      withPrefix,
+        ':bareMsid':        bareMsid,
+        ':orgId':           params.orgId,
+        ':channel':         'portal',
+        ':deliveryStatus':  'visible',
+        ':type':            'request_status_update',
+      },
+      ProjectionExpression:
+        'notification_id, org_id, patient_msid, request_id, request_reference, #type,' +
+        ' request_status, title, message, channel, delivery_status, created_at, read_at',
+      ExclusiveStartKey,
+    }))
+    for (const item of res.Items ?? []) {
+      items.push(item as PatientPortalUpdateRecord)
+    }
+    ExclusiveStartKey = res.LastEvaluatedKey
+  } while (ExclusiveStartKey)
+
+  items.sort((a, b) => b.created_at.localeCompare(a.created_at))
+  return items.slice(0, params.limit ?? 3)
 }
 
 export async function createCommsRecord(record: CommsRecord): Promise<void> {
