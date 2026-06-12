@@ -27,6 +27,19 @@ const CATALOGUE_COUNTS: Record<string, number> = {
   filter:   SAMPLE_PRODUCTS.filter((p) => p.requestCategoryKey === "filters").length,
 };
 
+// Patient-safe option names and descriptions (no SKU, stock, price, funding, or supplier data)
+const CATEGORY_OPTIONS: Record<string, Array<{ id: string; name: string; description: string }>> = {
+  cushion:  SAMPLE_PRODUCTS.filter((p) => p.requestCategoryKey === "mask_cushion").map((p) => ({ id: p.id, name: p.name, description: p.compatibilityNote })),
+  headgear: SAMPLE_PRODUCTS.filter((p) => p.requestCategoryKey === "headgear").map((p) => ({ id: p.id, name: p.name, description: p.compatibilityNote })),
+  mask_kit: SAMPLE_PRODUCTS.filter((p) => p.requestCategoryKey === "complete_mask_kit").map((p) => ({ id: p.id, name: p.name, description: p.compatibilityNote })),
+  filter:   SAMPLE_PRODUCTS.filter((p) => p.requestCategoryKey === "filters").map((p) => ({ id: p.id, name: p.name, description: p.compatibilityNote })),
+};
+
+function getOptionLabel(category: string, optionId: string): string {
+  if (optionId === "staff_confirm") return "Not sure — staff will confirm";
+  return CATEGORY_OPTIONS[category]?.find((o) => o.id === optionId)?.name ?? optionId;
+}
+
 const ITEM_LABELS: Record<string, string> = {
   cushion: "Mask cushion",
   headgear: "Headgear",
@@ -257,6 +270,182 @@ function DeliveryAddressFields({
   );
 }
 
+// ─── Option drawer ────────────────────────────────────────────────────────────
+
+interface OptionDrawerProps {
+  category: string;
+  isSelected: boolean;
+  currentOption: string | null;
+  maskName: string | null;
+  onConfirm: (optionId: string) => void;
+  onRemove: () => void;
+  onClose: () => void;
+}
+
+function OptionDrawer({
+  category,
+  isSelected,
+  currentOption,
+  maskName,
+  onConfirm,
+  onRemove,
+  onClose,
+}: OptionDrawerProps) {
+  const [picked, setPicked] = useState<string | null>(currentOption);
+  const options = CATEGORY_OPTIONS[category] ?? [];
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${ITEM_LABELS[category]} supply options`}
+    >
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} aria-hidden="true" />
+      <div className="relative z-10 w-full max-w-lg rounded-2xl bg-white shadow-2xl overflow-hidden">
+
+        {/* Header */}
+        <div className="flex items-start justify-between gap-4 px-6 pt-6 pb-4 border-b border-sand">
+          <div>
+            <p className="font-mono text-sm uppercase tracking-wide text-deep-teal mb-1">
+              Supply option
+            </p>
+            <h2 className="font-display text-2xl font-semibold text-navy leading-snug">
+              {ITEM_LABELS[category]}
+            </h2>
+            <p className="mt-1 text-base leading-6 text-charcoal/75">
+              {ITEM_DESCRIPTIONS[category]}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="shrink-0 rounded-full p-2 text-charcoal/50 hover:bg-sand-pale hover:text-charcoal transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center text-lg"
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Options list */}
+        <div className="px-6 py-5 space-y-3 max-h-[55vh] overflow-y-auto">
+          <p className="text-sm font-medium text-charcoal/55 uppercase tracking-wide">
+            Related options — staff will confirm suitability
+          </p>
+
+          {options.map((opt, idx) => {
+            const isRecommended = idx === 0 && maskName !== null;
+            const isPicked = picked === opt.id;
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setPicked(opt.id)}
+                aria-pressed={isPicked}
+                className={cn(
+                  "w-full text-left rounded-xl border p-4 transition-colors",
+                  isPicked
+                    ? "border-deep-teal bg-seafoam-pale/50"
+                    : "border-sand bg-white hover:border-deep-teal/40 hover:bg-sand-pale/30"
+                )}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-lg font-semibold text-charcoal leading-snug">{opt.name}</p>
+                    <p className="mt-1 text-sm leading-5 text-charcoal/65">{opt.description}</p>
+                    <span className={cn(
+                      "mt-2 inline-flex rounded-full px-3 py-0.5 text-sm font-medium",
+                      isRecommended
+                        ? "bg-seafoam-pale text-deep-teal"
+                        : "border border-sand bg-white text-charcoal/60"
+                    )}>
+                      {isRecommended ? "Recommended for your current equipment" : "Related supply option"}
+                    </span>
+                  </div>
+                  <span className={cn(
+                    "shrink-0 h-5 w-5 rounded-full border-2 mt-1 flex items-center justify-center",
+                    isPicked ? "border-deep-teal bg-deep-teal" : "border-sand"
+                  )}>
+                    {isPicked && <span className="text-white text-[10px] leading-none font-bold">✓</span>}
+                  </span>
+                </div>
+              </button>
+            );
+          })}
+
+          {/* Not sure option */}
+          <button
+            type="button"
+            onClick={() => setPicked("staff_confirm")}
+            aria-pressed={picked === "staff_confirm"}
+            className={cn(
+              "w-full text-left rounded-xl border p-4 transition-colors",
+              picked === "staff_confirm"
+                ? "border-deep-teal bg-seafoam-pale/50"
+                : "border-sand bg-white hover:border-deep-teal/40 hover:bg-sand-pale/30"
+            )}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1 min-w-0">
+                <p className="text-lg font-semibold text-charcoal leading-snug">
+                  Not sure — let staff choose
+                </p>
+                <p className="mt-1 text-sm leading-5 text-charcoal/65">
+                  Staff will select the most suitable option for your equipment and therapy needs.
+                </p>
+              </div>
+              <span className={cn(
+                "shrink-0 h-5 w-5 rounded-full border-2 mt-1 flex items-center justify-center",
+                picked === "staff_confirm" ? "border-deep-teal bg-deep-teal" : "border-sand"
+              )}>
+                {picked === "staff_confirm" && <span className="text-white text-[10px] leading-none font-bold">✓</span>}
+              </span>
+            </div>
+          </button>
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-sand bg-sand-pale/30 space-y-3">
+          <p className="text-sm leading-5 text-charcoal/55">
+            Staff will check eligibility, compatibility, and availability before confirming supplies.
+            This is a request for review, not a confirmed order.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => { if (picked) onConfirm(picked); }}
+              disabled={!picked}
+              className="bg-[#0B5C6C] text-white px-6 py-3 rounded-lg text-base font-medium min-h-[48px]
+                         hover:bg-[#0B5C6C]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Confirm selection
+            </button>
+            {isSelected && (
+              <button
+                type="button"
+                onClick={onRemove}
+                className="px-6 py-3 rounded-lg text-base font-medium min-h-[48px] border border-red-200 text-red-700 bg-white hover:bg-red-50 transition-colors"
+              >
+                Remove item
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-6 py-3 rounded-lg text-base font-medium min-h-[48px] border border-sand bg-white text-charcoal hover:border-deep-teal/40 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
 export default function ReorderPage() {
   const { patient } = useAuth();
   const { entitlement, loading } = usePatientData();
@@ -281,7 +470,31 @@ export default function ReorderPage() {
   const [supportDescription, setSupportDescription] = useState("");
   const [supportReason, setSupportReason] = useState("");
   const [supportContactPreference, setSupportContactPreference] = useState("either");
+  const [drawerCategory, setDrawerCategory] = useState<string | null>(null);
+  const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
   const addressStorageKey = getDeliveryAddressStorageKey(patient?.userId);
+
+  const handleDrawerConfirm = (optionId: string) => {
+    if (drawerCategory) {
+      setSelectedItems((prev) =>
+        prev.includes(drawerCategory) ? prev : [...prev, drawerCategory]
+      );
+      setSelectedOptions((prev) => ({ ...prev, [drawerCategory]: optionId }));
+    }
+    setDrawerCategory(null);
+  };
+
+  const handleDrawerRemove = () => {
+    if (drawerCategory) {
+      setSelectedItems((prev) => prev.filter((i) => i !== drawerCategory));
+      setSelectedOptions((prev) => {
+        const next = { ...prev };
+        delete next[drawerCategory];
+        return next;
+      });
+    }
+    setDrawerCategory(null);
+  };
 
   useEffect(() => {
     if (!patient?.userId) return;
@@ -356,14 +569,6 @@ export default function ReorderPage() {
     !isRequestBlocking &&
     selectedItems.length > 0 &&
     hasCompleteDeliveryAddress(activeDeliveryAddress);
-
-  const toggleItem = (itemType: string) => {
-    setSelectedItems((prev) =>
-      prev.includes(itemType)
-        ? prev.filter((i) => i !== itemType)
-        : [...prev, itemType]
-    );
-  };
 
   const updateOverrideAddress = (
     field: keyof DeliveryAddress,
@@ -528,6 +733,11 @@ export default function ReorderPage() {
                   {selectedItems.map((itemType) => (
                     <li key={itemType} className="text-lg leading-7 text-charcoal/85">
                       {ITEM_LABELS[itemType]}
+                      {selectedOptions[itemType] && (
+                        <span className="text-base text-charcoal/60">
+                          {" "}— {getOptionLabel(itemType, selectedOptions[itemType])}
+                        </span>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -548,6 +758,7 @@ export default function ReorderPage() {
             onClick={() => {
               setIsSubmitted(false);
               setSelectedItems([]);
+              setSelectedOptions({});
               setSaveAsDefault(false);
               setConfirmationId(null);
               setSubmitError(null);
@@ -817,7 +1028,7 @@ export default function ReorderPage() {
                   <button
                     key={item.item_type}
                     aria-pressed={isSelected}
-                    onClick={() => toggleItem(item.item_type)}
+                    onClick={() => setDrawerCategory(item.item_type)}
                     className={cn(
                       "border rounded-2xl p-5 text-left transition-colors min-h-[190px] focus:outline-none focus:ring-2 focus:ring-deep-teal",
                       isSelected
@@ -861,6 +1072,16 @@ export default function ReorderPage() {
                         Replacement item
                       </span>
                     </div>
+                    {isSelected && selectedOptions[item.item_type] && (
+                      <p className="mt-3 text-sm font-medium text-deep-teal">
+                        {getOptionLabel(item.item_type, selectedOptions[item.item_type])}
+                      </p>
+                    )}
+                    {!isSelected && (
+                      <p className="mt-3 text-sm text-charcoal/50">
+                        Tap to choose a specific option
+                      </p>
+                    )}
                   </button>
                 );
               })}
@@ -869,9 +1090,23 @@ export default function ReorderPage() {
               <div className="mt-5 space-y-3">
                 <div className="rounded-xl border border-deep-teal/15 bg-deep-teal/5 p-4">
                   <p className="text-base font-semibold text-charcoal">Selected for staff review</p>
-                  <p className="mt-1 text-base leading-6 text-charcoal/75">
-                    {selectedItems.map((itemType) => ITEM_LABELS[itemType]).join(", ")}
-                  </p>
+                  <ul className="mt-2 space-y-2">
+                    {selectedItems.map((itemType) => (
+                      <li key={itemType} className="flex flex-wrap items-baseline gap-x-1.5 text-base leading-6">
+                        <span className="font-medium text-charcoal">{ITEM_LABELS[itemType]}</span>
+                        {selectedOptions[itemType] && (
+                          <span className="text-charcoal/60">— {getOptionLabel(itemType, selectedOptions[itemType])}</span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setDrawerCategory(itemType)}
+                          className="text-sm text-deep-teal hover:underline"
+                        >
+                          Change
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
                 <div className="rounded-xl border border-sand bg-sand-pale/40 p-4">
                   <p className="mb-2 font-mono text-sm uppercase tracking-wide text-charcoal/70">Staff review</p>
@@ -1040,8 +1275,13 @@ export default function ReorderPage() {
                 {selectedItems.length > 0 ? (
                   <ul className="space-y-2">
                     {selectedItems.map((itemType) => (
-                      <li key={itemType} className="text-lg leading-7 text-charcoal font-medium">
-                        {ITEM_LABELS[itemType]}
+                      <li key={itemType}>
+                        <p className="text-lg leading-7 text-charcoal font-medium">{ITEM_LABELS[itemType]}</p>
+                        {selectedOptions[itemType] && (
+                          <p className="text-sm text-charcoal/60 leading-5">
+                            {getOptionLabel(itemType, selectedOptions[itemType])}
+                          </p>
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -1097,6 +1337,18 @@ export default function ReorderPage() {
             </div>
           </section>
         </div>
+      )}
+      {drawerCategory !== null && (
+        <OptionDrawer
+          key={drawerCategory}
+          category={drawerCategory}
+          isSelected={selectedItems.includes(drawerCategory)}
+          currentOption={selectedOptions[drawerCategory] ?? null}
+          maskName={mask ? `${mask.brand} ${mask.name}` : null}
+          onConfirm={handleDrawerConfirm}
+          onRemove={handleDrawerRemove}
+          onClose={() => setDrawerCategory(null)}
+        />
       )}
     </>
   );
