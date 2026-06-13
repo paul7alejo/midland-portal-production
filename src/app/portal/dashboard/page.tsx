@@ -30,15 +30,6 @@ interface CurrentReorderRequest {
   itemDescription?: string;
 }
 
-interface PatientPortalUpdate {
-  notification_id: string;
-  request_reference?: string;
-  request_status: ReorderStatus;
-  title: string;
-  message: string;
-  created_at: string;
-}
-
 type StepState = "completed" | "active" | "future";
 type StatusStep = { label: string; state: StepState };
 type StatusTone = "neutral" | "green" | "teal" | "rose" | "amber";
@@ -278,24 +269,11 @@ function isCompletedRequestStatus(status: string | null | undefined): boolean {
   return status === "delivered" || status === "complete" || status === "completed";
 }
 
-function formatUpdateDateTime(iso: string): string {
-  const date = new Date(iso);
-  if (isNaN(date.getTime())) return iso;
-  return date.toLocaleString("en-NZ", {
-    day: "numeric",
-    month: "short",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
 export default function DashboardPage() {
   const { patient } = useAuth();
   const [currentRequest, setCurrentRequest] =
     useState<CurrentReorderRequest | null>(null);
   const [requestLoading, setRequestLoading] = useState(false);
-  const [portalUpdates, setPortalUpdates] = useState<PatientPortalUpdate[]>([]);
-  const [updatesLoading, setUpdatesLoading] = useState(false);
 
   useEffect(() => {
     if (!patient?.userId) return;
@@ -325,39 +303,6 @@ export default function DashboardPage() {
     }
 
     void loadCurrentRequest();
-    return () => {
-      cancelled = true;
-    };
-  }, [patient?.userId]);
-
-  useEffect(() => {
-    if (!patient?.userId) return;
-    let cancelled = false;
-
-    async function loadPortalUpdates() {
-      setUpdatesLoading(true);
-      try {
-        configureCognito();
-        const token = await getIdToken();
-        if (!token) throw new Error("Session expired. Please log in again.");
-
-        const res = await fetch("/api/patient/data", {
-          headers: { "Authorization": `Bearer ${token}` },
-        });
-        const data = await res.json().catch(() => ({})) as {
-          updates?: PatientPortalUpdate[];
-        };
-        if (!cancelled && res.ok) {
-          setPortalUpdates(Array.isArray(data.updates) ? data.updates.slice(0, 3) : []);
-        }
-      } catch {
-        if (!cancelled) setPortalUpdates([]);
-      } finally {
-        if (!cancelled) setUpdatesLoading(false);
-      }
-    }
-
-    void loadPortalUpdates();
     return () => {
       cancelled = true;
     };
@@ -441,30 +386,6 @@ export default function DashboardPage() {
           <p className="font-mono text-xl font-semibold leading-7 text-cream">Midland Sleep ID: {msid}</p>
         </div>
       </div>
-
-      {portalUpdates.length > 0 && (
-        <section className="mb-5 rounded-xl border border-[#74C0A2]/35 bg-[#EFF5F4] p-5 shadow-sm md:p-6">
-          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-            <div className="min-w-0">
-              <p className="mb-1 font-mono text-xs uppercase tracking-[0.16em] text-[#0B5C6C]/70">
-                Update on your supply request
-              </p>
-              <h2 className="font-display text-[24px] font-semibold leading-tight text-[#0B2A3C] md:text-[28px]">
-                {portalUpdates[0].title}
-              </h2>
-              <p className="mt-2 text-lg leading-7 text-charcoal/75">
-                {portalUpdates[0].message}
-              </p>
-            </div>
-            <Link
-              href="#portal-updates"
-              className="inline-flex min-h-[48px] items-center justify-center rounded-lg border border-[#0B5C6C]/25 bg-white px-5 py-3 text-base font-semibold text-[#0B5C6C] transition-colors hover:bg-white/80"
-            >
-              View updates
-            </Link>
-          </div>
-        </section>
-      )}
 
       {/* Supply request status */}
       {isCompletedRequest && currentRequest ? (
@@ -847,44 +768,6 @@ export default function DashboardPage() {
               </div>
             </section>
           )}
-
-          <section id="portal-updates" className="scroll-mt-6 rounded-xl border border-[#E6D3A3] bg-white p-5 md:p-6">
-            <div className="border-b border-[#E6D3A3] pb-3">
-              <h2 className="font-display text-[28px] font-semibold leading-snug text-[#0B2A3C]">Updates</h2>
-            </div>
-            {updatesLoading ? (
-              <p className="mt-5 text-base leading-7 text-charcoal/75">
-                Checking for request updates...
-              </p>
-            ) : portalUpdates.length > 0 ? (
-              <div className="mt-5 space-y-4">
-                {portalUpdates.map((update) => (
-                  <article key={update.notification_id} className="rounded-lg border border-sand bg-[#F5F3EE] p-4">
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <h3 className="text-lg font-semibold leading-7 text-[#0B2A3C]">
-                        {update.title}
-                      </h3>
-                      <time className="text-sm leading-6 text-charcoal/55" dateTime={update.created_at}>
-                        {formatUpdateDateTime(update.created_at)}
-                      </time>
-                    </div>
-                    <p className="mt-1 text-base leading-6 text-charcoal/75">
-                      {update.message}
-                    </p>
-                    {update.request_reference && (
-                      <p className="mt-3 font-mono text-xs uppercase tracking-wide text-charcoal/55">
-                        Request {update.request_reference}
-                      </p>
-                    )}
-                  </article>
-                ))}
-              </div>
-            ) : (
-              <p className="mt-5 text-base leading-7 text-charcoal/75">
-                No updates yet. Request updates will appear here after staff review.
-              </p>
-            )}
-          </section>
 
           {/* CARD 3 — NEED HELP */}
           <section className="relative overflow-hidden rounded-xl border border-[#E6D3A3] bg-white p-5 md:p-6">

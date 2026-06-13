@@ -177,7 +177,7 @@ export interface PatientPortalUpdateRecord {
   channel: 'portal'
   delivery_status: 'visible'
   created_at: string
-  read_at: null
+  read_at: string | null
 }
 
 export type ImportedPatientSummary = Pick<
@@ -1456,7 +1456,53 @@ export async function listPatientPortalUpdates(params: {
   } while (ExclusiveStartKey)
 
   items.sort((a, b) => b.created_at.localeCompare(a.created_at))
-  return items.slice(0, params.limit ?? 3)
+  return typeof params.limit === 'number' ? items.slice(0, params.limit) : items
+}
+
+export async function markPatientPortalUpdateRead(params: {
+  notificationId: string
+  patientMsid: string
+  orgId: string
+}): Promise<PatientPortalUpdateRecord | null> {
+  const tableName = process.env.NOTIFICATIONS_TABLE_NAME
+  if (!tableName) return null
+
+  const withPrefix = params.patientMsid.startsWith('MS-') ? params.patientMsid : `MS-${params.patientMsid}`
+  const bareMsid = withPrefix.slice(3)
+  const readAt = new Date().toISOString()
+
+  try {
+    const res = await docClient.send(new UpdateCommand({
+      TableName: tableName,
+      Key: { notification_id: params.notificationId },
+      UpdateExpression: 'SET read_at = :readAt',
+      ConditionExpression:
+        'attribute_exists(notification_id)' +
+        ' AND org_id = :orgId' +
+        ' AND (patient_msid = :patientMsid OR patient_msid = :withPrefix OR patient_msid = :bareMsid)' +
+        ' AND channel = :channel AND delivery_status = :deliveryStatus AND #type = :type',
+      ExpressionAttributeNames: {
+        '#type': 'type',
+      },
+      ExpressionAttributeValues: {
+        ':readAt':         readAt,
+        ':patientMsid':    params.patientMsid,
+        ':withPrefix':     withPrefix,
+        ':bareMsid':       bareMsid,
+        ':orgId':          params.orgId,
+        ':channel':        'portal',
+        ':deliveryStatus': 'visible',
+        ':type':           'request_status_update',
+      },
+      ReturnValues: 'ALL_NEW',
+    }))
+    return (res.Attributes as PatientPortalUpdateRecord | undefined) ?? null
+  } catch (err) {
+    if (err instanceof Error && err.name === 'ConditionalCheckFailedException') {
+      return null
+    }
+    throw err
+  }
 }
 
 export async function createCommsRecord(record: CommsRecord): Promise<void> {
