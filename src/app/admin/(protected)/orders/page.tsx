@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef, type MouseEvent, type PointerEvent } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { PatientDrawer } from "@/components/admin/PatientDrawer";
 import { cn } from "@/lib/utils";
 
@@ -1781,10 +1781,7 @@ export default function AdminOrdersPage() {
   const [notifStates,         setNotifStates]         = useState<Map<string, OrderNotifState | null>>(new Map());
   const [notifQueuedFilter,   setNotifQueuedFilter]   = useState(false);
   const [kpiActiveFilter,     setKpiActiveFilter]     = useState<KpiActiveFilter | null>(null);
-  const [chartDateFilter,     setChartDateFilter]     = useState<Date | null>(null);
-  const [hoveredChartIndex,   setHoveredChartIndex]   = useState<number | null>(null);
-  const [chartTooltipPos,     setChartTooltipPos]     = useState<{ x: number; y: number } | null>(null);
-  const chartSvgRef = useRef<SVGSVGElement | null>(null);
+  const [mainTab,             setMainTab]             = useState<"overview" | "requests">("overview");
   const [testForm,            setTestForm]            = useState<TestRequestForm>({
     msid: "MS-900005",
     patient: "Demo Patient",
@@ -1992,7 +1989,6 @@ const reviewOrder = useMemo(
     setCustomDateTo("");
     setSortOpt(null);
     setKpiActiveFilter(null);
-    setChartDateFilter(null);
     setNotifQueuedFilter(false);
   }
 
@@ -2000,7 +1996,6 @@ const reviewOrder = useMemo(
     setStatusTab(tab);
     setStatusFilters(new Set());
     setKpiActiveFilter(null);
-    setChartDateFilter(null);
   }
 
   function handleKpiCardClick(filter: KpiActiveFilter) {
@@ -2010,21 +2005,6 @@ const reviewOrder = useMemo(
       setKpiActiveFilter(filter);
       setStatusTab("all");
       setStatusFilters(new Set());
-      setChartDateFilter(null);
-    }
-  }
-
-  function handleChartBarClick(date: Date) {
-    const alreadySelected =
-      chartDateFilter !== null &&
-      chartDateFilter.getFullYear() === date.getFullYear() &&
-      chartDateFilter.getMonth() === date.getMonth() &&
-      chartDateFilter.getDate() === date.getDate();
-    if (alreadySelected) {
-      setChartDateFilter(null);
-    } else {
-      setChartDateFilter(new Date(date));
-      setKpiActiveFilter(null);
     }
   }
 
@@ -2059,17 +2039,6 @@ const reviewOrder = useMemo(
       result = result.filter((o) => statusFilters.has(o.status));
     }
 
-    // Chart date filter narrows further (applied on top of any above)
-    if (chartDateFilter) {
-      result = result.filter((o) => {
-        const od = parseToDate(o.date);
-        return od !== null &&
-          od.getFullYear() === chartDateFilter.getFullYear() &&
-          od.getMonth() === chartDateFilter.getMonth() &&
-          od.getDate() === chartDateFilter.getDate();
-      });
-    }
-
     if (typeFilters.size > 0) {
       result = result.filter((o) => typeFilters.has(o.type));
     }
@@ -2097,14 +2066,9 @@ const reviewOrder = useMemo(
     return result;
   }
 
-  const filteredChartOrders = useMemo(
-    () => applyOperationalFilters(orders.filter((o) => !isAdminRow(o))),
-    [orders, statusTab, statusFilters, typeFilters, dateRange, customDateFrom, customDateTo, kpiActiveFilter, chartDateFilter]
-  );
-
   const visibleOrders = useMemo(() => {
-    // KPI/chart filters are based on real-data counts, so their table scope must match.
-    const forceRealRows = Boolean(kpiActiveFilter || chartDateFilter);
+    // KPI filter is based on real-data counts, so its table scope must match real rows only.
+    const forceRealRows = Boolean(kpiActiveFilter);
     let result = applyOperationalFilters(
       orders.filter((o) => forceRealRows ? !isAdminRow(o) : showAdminRows || !isAdminRow(o))
     );
@@ -2132,86 +2096,9 @@ const reviewOrder = useMemo(
     }
 
     return result;
-  }, [orders, statusTab, statusFilters, typeFilters, dateRange, customDateFrom, customDateTo, sortOpt, showAdminRows, kpiActiveFilter, chartDateFilter, notifQueuedFilter, notifStates]);
+  }, [orders, statusTab, statusFilters, typeFilters, dateRange, customDateFrom, customDateTo, sortOpt, showAdminRows, kpiActiveFilter, notifQueuedFilter, notifStates]);
 
-  const chartWindow = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const weekAgo = new Date(today); weekAgo.setDate(weekAgo.getDate() - 7);
-    const monthAgo = new Date(today); monthAgo.setMonth(monthAgo.getMonth() - 1);
-    const monthAgoEnd = new Date(weekAgo); monthAgoEnd.setDate(monthAgoEnd.getDate() - 1);
-    const defaultStart = new Date(today); defaultStart.setDate(defaultStart.getDate() - 29);
-    const datedRows = filteredChartOrders
-      .map((o) => parseToDate(o.date))
-      .filter((d): d is Date => d !== null)
-      .sort((a, b) => a.getTime() - b.getTime());
-    const firstRowDate = datedRows[0] ?? null;
-    const lastRowDate = datedRows[datedRows.length - 1] ?? null;
-
-    if (chartDateFilter) {
-      const selected = new Date(chartDateFilter);
-      selected.setHours(0, 0, 0, 0);
-      return { start: selected, end: selected, label: formatChartDate(selected) };
-    }
-
-    if (dateRange === "week") {
-      return { start: weekAgo, end: today, label: `${formatChartDate(weekAgo, false)} - ${formatChartDate(today)}` };
-    }
-
-    if (dateRange === "month") {
-      return { start: monthAgo, end: monthAgoEnd, label: `${formatChartDate(monthAgo, false)} - ${formatChartDate(monthAgoEnd)}` };
-    }
-
-    if (dateRange === "older") {
-      const fallbackStart = new Date(monthAgoEnd);
-      fallbackStart.setDate(fallbackStart.getDate() - 29);
-      const start = firstRowDate ?? fallbackStart;
-      return { start, end: monthAgoEnd, label: `${formatChartDate(start, false)} - ${formatChartDate(monthAgoEnd)}` };
-    }
-
-    if (dateRange === "custom") {
-      const from = parseInputDate(customDateFrom);
-      const to = parseInputDate(customDateTo);
-      const start = from ?? firstRowDate ?? defaultStart;
-      const end = to ?? lastRowDate ?? today;
-      let label = "Custom range";
-      if (from && to) label = `${formatChartDate(from, false)} - ${formatChartDate(to)}`;
-      else if (from) label = `From ${formatChartDate(from)}`;
-      else if (to) label = `Until ${formatChartDate(to)}`;
-      return { start, end, label };
-    }
-
-    return { start: defaultStart, end: today, label: `${formatChartDate(defaultStart, false)} - ${formatChartDate(today)}` };
-  }, [filteredChartOrders, dateRange, customDateFrom, customDateTo, chartDateFilter]);
-
-  const chartData = useMemo(() => {
-    if (chartWindow.start > chartWindow.end) return [];
-    const dayMs = 24 * 60 * 60 * 1000;
-    const dayCount = Math.floor((chartWindow.end.getTime() - chartWindow.start.getTime()) / dayMs) + 1;
-    return Array.from({ length: dayCount }, (_, i) => {
-      const d = new Date(chartWindow.start);
-      d.setDate(d.getDate() + i);
-      const count = filteredChartOrders.filter((o) => {
-        const od = parseToDate(o.date);
-        return od !== null &&
-          od.getFullYear() === d.getFullYear() &&
-          od.getMonth() === d.getMonth() &&
-          od.getDate() === d.getDate();
-      }).length;
-      return { date: d, count };
-    });
-  }, [filteredChartOrders, chartWindow]);
-
-  const chartHasOperationalFilters = Boolean(
-    kpiActiveFilter ||
-    chartDateFilter ||
-    dateRange ||
-    statusTab !== "all" ||
-    statusFilters.size > 0 ||
-    typeFilters.size > 0
-  );
-
-  const activeFilterCount = statusFilters.size + typeFilters.size + (dateRange ? 1 : 0) + (sortOpt ? 1 : 0) + (kpiActiveFilter ? 1 : 0) + (chartDateFilter ? 1 : 0) + (notifQueuedFilter ? 1 : 0);
+  const activeFilterCount = statusFilters.size + typeFilters.size + (dateRange ? 1 : 0) + (sortOpt ? 1 : 0) + (kpiActiveFilter ? 1 : 0) + (notifQueuedFilter ? 1 : 0);
 
   const kpiChipLabel: Record<KpiActiveFilter, string> = {
     requestsThisMonth:  "This month",
@@ -2240,11 +2127,6 @@ const reviewOrder = useMemo(
   const filterChips: { key: string; label: string; onRemove: () => void }[] = [
     ...(notifQueuedFilter ? [{ key: "notifQueued", label: "Communication queued", onRemove: () => setNotifQueuedFilter(false) }] : []),
     ...(kpiActiveFilter ? [{ key: "kpi", label: kpiChipLabel[kpiActiveFilter], onRemove: () => setKpiActiveFilter(null) }] : []),
-    ...(chartDateFilter ? [{
-      key: "chartDate",
-      label: `Date: ${chartDateFilter.getDate()} ${MONTH_SHORT[chartDateFilter.getMonth()]} ${chartDateFilter.getFullYear()}`,
-      onRemove: () => setChartDateFilter(null),
-    }] : []),
     ...[...statusFilters].map((s) => ({
       key: `s-${s}`,
       label: s,
@@ -2454,7 +2336,16 @@ const reviewOrder = useMemo(
     }));
   }
 
-  const isFiltered = activeFilterCount > 0 || !!kpiActiveFilter || !!chartDateFilter;
+  const isFiltered = activeFilterCount > 0 || !!kpiActiveFilter;
+
+  const attentionOrders = useMemo(() => {
+    const real = orders.filter((o) => !isAdminRow(o));
+    const urgent = real.filter((o) => o.status === "New" || o.status === "Needs Follow-Up" || o.status === "Reviewing");
+    return urgent
+      .slice()
+      .sort((a, b) => parseDateForSort(b.date) - parseDateForSort(a.date))
+      .slice(0, 5);
+  }, [orders]);
 
   return (
     <div className="space-y-6">
@@ -2541,215 +2432,97 @@ const reviewOrder = useMemo(
         })}
       </div>
 
-      {/* Request trend chart */}
-      {(() => {
-        const maxCount = Math.max(...chartData.map((d) => d.count), 0);
-        const totalIn30 = chartData.reduce((s, d) => s + d.count, 0);
-        // SVG geometry constants
-        const W = 600, H = 110, PL = 4, PR = 4, PT = 10, PB = 24;
-        const cW = W - PL - PR;
-        const cH = H - PT - PB;
-        const baseY = PT + cH;
-        const xDenom = Math.max(chartData.length - 1, 1);
-        const pts = chartData.map((d, i) => ({
-          x: PL + (i / xDenom) * cW,
-          y: maxCount > 0 ? PT + (1 - d.count / maxCount) * cH : baseY,
-          count: d.count,
-          date: d.date,
-          index: i,
-        }));
-        // Catmull-Rom → cubic Bezier: smooth curve through real data points only
-        const np = pts.length;
-        function gp(i: number) { return i < 0 ? pts[0]! : i >= np ? pts[np - 1]! : pts[i]!; }
-        const curve = np < 2 ? "" : Array.from({ length: np - 1 }, (_, i) => {
-          const p0 = gp(i - 1), p1 = gp(i), p2 = gp(i + 1), p3 = gp(i + 2);
-          const cp1x = p1.x + (p2.x - p0.x) / 6, cp1y = p1.y + (p2.y - p0.y) / 6;
-          const cp2x = p2.x - (p3.x - p1.x) / 6, cp2y = p2.y - (p3.y - p1.y) / 6;
-          return `C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
-        }).join(" ");
-        const linePath = np > 0 ? `M ${pts[0]!.x.toFixed(1)} ${pts[0]!.y.toFixed(1)} ${curve}` : "";
-        const areaPath = np > 0
-          ? `M ${pts[0]!.x.toFixed(1)} ${baseY.toFixed(1)} L ${pts[0]!.x.toFixed(1)} ${pts[0]!.y.toFixed(1)} ${curve} L ${pts[np - 1]!.x.toFixed(1)} ${baseY.toFixed(1)} Z`
-          : "";
-        const hPt = hoveredChartIndex !== null ? (pts[hoveredChartIndex] ?? null) : null;
-        const hDay = hoveredChartIndex !== null ? (chartData[hoveredChartIndex] ?? null) : null;
-        const labelIndexes = new Set(
-          np > 0
-            ? [0, Math.floor((np - 1) / 4), Math.floor((np - 1) / 2), Math.floor(((np - 1) * 3) / 4), np - 1]
-            : []
-        );
-        function selectNearestChartPoint(e: PointerEvent<SVGSVGElement> | MouseEvent<SVGSVGElement>) {
-          const svg = chartSvgRef.current ?? e.currentTarget;
-          const ctm = svg.getScreenCTM();
-          const tooltipContainer = svg.parentElement;
-          if (pts.length === 0 || ctm === null || tooltipContainer === null) return null;
+      {/* Overview / Requests tab switcher */}
+      <div className="border-b border-gray-200">
+        <div className="flex gap-0">
+          {(["overview", "requests"] as const).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setMainTab(tab)}
+              className={cn(
+                "px-5 py-3 text-sm font-semibold -mb-px border-b-2 transition-colors whitespace-nowrap",
+                mainTab === tab
+                  ? "border-[#0B5C6C] text-[#0B5C6C]"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              )}
+            >
+              {tab === "overview" ? "Overview" : `Requests (${kpiCounts.all})`}
+            </button>
+          ))}
+        </div>
+      </div>
 
-          const cursorPoint = svg.createSVGPoint();
-          cursorPoint.x = e.clientX;
-          cursorPoint.y = e.clientY;
-          const svgPoint = cursorPoint.matrixTransform(ctm.inverse());
-          const nearest = pts.reduce(
-            (best, p) => Math.abs(p.x - svgPoint.x) < Math.abs(best.x - svgPoint.x) ? p : best,
-            pts[0]!
-          );
+      {/* Overview tab */}
+      {mainTab === "overview" && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            {([
+              { label: "Needs staff review",    count: kpiCounts["New"],                 dot: "bg-amber-400",   countCls: kpiCounts["New"] > 0 ? "text-amber-700" : "text-gray-900",     sub: "Status: New" },
+              { label: "Needs follow-up",        count: kpiCounts["Needs Follow-Up"],     dot: "bg-orange-400",  countCls: kpiCounts["Needs Follow-Up"] > 0 ? "text-orange-700" : "text-gray-900", sub: "Awaiting staff action" },
+              { label: "Funding check required", count: kpiCounts["Needs Funding Review"], dot: "bg-amber-400",  countCls: kpiCounts["Needs Funding Review"] > 0 ? "text-amber-700" : "text-gray-900", sub: "Flagged for review" },
+              {
+                label: "Communication queued",
+                count: orders.filter((o) => !isAdminRow(o) && notifStates.get(o.id)?.ok === true).length,
+                dot: "bg-[#74C0A2]",
+                countCls: "text-[#0B5C6C]",
+                sub: "Patient message pending",
+              },
+              { label: "Sent / on the way",      count: kpiCounts["Sent"],               dot: "bg-purple-400",  countCls: "text-purple-700", sub: null },
+              { label: "Delivered",              count: kpiCounts["Delivered"],           dot: "bg-emerald-500", countCls: "text-emerald-700", sub: null },
+            ] as const).map(({ label, count, dot, countCls, sub }) => (
+              <div key={label} className="bg-white rounded-xl border border-gray-200 px-5 py-4 shadow-sm">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide flex items-center gap-1.5">
+                  <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", dot)} />
+                  {label}
+                </p>
+                <p className={cn("text-3xl font-bold mt-1.5", countCls)}>{count}</p>
+                {sub && <p className="text-[10px] text-gray-400 mt-1">{sub}</p>}
+              </div>
+            ))}
+          </div>
 
-          const selectedPoint = svg.createSVGPoint();
-          selectedPoint.x = nearest.x;
-          selectedPoint.y = nearest.y;
-          const screenPoint = selectedPoint.matrixTransform(ctm);
-          const containerRect = tooltipContainer.getBoundingClientRect();
-
-          setHoveredChartIndex(nearest.index);
-          setChartTooltipPos({
-            x: screenPoint.x - containerRect.left,
-            y: screenPoint.y - containerRect.top,
-          });
-          return nearest;
-        }
-        return (
-          <div className="bg-white border border-gray-200 rounded-xl px-5 pt-4 pb-3 shadow-sm">
-            <div className="flex items-start justify-between gap-3 mb-4">
+          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+            <div className="border-b border-gray-200 px-5 py-4 flex items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-semibold text-gray-700">
-                  {chartHasOperationalFilters ? "Filtered request activity" : "Requests — last 30 days"}
-                </p>
-                <p className="text-xs text-gray-400 mt-0.5 tabular-nums">
-                  {chartWindow.label} · {totalIn30} total · peak {maxCount} in a day
-                </p>
+                <h2 className="text-base font-semibold text-gray-800">Needs attention</h2>
+                <p className="text-xs text-gray-400 mt-0.5">New, reviewing, and follow-up — real orders only</p>
               </div>
-              <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
-                <span
-                  className="inline-block rounded-full"
-                  style={{ width: 20, height: 2.5, background: "#0B5C6C" }}
-                />
-                <span className="text-xs text-gray-500">Requests</span>
-              </div>
+              <button
+                type="button"
+                onClick={() => setMainTab("requests")}
+                className="text-sm font-medium text-[#0B5C6C] hover:underline whitespace-nowrap shrink-0"
+              >
+                View all in Requests →
+              </button>
             </div>
-            {totalIn30 === 0 ? (
-              <div className="flex items-center justify-center h-20 text-sm text-gray-400">
-                No request activity for this chart range.
-              </div>
+            {attentionOrders.length === 0 ? (
+              <p className="px-5 py-6 text-sm text-gray-400">No requests currently need attention.</p>
             ) : (
-              <>
-                <div className="relative">
-                  <svg
-                    ref={chartSvgRef}
-                    viewBox={`0 0 ${W} ${H}`}
-                    className="w-full cursor-pointer"
-                    style={{ height: 110, display: "block" }}
-                    aria-hidden="true"
-                    onPointerMove={selectNearestChartPoint}
-                    onPointerLeave={() => {
-                      setHoveredChartIndex(null);
-                      setChartTooltipPos(null);
-                    }}
-                    onClick={(e) => {
-                      const nearest = selectNearestChartPoint(e);
-                      if (nearest !== null) handleChartBarClick(nearest.date);
-                    }}
-                  >
-                    {/* Baseline gridline */}
-                    <line x1={PL} y1={baseY} x2={W - PR} y2={baseY} stroke="#e5e7eb" strokeWidth={1} />
-                    {/* Soft area fill */}
-                    <path d={areaPath} fill="#0B5C6C" fillOpacity={0.12} />
-                    {/* Smooth teal line */}
-                    <path
-                      d={linePath}
-                      fill="none"
-                      stroke="#0B5C6C"
-                      strokeWidth={2.5}
-                      strokeLinejoin="round"
-                      strokeLinecap="round"
-                    />
-                    {/* Non-zero markers (skip hovered — rendered on top below) */}
-                    {pts.map((p, i) => {
-                      if (p.count === 0) return null;
-                      if (hoveredChartIndex === i) return null;
-                      const isSel =
-                        chartDateFilter !== null &&
-                        p.date.getFullYear() === chartDateFilter.getFullYear() &&
-                        p.date.getMonth() === chartDateFilter.getMonth() &&
-                        p.date.getDate() === chartDateFilter.getDate();
-                      return (
-                        <circle
-                          key={i}
-                          cx={p.x}
-                          cy={p.y}
-                          r={isSel ? 4.5 : 3}
-                          fill={isSel ? "#0B5C6C" : "#ffffff"}
-                          stroke="#0B5C6C"
-                          strokeWidth={isSel ? 2 : 1.5}
-                        />
-                      );
-                    })}
-                    {/* Vertical guide + hovered marker (on top) */}
-                    {hPt && (
-                      <>
-                        <line
-                          x1={hPt.x} y1={PT}
-                          x2={hPt.x} y2={baseY}
-                          stroke="#0B5C6C"
-                          strokeWidth={1}
-                          strokeDasharray="3 2"
-                          opacity={0.35}
-                        />
-                        <circle
-                          cx={hPt.x}
-                          cy={hPt.y}
-                          r={hPt.count > 0 ? 5 : 3.5}
-                          fill={hPt.count > 0 ? "#0B5C6C" : "white"}
-                          stroke={hPt.count > 0 ? "white" : "#0B5C6C"}
-                          strokeWidth={hPt.count > 0 ? 2 : 1.5}
-                          opacity={hPt.count > 0 ? 1 : 0.55}
-                        />
-                      </>
-                    )}
-                    {/* X-axis labels share the same x positions as the plotted buckets */}
-                    {pts.map((p, i) => {
-                      if (!labelIndexes.has(i)) return null;
-                      return (
-                        <text
-                          key={i}
-                          x={p.x}
-                          y={H - 5}
-                          fill="#9ca3af"
-                          fontSize={10}
-                          textAnchor={i === 0 ? "start" : i === np - 1 ? "end" : "middle"}
-                          dominantBaseline="middle"
-                          className="select-none"
-                        >
-                          {p.date.getDate()} {MONTH_SHORT[p.date.getMonth()]}
-                        </text>
-                      );
-                    })}
-                  </svg>
-
-                  {/* Floating tooltip */}
-                  {hDay !== null && chartTooltipPos !== null && (
-                    <div
-                      className="absolute z-10 bg-white border border-gray-200 shadow-lg rounded-lg px-2.5 py-1.5 pointer-events-none select-none"
-                      style={{
-                        left: (hoveredChartIndex ?? 0) >= 22
-                          ? chartTooltipPos.x - 132
-                          : chartTooltipPos.x + 12,
-                        top: Math.max(2, chartTooltipPos.y - 52),
-                      }}
+              <div className="divide-y divide-gray-100">
+                {attentionOrders.map((order) => (
+                  <div key={order.id} className="flex items-center gap-4 px-5 py-3 hover:bg-gray-50 transition-colors">
+                    <button
+                      type="button"
+                      onClick={() => handleReviewRequest(order)}
+                      className="font-mono text-sm font-semibold text-[#0B5C6C] hover:underline whitespace-nowrap text-left"
                     >
-                      <p className="text-xs font-semibold text-gray-800 whitespace-nowrap">
-                        {hDay.date.getDate()} {MONTH_SHORT[hDay.date.getMonth()]} {hDay.date.getFullYear()}
-                      </p>
-                      <p className="text-xs text-gray-500 whitespace-nowrap">
-                        Requests: {hDay.count}
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-              </>
+                      {order.requestId}
+                    </button>
+                    <span className="text-sm font-medium text-navy flex-1 min-w-0 truncate">{order.patient}</span>
+                    <span className={cn("inline-flex items-center text-xs font-semibold px-2.5 py-0.5 rounded-full whitespace-nowrap", STATUS_BADGE[order.status])}>{order.status}</span>
+                    <span className="text-xs text-gray-400 whitespace-nowrap">{order.date}</span>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
-        );
-      })()}
+        </div>
+      )}
+
+      {/* Requests tab */}
+      {mainTab === "requests" && (
+        <>
 
       {/* Status tabs — worklist filter */}
       <div className="overflow-x-auto">
@@ -3106,6 +2879,8 @@ const reviewOrder = useMemo(
           </div>
         )}
       </div>
+        </>
+      )}
 
       <FilterPanel
         isOpen={filterOpen}
