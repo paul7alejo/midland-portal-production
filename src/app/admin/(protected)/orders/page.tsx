@@ -2701,12 +2701,11 @@ const reviewOrder = useMemo(
               <colgroup>
                 <col className="w-[36px]" />
                 <col className="w-[18%]" />
-                <col className="w-[16%]" />
-                <col className="w-[20%]" />
-                <col className="w-[11%]" />
-                <col className="w-[8%]" />
+                <col className="w-[18%]" />
+                <col className="w-[23%]" />
                 <col className="w-[12%]" />
-                <col className="w-[7%]" />
+                <col className="w-[13%]" />
+                <col className="w-[8%]" />
                 <col className="w-[8%]" />
               </colgroup>
               <thead>
@@ -2720,7 +2719,7 @@ const reviewOrder = useMemo(
                       aria-label="Select all"
                     />
                   </th>
-                  {["REF", "PATIENT", "ITEMS", "FUNDING", "SOURCE", "STATUS", "CREATED", "ACTION"].map((col) => (
+                  {["REF", "PATIENT", "ITEMS", "FUNDING", "STATUS", "CREATED", "ACTION"].map((col) => (
                     <th
                       key={col}
                       className="text-left px-2.5 py-2.5 text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap"
@@ -2842,10 +2841,6 @@ const reviewOrder = useMemo(
                           <span className="text-xs text-gray-400">—</span>
                         )}
                       </td>
-                      {/* SOURCE */}
-                      <td className="px-2.5 py-3 align-top">
-                        <SourceBadge source={order.source} />
-                      </td>
                       {/* STATUS */}
                       <td className="px-2.5 py-3 align-top">
                         <div className="space-y-1">
@@ -2877,29 +2872,13 @@ const reviewOrder = useMemo(
                       </td>
                       {/* ACTION */}
                       <td className="px-2.5 py-3 align-top">
-                        <div className="flex flex-col items-start gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => handleReviewRequest(order)}
-                            className="border border-[#0B5C6C] text-[#0B5C6C] text-xs font-medium px-2.5 py-1.5 rounded-lg min-h-[34px] hover:bg-[#0B5C6C]/5 transition-colors whitespace-nowrap"
-                          >
-                            Review
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleFundingReviewToggle(order)}
-                            disabled={fundingReviewLoading.has(order.id)}
-                            title={order.needsFundingReview ? "Clear funding review flag" : "Flag for funding review"}
-                            className={cn(
-                              "text-[11px] font-medium px-2 py-1 rounded-md min-h-[30px] border transition-colors disabled:opacity-60",
-                              order.needsFundingReview
-                                ? "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
-                                : "border-gray-200 text-gray-500 hover:border-amber-300 hover:text-amber-700"
-                            )}
-                          >
-                            {fundingReviewLoading.has(order.id) ? "…" : order.needsFundingReview ? "Clear funding check" : "Flag: funding check"}
-                          </button>
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleReviewRequest(order)}
+                          className="bg-[#0B5C6C] text-white text-xs font-semibold px-3 py-1.5 rounded-lg min-h-[34px] hover:bg-[#0B5C6C]/90 transition-colors whitespace-nowrap"
+                        >
+                          Open review
+                        </button>
                       </td>
                     </tr>
                   );
