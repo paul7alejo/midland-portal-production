@@ -14,6 +14,7 @@ type ReportWindow    = "7d" | "30d" | "90d" | "all";
 type ReportSource    = "patient_portal" | "support_request" | "admin_created" | "other";
 type ReviewTab       = "request" | "funding" | "patient" | "history";
 type KpiActiveFilter = "requestsThisMonth" | "newRequests" | "needsFundingReview" | "deliveredThisMonth" | "declinedThisMonth";
+type RowsPerPage     = 20 | 50 | 100;
 
 interface Order {
   id: string;
@@ -1782,6 +1783,8 @@ export default function AdminOrdersPage() {
   const [notifQueuedFilter,   setNotifQueuedFilter]   = useState(false);
   const [kpiActiveFilter,     setKpiActiveFilter]     = useState<KpiActiveFilter | null>(null);
   const [mainTab,             setMainTab]             = useState<"overview" | "requests">("overview");
+  const [currentPage,         setCurrentPage]         = useState(1);
+  const [rowsPerPage,         setRowsPerPage]         = useState<RowsPerPage>(20);
   const [testForm,            setTestForm]            = useState<TestRequestForm>({
     msid: "MS-900005",
     patient: "Demo Patient",
@@ -2160,20 +2163,37 @@ const reviewOrder = useMemo(
     }] : []),
   ];
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [statusTab, statusFilters, typeFilters, dateRange, customDateFrom, customDateTo, sortOpt, showAdminRows, kpiActiveFilter, notifQueuedFilter, rowsPerPage]);
+
+  const totalPages = Math.max(1, Math.ceil(visibleOrders.length / rowsPerPage));
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(Math.max(page, 1), totalPages));
+  }, [totalPages]);
+
+  const effectivePage = Math.min(Math.max(currentPage, 1), totalPages);
+  const pageStartIndex = visibleOrders.length === 0 ? 0 : (effectivePage - 1) * rowsPerPage;
+  const pageEndIndex = Math.min(pageStartIndex + rowsPerPage, visibleOrders.length);
+  const paginatedOrders = visibleOrders.slice(pageStartIndex, pageEndIndex);
+  const showingStart = visibleOrders.length === 0 ? 0 : pageStartIndex + 1;
+  const showingEnd = pageEndIndex;
+
   const allVisibleSelected =
-    visibleOrders.length > 0 && visibleOrders.every((o) => selected.has(o.id));
+    paginatedOrders.length > 0 && paginatedOrders.every((o) => selected.has(o.id));
 
   function toggleSelectAll() {
     if (allVisibleSelected) {
       setSelected((prev) => {
         const next = new Set(prev);
-        visibleOrders.forEach((o) => next.delete(o.id));
+        paginatedOrders.forEach((o) => next.delete(o.id));
         return next;
       });
     } else {
       setSelected((prev) => {
         const next = new Set(prev);
-        visibleOrders.forEach((o) => next.add(o.id));
+        paginatedOrders.forEach((o) => next.add(o.id));
         return next;
       });
     }
@@ -2675,11 +2695,23 @@ const reviewOrder = useMemo(
         ) : visibleOrders.length === 0 ? (
           <EmptyState filtered={isFiltered} />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1200px] 2xl:min-w-full border-collapse">
+          <>
+          <div className="overflow-x-auto lg:overflow-x-visible">
+            <table className="w-full min-w-[900px] lg:min-w-0 table-fixed border-collapse">
+              <colgroup>
+                <col className="w-[36px]" />
+                <col className="w-[18%]" />
+                <col className="w-[16%]" />
+                <col className="w-[20%]" />
+                <col className="w-[11%]" />
+                <col className="w-[8%]" />
+                <col className="w-[12%]" />
+                <col className="w-[7%]" />
+                <col className="w-[8%]" />
+              </colgroup>
               <thead>
                 <tr className="bg-[#F5F3EE] border-b border-sand">
-                  <th className="px-3 py-2.5 w-10">
+                  <th className="px-2 py-2.5">
                     <input
                       type="checkbox"
                       checked={allVisibleSelected}
@@ -2691,7 +2723,7 @@ const reviewOrder = useMemo(
                   {["REF", "PATIENT", "ITEMS", "FUNDING", "SOURCE", "STATUS", "CREATED", "ACTION"].map((col) => (
                     <th
                       key={col}
-                      className="text-left px-3 py-2.5 text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap"
+                      className="text-left px-2.5 py-2.5 text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap"
                     >
                       {col}
                     </th>
@@ -2699,7 +2731,7 @@ const reviewOrder = useMemo(
                 </tr>
               </thead>
               <tbody className="divide-y divide-sand/60">
-                {visibleOrders.map((order) => {
+                {paginatedOrders.map((order) => {
                   const isSelected = selected.has(order.id);
                   const hasNotif = notifStates.get(order.id)?.ok === true;
                   return (
@@ -2712,7 +2744,7 @@ const reviewOrder = useMemo(
                         : "hover:bg-[#F5F3EE]"
                       )}
                     >
-                      <td className="px-3 py-3">
+                      <td className="px-2 py-3 align-top">
                         <input
                           type="checkbox"
                           checked={isSelected}
@@ -2722,80 +2754,80 @@ const reviewOrder = useMemo(
                         />
                       </td>
                       {/* REF */}
-                      <td className={cn("px-3 py-3", hasNotif && "border-l-2 border-l-[#74C0A2] pl-2")}>
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          {order.needsFundingReview && (
-                            <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 whitespace-nowrap shrink-0">
-                              Funding check
-                            </span>
-                          )}
+                      <td className={cn("px-2.5 py-3 align-top", hasNotif && "border-l-2 border-l-[#74C0A2] pl-2")}>
+                        <div className="space-y-1">
                           <button
                             type="button"
                             onClick={() => handleReviewRequest(order)}
                             aria-label={`Review request ${order.requestId}`}
                             className={cn(
-                              "font-mono text-sm text-[#0B5C6C] hover:underline whitespace-nowrap text-left",
+                              "block font-mono text-xs text-[#0B5C6C] hover:underline break-all text-left",
                               hasNotif ? "font-bold" : "font-semibold"
                             )}
                           >
                             {order.requestId}
                           </button>
+                          <div className="font-mono text-[11px] text-gray-400 break-all">{order.msid}</div>
+                          {order.needsFundingReview && (
+                            <span className="inline-flex w-fit items-center text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
+                              Funding check
+                            </span>
+                          )}
                           {order.isDemo && (
-                            <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 border border-blue-200 uppercase tracking-wide whitespace-nowrap">
+                            <span className="inline-flex w-fit items-center text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 border border-blue-200 uppercase tracking-wide">
                               Demo
                             </span>
                           )}
                         </div>
                         {hasNotif && (
                           <div className="mt-1 flex flex-col gap-0.5">
-                            <span className="inline-flex w-fit items-center gap-1 rounded-full border border-[#74C0A2]/40 bg-[#74C0A2]/20 px-2 py-0.5 text-xs font-semibold text-[#0B5C6C] whitespace-nowrap">
+                            <span className="inline-flex w-fit max-w-full items-center gap-1 rounded-full border border-[#74C0A2]/40 bg-[#74C0A2]/20 px-2 py-0.5 text-[11px] font-semibold text-[#0B5C6C]">
                               <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#0B5C6C]/50" />
-                              Patient communication queued
+                              <span className="leading-4">Patient communication queued</span>
                             </span>
                             {(notifStates.get(order.id)?.supersededCount ?? 0) > 0 && (
-                              <span className="inline-flex w-fit items-center rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 whitespace-nowrap">
+                              <span className="inline-flex w-fit max-w-full items-center rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
                                 Previous communication superseded
                               </span>
                             )}
                           </div>
                         )}
-                        <div className="mt-0.5 text-xs font-mono text-gray-400">{order.msid}</div>
                       </td>
                       {/* PATIENT */}
-                      <td className="px-3 py-3">
-                        <span className="text-base font-semibold text-navy whitespace-nowrap">{order.patient}</span>
+                      <td className="px-2.5 py-3 align-top">
+                        <span className="text-sm font-semibold text-navy leading-5">{order.patient}</span>
                         {order.portalAccountStatus === "linked" && (
                           <div className="mt-0.5">
-                            <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">
+                            <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
                               Portal linked
                             </span>
                           </div>
                         )}
                         {order.portalAccountStatus === "no_account" && (
                           <div className="mt-0.5">
-                            <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded bg-gray-50 text-gray-500 border border-gray-200 whitespace-nowrap">
+                            <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded bg-gray-50 text-gray-500 border border-gray-200">
                               No portal account
                             </span>
                           </div>
                         )}
                         {order.portalAccountStatus === "unknown" && (
                           <div className="mt-0.5">
-                            <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-600 border border-amber-200 whitespace-nowrap">
+                            <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-600 border border-amber-200">
                               Portal unknown
                             </span>
                           </div>
                         )}
                       </td>
                       {/* ITEMS */}
-                      <td className="px-3 py-3 min-w-[320px] max-w-[480px]">
-                        <span className="text-sm text-gray-700 line-clamp-2">
+                      <td className="px-2.5 py-3 align-top">
+                        <span className="block text-sm text-gray-700 leading-5 line-clamp-2">
                           {order.items || order.itemDescription || "—"}
                         </span>
                       </td>
                       {/* FUNDING */}
-                      <td className="px-3 py-3">
+                      <td className="px-2.5 py-3 align-top">
                         {order.estimatedFundedAmount !== null || order.estimatedItemAmount !== null ? (
-                          <div className="space-y-0.5 text-xs whitespace-nowrap">
+                          <div className="space-y-0.5 text-xs leading-4">
                             {order.estimatedFundedAmount !== null && (
                               <div className="font-semibold text-emerald-700">{formatEstimate(order.estimatedFundedAmount)} funded</div>
                             )}
@@ -2811,17 +2843,17 @@ const reviewOrder = useMemo(
                         )}
                       </td>
                       {/* SOURCE */}
-                      <td className="px-3 py-3">
+                      <td className="px-2.5 py-3 align-top">
                         <SourceBadge source={order.source} />
                       </td>
                       {/* STATUS */}
-                      <td className="px-3 py-3">
+                      <td className="px-2.5 py-3 align-top">
                         <div className="space-y-1">
                           <select
                             value={order.status}
                             onChange={(e) => handleStatusChange(order, e.target.value as OrderStatus)}
                             disabled={statusLoading.has(order.id)}
-                            className={`rounded-full px-2.5 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#0B5C6C]/30 disabled:opacity-60 ${STATUS_BADGE[order.status]}`}
+                            className={`max-w-full rounded-full px-2 py-1 text-[11px] font-semibold focus:outline-none focus:ring-2 focus:ring-[#0B5C6C]/30 disabled:opacity-60 ${STATUS_BADGE[order.status]}`}
                             aria-label={`Change status for ${order.requestId}`}
                           >
                             {STATUS_OPTIONS.map((status) => (
@@ -2835,23 +2867,23 @@ const reviewOrder = useMemo(
                             <p className="text-[10px] font-medium uppercase tracking-wide text-blue-600">Local-only</p>
                           )}
                           {!statusLoading.has(order.id) && (
-                            <p className="text-[10px] text-gray-400 leading-4">{STATUS_QUEUE_COPY[order.status]}</p>
+                            <p className="text-[10px] text-gray-400 leading-4 break-words">{STATUS_QUEUE_COPY[order.status]}</p>
                           )}
                         </div>
                       </td>
                       {/* CREATED */}
-                      <td className="px-3 py-3">
-                        <span className="text-sm text-gray-700 whitespace-nowrap">{order.date}</span>
+                      <td className="px-2.5 py-3 align-top">
+                        <span className="text-xs text-gray-700 leading-5">{order.date}</span>
                       </td>
                       {/* ACTION */}
-                      <td className="px-3 py-3">
-                        <div className="flex items-center gap-2 flex-wrap">
+                      <td className="px-2.5 py-3 align-top">
+                        <div className="flex flex-col items-start gap-1.5">
                           <button
                             type="button"
                             onClick={() => handleReviewRequest(order)}
-                            className="border border-[#0B5C6C] text-[#0B5C6C] text-sm font-medium px-3 py-2 rounded-lg min-h-[40px] hover:bg-[#0B5C6C]/5 transition-colors whitespace-nowrap"
+                            className="border border-[#0B5C6C] text-[#0B5C6C] text-xs font-medium px-2.5 py-1.5 rounded-lg min-h-[34px] hover:bg-[#0B5C6C]/5 transition-colors whitespace-nowrap"
                           >
-                            Review request
+                            Review
                           </button>
                           <button
                             type="button"
@@ -2859,7 +2891,7 @@ const reviewOrder = useMemo(
                             disabled={fundingReviewLoading.has(order.id)}
                             title={order.needsFundingReview ? "Clear funding review flag" : "Flag for funding review"}
                             className={cn(
-                              "text-sm font-medium px-3 py-2 rounded-lg min-h-[40px] border transition-colors whitespace-nowrap disabled:opacity-60",
+                              "text-[11px] font-medium px-2 py-1 rounded-md min-h-[30px] border transition-colors disabled:opacity-60",
                               order.needsFundingReview
                                 ? "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
                                 : "border-gray-200 text-gray-500 hover:border-amber-300 hover:text-amber-700"
@@ -2875,6 +2907,47 @@ const reviewOrder = useMemo(
               </tbody>
             </table>
           </div>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-sand bg-white px-5 py-3">
+            <p className="text-sm text-gray-600">
+              Showing <span className="font-semibold text-gray-800">{showingStart}</span>-<span className="font-semibold text-gray-800">{showingEnd}</span> of <span className="font-semibold text-gray-800">{visibleOrders.length}</span>
+            </p>
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="flex items-center gap-2 text-sm text-gray-600">
+                Rows per page
+                <select
+                  value={rowsPerPage}
+                  onChange={(e) => setRowsPerPage(Number(e.target.value) as RowsPerPage)}
+                  className="rounded-lg border border-sand bg-white px-2 py-1.5 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B5C6C]/25"
+                >
+                  {[20, 50, 100].map((value) => (
+                    <option key={value} value={value}>{value}</option>
+                  ))}
+                </select>
+              </label>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage(Math.max(1, effectivePage - 1))}
+                  disabled={effectivePage <= 1}
+                  className="rounded-lg border border-sand px-3 py-1.5 text-sm font-medium text-gray-600 transition-colors hover:border-[#0B5C6C] hover:text-[#0B5C6C] disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Previous
+                </button>
+                <span className="text-sm text-gray-500">
+                  Page {effectivePage} of {totalPages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage(Math.min(totalPages, effectivePage + 1))}
+                  disabled={effectivePage >= totalPages}
+                  className="rounded-lg border border-sand px-3 py-1.5 text-sm font-medium text-gray-600 transition-colors hover:border-[#0B5C6C] hover:text-[#0B5C6C] disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          </div>
+          </>
         )}
       </div>
 
