@@ -2348,43 +2348,47 @@ const reviewOrder = useMemo(
   }, [orders]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-7">
       {/* Header */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="space-y-2">
-          <p className="text-sm font-semibold uppercase tracking-wide text-deep-teal">
-            Patient operations
-          </p>
-          <h1 className="text-3xl font-bold text-navy">Patient Requests</h1>
-          <p className="text-base leading-6 text-gray-600">Supply request worklist for staff review and tracking.</p>
-        </div>
-        <div className="flex items-center gap-3 flex-wrap">
-          {selectedVisible.length > 0 && (
+      <div className="rounded-2xl border border-sand bg-white px-6 py-6 shadow-sm md:px-7">
+        <div className="flex items-center justify-between gap-5 flex-wrap">
+          <div className="space-y-3">
+            <p className="inline-flex rounded-full bg-[#EFF5F4] px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-deep-teal">
+              Patient operations
+            </p>
+            <div>
+              <h1 className="text-4xl font-bold leading-tight text-navy">Patient Requests</h1>
+              <p className="mt-2 max-w-2xl text-base leading-6 text-gray-600">Supply request worklist for staff review and tracking.</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 flex-wrap">
+            {selectedVisible.length > 0 && (
+              <button
+                type="button"
+                onClick={handleApproveSelected}
+                className="bg-[#0B5C6C] text-white text-base font-medium px-5 py-2.5 rounded-lg min-h-[44px] hover:bg-[#0B5C6C]/90 transition-colors shadow-sm"
+              >
+                Approve selected ({selectedVisible.length})
+              </button>
+            )}
             <button
               type="button"
-              onClick={handleApproveSelected}
-              className="bg-[#0B5C6C] text-white text-base font-medium px-5 py-2.5 rounded-lg min-h-[44px] hover:bg-[#0B5C6C]/90 transition-colors"
+              onClick={() => downloadCsv(visibleOrders, notifStates)}
+              title={`Export ${visibleOrders.length} row${visibleOrders.length === 1 ? "" : "s"} — respects active tab, filters, and sort order`}
+              className="flex items-center gap-2 px-4 py-2.5 border border-sand rounded-lg text-base font-medium
+                         bg-white text-gray-700 hover:border-[#0B5C6C] hover:bg-[#F5F3EE] min-h-[44px] whitespace-nowrap transition-colors"
             >
-              Approve selected ({selectedVisible.length})
+              Export current view ({visibleOrders.length})
             </button>
-          )}
-          <button
-            type="button"
-            onClick={() => downloadCsv(visibleOrders, notifStates)}
-            title={`Export ${visibleOrders.length} row${visibleOrders.length === 1 ? "" : "s"} — respects active tab, filters, and sort order`}
-            className="flex items-center gap-2 px-4 py-2.5 border border-gray-300 rounded-lg text-base font-medium
-                       bg-white text-gray-700 hover:border-[#0B5C6C] min-h-[44px] whitespace-nowrap transition-colors"
-          >
-            Export current view ({visibleOrders.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setReportOpen(true)}
-            className="flex items-center gap-2 px-4 py-2.5 border border-gray-300 rounded-lg text-base font-medium
-                       bg-white text-gray-700 hover:border-[#0B5C6C] min-h-[44px] whitespace-nowrap transition-colors"
-          >
-            Download Report
-          </button>
+            <button
+              type="button"
+              onClick={() => setReportOpen(true)}
+              className="flex items-center gap-2 px-4 py-2.5 border border-sand rounded-lg text-base font-medium
+                         bg-white text-gray-700 hover:border-[#0B5C6C] hover:bg-[#F5F3EE] min-h-[44px] whitespace-nowrap transition-colors"
+            >
+              Download Report
+            </button>
+          </div>
         </div>
       </div>
 
@@ -2414,10 +2418,10 @@ const reviewOrder = useMemo(
               type="button"
               onClick={() => handleKpiCardClick(key)}
               className={cn(
-                "bg-white rounded-xl px-5 py-4 text-left transition-all shadow-sm",
+                "bg-white rounded-xl px-5 py-4 text-left transition-all shadow-sm min-h-[126px]",
                 isActive
                   ? "border-2 border-[#0B5C6C] ring-1 ring-[#0B5C6C]/20"
-                  : "border border-gray-200 hover:border-[#0B5C6C]/40"
+                  : "border border-sand hover:border-[#0B5C6C]/40 hover:shadow-md"
               )}
             >
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide flex items-center gap-1.5">
@@ -2433,18 +2437,18 @@ const reviewOrder = useMemo(
       </div>
 
       {/* Overview / Requests tab switcher */}
-      <div className="border-b border-gray-200">
-        <div className="flex gap-0">
+      <div className="rounded-xl border border-sand bg-white p-1 shadow-sm">
+        <div className="flex gap-1">
           {(["overview", "requests"] as const).map((tab) => (
             <button
               key={tab}
               type="button"
               onClick={() => setMainTab(tab)}
               className={cn(
-                "px-5 py-3 text-sm font-semibold -mb-px border-b-2 transition-colors whitespace-nowrap",
+                "rounded-lg px-5 py-3 text-sm font-semibold transition-colors whitespace-nowrap",
                 mainTab === tab
-                  ? "border-[#0B5C6C] text-[#0B5C6C]"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                  ? "bg-[#EFF5F4] text-[#0B5C6C]"
+                  : "text-gray-500 hover:bg-[#F5F3EE] hover:text-gray-700"
               )}
             >
               {tab === "overview" ? "Overview" : `Requests (${kpiCounts.all})`}
@@ -2455,7 +2459,7 @@ const reviewOrder = useMemo(
 
       {/* Overview tab */}
       {mainTab === "overview" && (
-        <div className="space-y-6">
+        <div className="space-y-5">
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
             {([
               { label: "Needs staff review",    count: kpiCounts["New"],                 dot: "bg-amber-400",   countCls: kpiCounts["New"] > 0 ? "text-amber-700" : "text-gray-900",     sub: "Status: New" },
@@ -2471,7 +2475,7 @@ const reviewOrder = useMemo(
               { label: "Sent / on the way",      count: kpiCounts["Sent"],               dot: "bg-purple-400",  countCls: "text-purple-700", sub: null },
               { label: "Delivered",              count: kpiCounts["Delivered"],           dot: "bg-emerald-500", countCls: "text-emerald-700", sub: null },
             ] as const).map(({ label, count, dot, countCls, sub }) => (
-              <div key={label} className="bg-white rounded-xl border border-gray-200 px-5 py-4 shadow-sm">
+              <div key={label} className="bg-white rounded-xl border border-sand px-5 py-4 shadow-sm">
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide flex items-center gap-1.5">
                   <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", dot)} />
                   {label}
@@ -2482,11 +2486,11 @@ const reviewOrder = useMemo(
             ))}
           </div>
 
-          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-            <div className="border-b border-gray-200 px-5 py-4 flex items-center justify-between gap-3">
+          <div className="bg-white border border-sand rounded-xl overflow-hidden shadow-sm">
+            <div className="border-b border-sand bg-[#F5F3EE] px-5 py-4 flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-base font-semibold text-gray-800">Needs attention</h2>
-                <p className="text-xs text-gray-400 mt-0.5">New, reviewing, and follow-up — real orders only</p>
+                <p className="text-xs text-gray-500 mt-0.5">New, reviewing, and follow-up — real requests only</p>
               </div>
               <button
                 type="button"
@@ -2497,11 +2501,11 @@ const reviewOrder = useMemo(
               </button>
             </div>
             {attentionOrders.length === 0 ? (
-              <p className="px-5 py-6 text-sm text-gray-400">No requests currently need attention.</p>
+              <p className="px-5 py-6 text-sm text-gray-500">No requests currently need attention.</p>
             ) : (
-              <div className="divide-y divide-gray-100">
+              <div className="divide-y divide-sand/60">
                 {attentionOrders.map((order) => (
-                  <div key={order.id} className="flex items-center gap-4 px-5 py-3 hover:bg-gray-50 transition-colors">
+                  <div key={order.id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-[#F5F3EE] transition-colors">
                     <button
                       type="button"
                       onClick={() => handleReviewRequest(order)}
@@ -2522,11 +2526,11 @@ const reviewOrder = useMemo(
 
       {/* Requests tab */}
       {mainTab === "requests" && (
-        <>
+        <div className="space-y-4">
 
       {/* Status tabs — worklist filter */}
-      <div className="overflow-x-auto">
-        <div className="flex items-center gap-0 border-b border-gray-200 min-w-max">
+      <div className="overflow-x-auto rounded-xl border border-sand bg-white shadow-sm">
+        <div className="flex items-center gap-1 min-w-max p-1">
           {STATUS_TABS.map(({ key, label }) => {
             const count = kpiCounts[key as keyof typeof kpiCounts] ?? 0;
             const isActive = statusTab === key;
@@ -2546,10 +2550,10 @@ const reviewOrder = useMemo(
                 type="button"
                 onClick={() => handleStatusTab(key)}
                 className={cn(
-                  "px-4 py-3 text-sm font-semibold -mb-px border-b-2 transition-colors whitespace-nowrap",
+                  "rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors whitespace-nowrap",
                   isActive
-                    ? "border-[#0B5C6C] text-[#0B5C6C]"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                    ? "bg-[#EFF5F4] text-[#0B5C6C]"
+                    : "text-gray-500 hover:bg-[#F5F3EE] hover:text-gray-700"
                 )}
               >
                 {label}{countNode}
@@ -2560,11 +2564,11 @@ const reviewOrder = useMemo(
       </div>
 
       {/* Toolbar: filter/sort + admin toggle + active filter chips */}
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-sand bg-white px-4 py-3 shadow-sm">
         <button
           type="button"
           onClick={() => setFilterOpen(true)}
-          className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium bg-white text-gray-700 hover:border-[#0B5C6C] min-h-[40px] whitespace-nowrap transition-colors"
+          className="flex items-center gap-2 px-4 py-2 border border-sand rounded-lg text-sm font-medium bg-white text-gray-700 hover:border-[#0B5C6C] hover:bg-[#F5F3EE] min-h-[40px] whitespace-nowrap transition-colors"
         >
           Filter &amp; Sort
           {activeFilterCount > 0 && (
@@ -2580,7 +2584,7 @@ const reviewOrder = useMemo(
             "text-sm font-medium px-3 py-1.5 rounded-lg border transition-colors",
             showAdminRows
               ? "border-[#0B5C6C] bg-[#0B5C6C]/10 text-[#0B5C6C]"
-              : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
+              : "border-sand bg-white text-gray-500 hover:border-gray-300 hover:bg-[#F5F3EE]"
           )}
         >
           {showAdminRows ? "Hide test rows" : "Show test rows"}
@@ -2592,7 +2596,7 @@ const reviewOrder = useMemo(
             "text-sm font-medium px-3 py-1.5 rounded-lg border transition-colors",
             notifQueuedFilter
               ? "border-[#74C0A2] bg-[#74C0A2]/10 text-[#0B5C6C]"
-              : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
+              : "border-sand bg-white text-gray-500 hover:border-gray-300 hover:bg-[#F5F3EE]"
           )}
         >
           Communication queued
@@ -2625,9 +2629,15 @@ const reviewOrder = useMemo(
       </div>
 
       {/* Table */}
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-        <div className="border-b border-gray-200 bg-white px-5 py-4">
-          <h2 className="text-base font-semibold text-gray-800">Request list</h2>
+      <div className="bg-white border border-sand rounded-xl overflow-hidden shadow-sm">
+        <div className="border-b border-sand bg-[#F5F3EE] px-5 py-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold text-gray-800">Request list</h2>
+            <p className="mt-0.5 text-xs text-gray-500">Filtered worklist using currently loaded request data.</p>
+          </div>
+          <p className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-gray-600 border border-sand">
+            {visibleOrders.length} visible
+          </p>
         </div>
         {ordersLoading ? (
           <div className="flex items-center justify-center py-16 text-base text-gray-500">
@@ -2639,7 +2649,7 @@ const reviewOrder = useMemo(
           <div className="overflow-x-auto">
             <table className="w-full min-w-[860px] border-collapse">
               <thead>
-                <tr className="bg-gray-50 border-b border-gray-200">
+                <tr className="bg-[#F5F3EE] border-b border-sand">
                   <th className="px-3 py-2.5 w-10">
                     <input
                       type="checkbox"
@@ -2659,7 +2669,7 @@ const reviewOrder = useMemo(
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-sand/60">
                 {visibleOrders.map((order) => {
                   const isSelected = selected.has(order.id);
                   const hasNotif = notifStates.get(order.id)?.ok === true;
@@ -2668,9 +2678,9 @@ const reviewOrder = useMemo(
                       key={order.id}
                       className={cn(
                         "transition-colors",
-                        isSelected ? "bg-teal-50"
+                        isSelected ? "bg-[#EFF5F4]"
                         : hasNotif ? "bg-[#74C0A2]/5 hover:bg-[#74C0A2]/10"
-                        : "hover:bg-gray-50"
+                        : "hover:bg-[#F5F3EE]"
                       )}
                     >
                       <td className="px-3 py-3">
@@ -2840,11 +2850,11 @@ const reviewOrder = useMemo(
       </div>
 
       {/* Developer tools (collapsed by default) */}
-      <div className="rounded-xl border border-gray-200 overflow-hidden">
+      <div className="rounded-xl border border-sand overflow-hidden bg-white shadow-sm">
         <button
           type="button"
           onClick={() => setDevToolsOpen((v) => !v)}
-          className="flex w-full items-center justify-between px-5 py-3 bg-gray-50 hover:bg-gray-100 text-sm font-medium text-gray-500 transition-colors"
+          className="flex w-full items-center justify-between px-5 py-3 bg-[#F5F3EE] hover:bg-sand-pale text-sm font-medium text-gray-500 transition-colors"
         >
           <span>Developer tools</span>
           <svg
@@ -2879,7 +2889,7 @@ const reviewOrder = useMemo(
           </div>
         )}
       </div>
-        </>
+        </div>
       )}
 
       <FilterPanel
