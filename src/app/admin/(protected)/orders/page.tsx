@@ -224,7 +224,7 @@ function downloadCsv(rows: Order[], notifStates: Map<string, { ok: boolean } | n
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `orders-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.download = `requests-${new Date().toISOString().slice(0, 10)}.csv`;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -660,13 +660,13 @@ function FilterPanel({
         </div>
 
         <div className="shrink-0 border-t border-gray-200 px-6 py-4 flex items-center justify-between gap-4 bg-white">
-          <p className="text-base font-medium text-gray-600">{resultCount} orders found</p>
+          <p className="text-base font-medium text-gray-600">{resultCount} requests found</p>
           <button
             type="button"
             onClick={onClose}
             className="bg-[#0B5C6C] text-white text-base font-medium px-6 py-2.5 rounded-lg min-h-[44px] hover:bg-[#0B5C6C]/90 transition-colors"
           >
-            Show orders
+            Show requests
           </button>
         </div>
       </div>
@@ -1661,7 +1661,7 @@ function EmptyState({ filtered }: { filtered: boolean }) {
         </svg>
       </div>
       <p className="text-base font-medium text-gray-700">
-        {filtered ? "No orders match the current filters." : "No orders here yet."}
+        {filtered ? "No requests match the current filters." : "No requests here yet."}
       </p>
       {!filtered && (
         <p className="text-sm leading-6 text-gray-500 mt-1">
@@ -2858,7 +2858,7 @@ const reviewOrder = useMemo(
         </div>
         {ordersLoading ? (
           <div className="flex items-center justify-center py-16 text-base text-gray-500">
-            Loading orders…
+            Loading requests…
           </div>
         ) : visibleOrders.length === 0 ? (
           <EmptyState filtered={isFiltered} />

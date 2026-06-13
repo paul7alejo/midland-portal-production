@@ -61,7 +61,7 @@ export default function AdminSidebar({ collapsed, onToggle }: AdminSidebarProps)
       label: "PATIENT OPERATIONS",
       items: [
         { href: "/admin/patients", label: "Patients", icon: Users },
-        { href: "/admin/orders",   label: "Orders",   icon: ShoppingCart },
+        { href: "/admin/orders",   label: "Requests", icon: ShoppingCart },
         { href: "/admin/outreach", label: "Outreach", icon: Mail },
       ],
     },
