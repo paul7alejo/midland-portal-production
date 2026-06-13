@@ -389,7 +389,7 @@ export default function DashboardPage() {
 
       {/* Supply request status */}
       {isCompletedRequest && currentRequest ? (
-        <section className="mb-5 rounded-xl border border-[#E6D3A3] bg-white p-5 shadow-sm md:p-6">
+        <section id="supply-request-status" className="mb-5 scroll-mt-6 rounded-xl border border-[#E6D3A3] bg-white p-5 shadow-sm md:p-6">
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
             <div className="min-w-0">
               <p className="mb-1 font-mono text-xs uppercase tracking-[0.16em] text-charcoal/60">
@@ -454,7 +454,7 @@ export default function DashboardPage() {
           </div>
         </section>
       ) : (
-        <section className={cn("mb-5 rounded-xl border p-5 shadow-sm md:p-6", toneStyles.card)}>
+        <section id="supply-request-status" className={cn("mb-5 scroll-mt-6 rounded-xl border p-5 shadow-sm md:p-6", toneStyles.card)}>
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
             <div className="min-w-0">
               <p className="mb-1 font-mono text-xs uppercase tracking-[0.16em] text-charcoal/60">

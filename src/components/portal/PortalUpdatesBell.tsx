@@ -2,10 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { configureCognito, getIdToken } from "@/lib/aws/cognito";
 import { cn } from "@/lib/utils";
 
 type NotificationTab = "all" | "unread";
+const REQUEST_STATUS_DESTINATION = "/portal/dashboard#supply-request-status";
 
 interface PatientPortalNotification {
   notification_id: string;
@@ -34,6 +36,7 @@ function getUnreadBadgeLabel(count: number): string {
 }
 
 export default function PortalUpdatesBell({ className }: { className?: string }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<NotificationTab>("all");
   const [notifications, setNotifications] = useState<PatientPortalNotification[]>([]);
@@ -130,6 +133,7 @@ export default function PortalUpdatesBell({ className }: { className?: string })
       const data = await res.json().catch(() => ({})) as {
         notification?: PatientPortalNotification;
       };
+      if (!res.ok) throw new Error("Unable to mark notification read.");
       if (res.ok && data.notification) {
         setNotifications((current) =>
           current.map((notification) =>
@@ -146,6 +150,17 @@ export default function PortalUpdatesBell({ className }: { className?: string })
         )
       );
       setUnreadCount((count) => count + 1);
+    }
+  }
+
+  async function handleNotificationClick(notification: PatientPortalNotification) {
+    try {
+      if (!notification.read_at) {
+        await markRead(notification.notification_id);
+      }
+    } finally {
+      setOpen(false);
+      router.push(REQUEST_STATUS_DESTINATION);
     }
   }
 
@@ -207,7 +222,7 @@ export default function PortalUpdatesBell({ className }: { className?: string })
                     <button
                       key={notification.notification_id}
                       type="button"
-                      onClick={() => void markRead(notification.notification_id)}
+                      onClick={() => void handleNotificationClick(notification)}
                       className="block w-full px-4 py-3 text-left transition-colors hover:bg-sand-pale/70"
                     >
                       <span className="flex items-start gap-3">
