@@ -1782,7 +1782,6 @@ export default function AdminOrdersPage() {
   const [notifQueuedFilter,   setNotifQueuedFilter]   = useState(false);
   const [kpiActiveFilter,     setKpiActiveFilter]     = useState<KpiActiveFilter | null>(null);
   const [mainTab,             setMainTab]             = useState<"overview" | "requests">("overview");
-  const [selectedWorkbenchOrderId, setSelectedWorkbenchOrderId] = useState<string | null>(null);
   const [testForm,            setTestForm]            = useState<TestRequestForm>({
     msid: "MS-900005",
     patient: "Demo Patient",
@@ -2289,12 +2288,6 @@ const reviewOrder = useMemo(
     setReviewDrawerOpen(true);
   }
 
-  function handleViewPatient(order: Order) {
-    setDrawerMsid(order.msid);
-    setDrawerName(order.patient);
-    setDrawerOpen(true);
-  }
-
   function handleReviewToPatient(order: Order) {
     setReviewDrawerOpen(false);
     setDrawerMsid(order.msid);
@@ -2347,18 +2340,6 @@ const reviewOrder = useMemo(
       .sort((a, b) => parseDateForSort(b.date) - parseDateForSort(a.date))
       .slice(0, 5);
   }, [orders]);
-
-  const selectedWorkbenchOrder = useMemo(() => {
-    if (visibleOrders.length === 0) return null;
-    return visibleOrders.find((o) => o.id === selectedWorkbenchOrderId) ?? visibleOrders[0] ?? null;
-  }, [selectedWorkbenchOrderId, visibleOrders]);
-
-  const selectedWorkbenchNotifState =
-    selectedWorkbenchOrder
-      ? (notifStates.has(selectedWorkbenchOrder.id) ? notifStates.get(selectedWorkbenchOrder.id) : undefined)
-      : undefined;
-
-  const selectedFunding = selectedWorkbenchOrder ? calcFundingBreakdown(selectedWorkbenchOrder) : null;
 
   return (
     <div className="space-y-7">
@@ -2539,8 +2520,7 @@ const reviewOrder = useMemo(
 
       {/* Requests tab */}
       {mainTab === "requests" && (
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px] 2xl:grid-cols-[minmax(0,1fr)_420px]">
-          <div className="space-y-4 min-w-0">
+        <>
 
       {/* Status tabs — worklist filter */}
       <div className="overflow-x-auto rounded-xl border border-sand bg-white shadow-sm">
@@ -2687,15 +2667,12 @@ const reviewOrder = useMemo(
                 {visibleOrders.map((order) => {
                   const isSelected = selected.has(order.id);
                   const hasNotif = notifStates.get(order.id)?.ok === true;
-                  const isWorkbenchSelected = selectedWorkbenchOrder?.id === order.id;
                   return (
                     <tr
                       key={order.id}
-                      onClick={() => setSelectedWorkbenchOrderId(order.id)}
                       className={cn(
-                        "transition-colors cursor-pointer",
-                        isWorkbenchSelected ? "bg-[#EFF5F4] ring-1 ring-inset ring-[#0B5C6C]/25"
-                        : isSelected ? "bg-[#EFF5F4]"
+                        "transition-colors",
+                        isSelected ? "bg-[#EFF5F4]"
                         : hasNotif ? "bg-[#74C0A2]/5 hover:bg-[#74C0A2]/10"
                         : "hover:bg-[#F5F3EE]"
                       )}
@@ -2719,10 +2696,7 @@ const reviewOrder = useMemo(
                           )}
                           <button
                             type="button"
-                            onClick={() => {
-                              setSelectedWorkbenchOrderId(order.id);
-                              handleReviewRequest(order);
-                            }}
+                            onClick={() => handleReviewRequest(order)}
                             aria-label={`Review request ${order.requestId}`}
                             className={cn(
                               "font-mono text-sm text-[#0B5C6C] hover:underline whitespace-nowrap text-left",
@@ -2839,10 +2813,7 @@ const reviewOrder = useMemo(
                         <div className="flex items-center gap-2 flex-wrap">
                           <button
                             type="button"
-                            onClick={() => {
-                              setSelectedWorkbenchOrderId(order.id);
-                              handleReviewRequest(order);
-                            }}
+                            onClick={() => handleReviewRequest(order)}
                             className="border border-[#0B5C6C] text-[#0B5C6C] text-sm font-medium px-3 py-2 rounded-lg min-h-[40px] hover:bg-[#0B5C6C]/5 transition-colors whitespace-nowrap"
                           >
                             Review request
@@ -2912,154 +2883,7 @@ const reviewOrder = useMemo(
           </div>
         )}
       </div>
-          </div>
-
-          <aside className="xl:sticky xl:top-6 self-start rounded-xl border border-sand bg-white shadow-sm overflow-hidden">
-            <div className="border-b border-sand bg-[#F5F3EE] px-5 py-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#0B5C6C]">Selected request</p>
-              <h2 className="mt-1 text-lg font-semibold text-navy">Review panel</h2>
-            </div>
-
-            {selectedWorkbenchOrder ? (
-              <div className="space-y-5 px-5 py-5">
-                <div className="space-y-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="font-mono text-sm font-semibold text-[#0B5C6C]">{selectedWorkbenchOrder.requestId}</p>
-                      <p className="mt-1 text-xl font-semibold leading-snug text-navy truncate">{selectedWorkbenchOrder.patient}</p>
-                      <p className="mt-0.5 font-mono text-sm text-gray-500">{selectedWorkbenchOrder.msid}</p>
-                    </div>
-                    <span className={cn("inline-flex items-center text-xs font-semibold px-2.5 py-0.5 rounded-full shrink-0", STATUS_BADGE[selectedWorkbenchOrder.status])}>
-                      {selectedWorkbenchOrder.status}
-                    </span>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    <SourceBadge source={selectedWorkbenchOrder.source} />
-                    {selectedWorkbenchOrder.portalAccountStatus === "linked" && (
-                      <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">
-                        Portal linked
-                      </span>
-                    )}
-                    {selectedWorkbenchOrder.portalAccountStatus === "no_account" && (
-                      <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded bg-gray-50 text-gray-500 border border-gray-200 whitespace-nowrap">
-                        No portal account
-                      </span>
-                    )}
-                    {selectedWorkbenchOrder.portalAccountStatus === "unknown" && (
-                      <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-600 border border-amber-200 whitespace-nowrap">
-                        Portal unknown
-                      </span>
-                    )}
-                    {selectedWorkbenchOrder.needsFundingReview && (
-                      <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 whitespace-nowrap">
-                        Funding check
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="rounded-lg border border-sand bg-[#F5F3EE] px-4 py-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Requested items</p>
-                  <p className="mt-1 text-sm leading-6 text-gray-800">{selectedWorkbenchOrder.items || selectedWorkbenchOrder.itemDescription || "—"}</p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Submitted</p>
-                    <p className="mt-1 font-medium text-gray-800">{selectedWorkbenchOrder.date}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Updated</p>
-                    <p className="mt-1 font-medium text-gray-800">{selectedWorkbenchOrder.updatedDate || "—"}</p>
-                  </div>
-                </div>
-
-                <div>
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Request status</p>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <select
-                      value={selectedWorkbenchOrder.status}
-                      onChange={(e) => handleStatusChange(selectedWorkbenchOrder, e.target.value as OrderStatus)}
-                      disabled={statusLoading.has(selectedWorkbenchOrder.id)}
-                      className={cn("rounded-full px-2.5 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#0B5C6C]/30 disabled:opacity-60", STATUS_BADGE[selectedWorkbenchOrder.status])}
-                      aria-label={`Change status for ${selectedWorkbenchOrder.requestId}`}
-                    >
-                      {STATUS_OPTIONS.map((status) => (
-                        <option key={status} value={status}>{status}</option>
-                      ))}
-                    </select>
-                    {statusLoading.has(selectedWorkbenchOrder.id) && (
-                      <span className="text-[10px] font-medium uppercase tracking-wide text-gray-400">Saving…</span>
-                    )}
-                  </div>
-                  <p className="mt-2 text-xs leading-5 text-gray-500">{STATUS_LIFECYCLE_COPY[selectedWorkbenchOrder.status]}</p>
-                </div>
-
-                {(selectedWorkbenchOrder.estimatedItemAmount !== null || selectedWorkbenchOrder.estimatedFundedAmount !== null || selectedFunding?.dataAvailable) && (
-                  <div className="rounded-lg border border-sand px-4 py-3">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Funding estimate</p>
-                    <dl className="mt-2 space-y-2 text-sm">
-                      <div className="flex items-center justify-between gap-3">
-                        <dt className="text-gray-500">Requested</dt>
-                        <dd className="font-semibold text-gray-800">{formatEstimate(selectedWorkbenchOrder.estimatedItemAmount)}</dd>
-                      </div>
-                      <div className="flex items-center justify-between gap-3">
-                        <dt className="text-gray-500">Funded</dt>
-                        <dd className="font-semibold text-emerald-700">{formatEstimate(selectedWorkbenchOrder.estimatedFundedAmount)}</dd>
-                      </div>
-                      {selectedWorkbenchOrder.estimatedPatientCopay !== null && selectedWorkbenchOrder.estimatedPatientCopay > 0 && (
-                        <div className="flex items-center justify-between gap-3">
-                          <dt className="text-gray-500">Co-pay</dt>
-                          <dd className="font-semibold text-gray-800">{formatEstimate(selectedWorkbenchOrder.estimatedPatientCopay)}</dd>
-                        </div>
-                      )}
-                    </dl>
-                  </div>
-                )}
-
-                <NotificationSection
-                  notifState={selectedWorkbenchNotifState}
-                  orderStatus={selectedWorkbenchOrder.status}
-                />
-
-                <div className="grid gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleReviewRequest(selectedWorkbenchOrder)}
-                    className="min-h-[44px] rounded-lg bg-[#0B5C6C] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#0B5C6C]/90"
-                  >
-                    Open full review
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleViewPatient(selectedWorkbenchOrder)}
-                    className="min-h-[44px] rounded-lg border border-sand px-4 py-2.5 text-sm font-medium text-[#0B5C6C] transition-colors hover:border-[#0B5C6C]/40 hover:bg-[#F5F3EE]"
-                  >
-                    View patient
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleFundingReviewToggle(selectedWorkbenchOrder)}
-                    disabled={fundingReviewLoading.has(selectedWorkbenchOrder.id)}
-                    className={cn(
-                      "min-h-[44px] rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors disabled:opacity-60",
-                      selectedWorkbenchOrder.needsFundingReview
-                        ? "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
-                        : "border-sand text-gray-600 hover:border-amber-300 hover:text-amber-700 hover:bg-amber-50"
-                    )}
-                  >
-                    {fundingReviewLoading.has(selectedWorkbenchOrder.id) ? "Saving…" : selectedWorkbenchOrder.needsFundingReview ? "Clear funding check" : "Flag funding check"}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="px-5 py-8 text-sm leading-6 text-gray-500">
-                No requests are visible with the current filters.
-              </div>
-            )}
-          </aside>
-        </div>
+        </>
       )}
 
       <FilterPanel
