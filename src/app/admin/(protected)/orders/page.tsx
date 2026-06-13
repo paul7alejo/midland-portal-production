@@ -2702,11 +2702,11 @@ const reviewOrder = useMemo(
                 <col className="w-[36px]" />
                 <col className="w-[18%]" />
                 <col className="w-[18%]" />
-                <col className="w-[23%]" />
+                <col className="w-[21%]" />
                 <col className="w-[12%]" />
                 <col className="w-[13%]" />
                 <col className="w-[8%]" />
-                <col className="w-[8%]" />
+                <col className="w-[10%]" />
               </colgroup>
               <thead>
                 <tr className="bg-[#F5F3EE] border-b border-sand">
@@ -2871,7 +2871,7 @@ const reviewOrder = useMemo(
                         <span className="text-xs text-gray-700 leading-5">{order.date}</span>
                       </td>
                       {/* ACTION */}
-                      <td className="px-2.5 py-3 align-top">
+                      <td className="pl-3 pr-5 py-3 align-middle">
                         <button
                           type="button"
                           onClick={() => handleReviewRequest(order)}
