@@ -2008,6 +2008,14 @@ const reviewOrder = useMemo(
     }
   }
 
+  function handleCommunicationQueuedOverviewClick() {
+    setNotifQueuedFilter(true);
+    setMainTab("requests");
+    setStatusTab("all");
+    setStatusFilters(new Set());
+    setKpiActiveFilter(null);
+  }
+
   function applyOperationalFilters(baseOrders: Order[]): Order[] {
     let result = [...baseOrders];
 
@@ -2125,7 +2133,6 @@ const reviewOrder = useMemo(
           : "Older";
 
   const filterChips: { key: string; label: string; onRemove: () => void }[] = [
-    ...(notifQueuedFilter ? [{ key: "notifQueued", label: "Communication queued", onRemove: () => setNotifQueuedFilter(false) }] : []),
     ...(kpiActiveFilter ? [{ key: "kpi", label: kpiChipLabel[kpiActiveFilter], onRemove: () => setKpiActiveFilter(null) }] : []),
     ...[...statusFilters].map((s) => ({
       key: `s-${s}`,
@@ -2181,6 +2188,12 @@ const reviewOrder = useMemo(
   }
 
   const selectedVisible = visibleOrders.filter((o) => selected.has(o.id));
+  const communicationQueuedOrders = useMemo(() => {
+    return orders
+      .filter((o) => !isAdminRow(o) && notifStates.get(o.id)?.ok === true)
+      .slice()
+      .sort((a, b) => parseDateForSort(b.date) - parseDateForSort(a.date));
+  }, [orders, notifStates]);
 
   function handleApproveSelected() {
     setOrders((prev) =>
@@ -2335,11 +2348,12 @@ const reviewOrder = useMemo(
   const attentionOrders = useMemo(() => {
     const real = orders.filter((o) => !isAdminRow(o));
     const urgent = real.filter((o) => o.status === "New" || o.status === "Needs Follow-Up" || o.status === "Reviewing");
-    return urgent
-      .slice()
+    const byId = new Map<string, Order>();
+    [...urgent, ...communicationQueuedOrders].forEach((order) => byId.set(order.id, order));
+    return [...byId.values()]
       .sort((a, b) => parseDateForSort(b.date) - parseDateForSort(a.date))
       .slice(0, 5);
-  }, [orders]);
+  }, [orders, communicationQueuedOrders]);
 
   return (
     <div className="space-y-7">
@@ -2468,23 +2482,35 @@ const reviewOrder = useMemo(
               },
               { label: "Sent / on the way",      count: kpiCounts["Sent"],               dot: "bg-purple-400",  countCls: "text-purple-700", sub: null },
               { label: "Delivered",              count: kpiCounts["Delivered"],           dot: "bg-emerald-500", countCls: "text-emerald-700", sub: null },
-            ] as const).map(({ label, count, dot, countCls, sub }) => (
-              <div key={label} className="bg-white rounded-xl border border-sand px-5 py-4 shadow-sm">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide flex items-center gap-1.5">
-                  <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", dot)} />
-                  {label}
-                </p>
-                <p className={cn("text-3xl font-bold mt-1.5", countCls)}>{count}</p>
-                {sub && <p className="text-[10px] text-gray-400 mt-1">{sub}</p>}
-              </div>
-            ))}
+            ] as const).map(({ label, count, dot, countCls, sub }) => {
+              const isCommunicationQueued = label === "Communication queued";
+              const CardTag = isCommunicationQueued ? "button" : "div";
+              return (
+                <CardTag
+                  key={label}
+                  type={isCommunicationQueued ? "button" : undefined}
+                  onClick={isCommunicationQueued ? handleCommunicationQueuedOverviewClick : undefined}
+                  className={cn(
+                    "bg-white rounded-xl border border-sand px-5 py-4 shadow-sm text-left",
+                    isCommunicationQueued && "transition-colors hover:border-[#0B5C6C]/40 hover:bg-[#EFF5F4]"
+                  )}
+                >
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide flex items-center gap-1.5">
+                    <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", dot)} />
+                    {label}
+                  </p>
+                  <p className={cn("text-3xl font-bold mt-1.5", countCls)}>{count}</p>
+                  {sub && <p className="text-[10px] text-gray-400 mt-1">{sub}</p>}
+                </CardTag>
+              );
+            })}
           </div>
 
           <div className="bg-white border border-sand rounded-xl overflow-hidden shadow-sm">
             <div className="border-b border-sand bg-[#F5F3EE] px-5 py-4 flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-base font-semibold text-gray-800">Needs attention</h2>
-                <p className="text-xs text-gray-500 mt-0.5">New, reviewing, and follow-up — real requests only</p>
+                <p className="text-xs text-gray-500 mt-0.5">New, reviewing, follow-up, and patient communication queued — real requests only</p>
               </div>
               <button
                 type="button"
@@ -2508,7 +2534,13 @@ const reviewOrder = useMemo(
                       {order.requestId}
                     </button>
                     <span className="text-sm font-medium text-navy flex-1 min-w-0 truncate">{order.patient}</span>
-                    <span className={cn("inline-flex items-center text-xs font-semibold px-2.5 py-0.5 rounded-full whitespace-nowrap", STATUS_BADGE[order.status])}>{order.status}</span>
+                    {notifStates.get(order.id)?.ok === true ? (
+                      <span className="inline-flex items-center text-xs font-semibold px-2.5 py-0.5 rounded-full whitespace-nowrap border border-[#74C0A2]/40 bg-[#74C0A2]/20 text-[#0B5C6C]">
+                        Patient communication queued
+                      </span>
+                    ) : (
+                      <span className={cn("inline-flex items-center text-xs font-semibold px-2.5 py-0.5 rounded-full whitespace-nowrap", STATUS_BADGE[order.status])}>{order.status}</span>
+                    )}
                     <span className="text-xs text-gray-400 whitespace-nowrap">{order.date}</span>
                   </div>
                 ))}
@@ -2583,18 +2615,6 @@ const reviewOrder = useMemo(
         >
           {showAdminRows ? "Hide test rows" : "Show test rows"}
         </button>
-        <button
-          type="button"
-          onClick={() => setNotifQueuedFilter((v) => !v)}
-          className={cn(
-            "text-sm font-medium px-3 py-1.5 rounded-lg border transition-colors",
-            notifQueuedFilter
-              ? "border-[#74C0A2] bg-[#74C0A2]/10 text-[#0B5C6C]"
-              : "border-sand bg-white text-gray-500 hover:border-gray-300 hover:bg-[#F5F3EE]"
-          )}
-        >
-          Communication queued
-        </button>
         {filterChips.map((chip) => (
           <span
             key={chip.key}
@@ -2627,11 +2647,26 @@ const reviewOrder = useMemo(
         <div className="border-b border-sand bg-[#F5F3EE] px-5 py-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-base font-semibold text-gray-800">Request list</h2>
-            <p className="mt-0.5 text-xs text-gray-500">Filtered worklist using currently loaded request data.</p>
+            <p className="mt-0.5 text-xs text-gray-500">
+              {notifQueuedFilter
+                ? "Showing requests with patient communication queued from currently loaded request data."
+                : "Filtered worklist using currently loaded request data."}
+            </p>
           </div>
-          <p className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-gray-600 border border-sand">
-            {visibleOrders.length} visible
-          </p>
+          <div className="flex items-center gap-2">
+            {notifQueuedFilter && (
+              <button
+                type="button"
+                onClick={() => setNotifQueuedFilter(false)}
+                className="rounded-full border border-[#74C0A2]/40 bg-white px-3 py-1 text-xs font-semibold text-[#0B5C6C] hover:bg-[#EFF5F4]"
+              >
+                Show all requests
+              </button>
+            )}
+            <p className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-gray-600 border border-sand">
+              {visibleOrders.length} visible
+            </p>
+          </div>
         </div>
         {ordersLoading ? (
           <div className="flex items-center justify-center py-16 text-base text-gray-500">
