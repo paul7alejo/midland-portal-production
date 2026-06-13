@@ -2356,7 +2356,7 @@ const reviewOrder = useMemo(
   }, [orders, communicationQueuedOrders]);
 
   return (
-    <div className="space-y-7">
+    <div className="space-y-7 xl:-mx-8 2xl:-mx-16">
       {/* Header */}
       <div className="rounded-2xl border border-sand bg-white px-6 py-6 shadow-sm md:px-7">
         <div className="flex items-center justify-between gap-5 flex-wrap">
@@ -2552,7 +2552,7 @@ const reviewOrder = useMemo(
 
       {/* Requests tab */}
       {mainTab === "requests" && (
-        <>
+        <div className="space-y-4">
 
       {/* Status tabs — worklist filter */}
       <div className="overflow-x-auto rounded-xl border border-sand bg-white shadow-sm">
@@ -2676,7 +2676,7 @@ const reviewOrder = useMemo(
           <EmptyState filtered={isFiltered} />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[860px] border-collapse">
+            <table className="w-full min-w-[1200px] 2xl:min-w-full border-collapse">
               <thead>
                 <tr className="bg-[#F5F3EE] border-b border-sand">
                   <th className="px-3 py-2.5 w-10">
@@ -2787,7 +2787,7 @@ const reviewOrder = useMemo(
                         )}
                       </td>
                       {/* ITEMS */}
-                      <td className="px-3 py-3 max-w-[180px]">
+                      <td className="px-3 py-3 min-w-[320px] max-w-[480px]">
                         <span className="text-sm text-gray-700 line-clamp-2">
                           {order.items || order.itemDescription || "—"}
                         </span>
@@ -2918,7 +2918,7 @@ const reviewOrder = useMemo(
           </div>
         )}
       </div>
-        </>
+        </div>
       )}
 
       <FilterPanel
