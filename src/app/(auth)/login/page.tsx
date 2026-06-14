@@ -25,6 +25,12 @@ export default function LandingPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [privacyOpen, setPrivacyOpen]               = useState(false);
   const privacyCloseRef                              = useRef<HTMLButtonElement>(null);
+  const [forgotOpen, setForgotOpen]                 = useState(false);
+  const [forgotEmail, setForgotEmail]               = useState("");
+  const [forgotLoading, setForgotLoading]           = useState(false);
+  const [forgotDone, setForgotDone]                 = useState(false);
+  const [forgotError, setForgotError]               = useState("");
+  const forgotEmailRef                              = useRef<HTMLInputElement>(null);
 
   const { login, completePasswordChallenge, isAuthenticated, patient } = useAuth();
   const router = useRouter();
@@ -48,6 +54,18 @@ export default function LandingPage() {
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [privacyOpen]);
+
+  useEffect(() => {
+    if (!forgotOpen) return;
+    forgotEmailRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setForgotOpen(false); setForgotEmail(""); setForgotDone(false); setForgotError("");
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [forgotOpen]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,6 +111,24 @@ export default function LandingPage() {
       setError("Something went wrong. Please try again.");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleForgotSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotError("");
+    setForgotLoading(true);
+    try {
+      await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: forgotEmail.trim(), userType: "patient" }),
+      });
+      setForgotDone(true);
+    } catch {
+      setForgotError("Something went wrong. Please try again.");
+    } finally {
+      setForgotLoading(false);
     }
   };
 
@@ -302,12 +338,13 @@ export default function LandingPage() {
                     }}
                   >
                     <label style={{ fontSize: "14px", fontWeight: 600, color: "#444" }}>Password</label>
-                    <Link
-                      href="#"
-                      style={{ fontSize: "13px", color: "#0B5C6C", fontWeight: 500, textDecoration: "none" }}
+                    <button
+                      type="button"
+                      onClick={() => setForgotOpen(true)}
+                      style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: "13px", color: "#0B5C6C", fontWeight: 500 }}
                     >
                       Forgot password?
-                    </Link>
+                    </button>
                   </div>
                   <div className="landing-password-wrap">
                     <input
@@ -486,6 +523,138 @@ export default function LandingPage() {
           </p>
         </div>
       </main>
+
+      {/* ── Forgot password modal ────────────────────────────────────────────── */}
+      {forgotOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="forgot-modal-title"
+          onClick={() => { setForgotOpen(false); setForgotEmail(""); setForgotDone(false); setForgotError(""); }}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 50,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "24px",
+            background: "rgba(5,20,30,0.72)",
+            backdropFilter: "blur(4px)",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "#FDFCF5",
+              borderRadius: "20px",
+              padding: "36px 32px",
+              maxWidth: "420px",
+              width: "100%",
+              boxShadow: "0 8px 40px rgba(11,42,60,0.38)",
+              boxSizing: "border-box",
+            }}
+          >
+            <h2
+              id="forgot-modal-title"
+              style={{
+                fontFamily: "'Cormorant Garamond', serif",
+                fontWeight: 600,
+                fontSize: "26px",
+                color: "#0B2A3C",
+                margin: "0 0 8px",
+                lineHeight: 1.2,
+              }}
+            >
+              Reset your password
+            </h2>
+
+            {forgotDone ? (
+              <>
+                <p style={{ fontSize: "15px", color: "#444", lineHeight: 1.7, margin: "0 0 28px" }}>
+                  If an account matches this email, password reset instructions will be sent.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => { setForgotOpen(false); setForgotEmail(""); setForgotDone(false); setForgotError(""); }}
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    padding: "14px",
+                    background: "#0B2A3C",
+                    color: "#FDFCF5",
+                    border: "none",
+                    borderRadius: "10px",
+                    fontSize: "15px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  Close
+                </button>
+              </>
+            ) : (
+              <>
+                <p style={{ fontSize: "14px", color: "#888", margin: "0 0 20px", lineHeight: 1.55 }}>
+                  Enter your email address and we&rsquo;ll send password reset instructions.
+                </p>
+
+                {forgotError && (
+                  <div
+                    style={{
+                      marginBottom: "16px",
+                      padding: "12px 14px",
+                      background: "#FEF2F2",
+                      border: "1px solid #FECACA",
+                      borderRadius: "10px",
+                    }}
+                  >
+                    <p style={{ fontSize: "14px", color: "#B91C1C", margin: 0 }}>{forgotError}</p>
+                  </div>
+                )}
+
+                <form onSubmit={handleForgotSubmit}>
+                  <div style={{ marginBottom: "20px" }}>
+                    <label
+                      style={{ display: "block", fontSize: "14px", fontWeight: 600, color: "#444", marginBottom: "8px" }}
+                    >
+                      Email address
+                    </label>
+                    <input
+                      ref={forgotEmailRef}
+                      type="email"
+                      autoComplete="email"
+                      className="landing-input"
+                      placeholder="you@example.com"
+                      value={forgotEmail}
+                      onChange={(e) => { setForgotEmail(e.target.value); if (forgotError) setForgotError(""); }}
+                      required
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="landing-submit"
+                    disabled={forgotLoading || forgotEmail.trim().length === 0}
+                  >
+                    {forgotLoading ? (
+                      <span className="landing-spinner-wrap">
+                        <svg width="16" height="16" viewBox="0 0 24 24" className="landing-spinner">
+                          <circle cx="12" cy="12" r="10" stroke="white" strokeWidth="3" fill="none" opacity="0.3" />
+                          <path d="M12 2a10 10 0 019.95 9" stroke="white" strokeWidth="3" fill="none" strokeLinecap="round" />
+                        </svg>
+                        Sending...
+                      </span>
+                    ) : (
+                      "Send reset instructions"
+                    )}
+                  </button>
+                </form>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── Privacy modal ────────────────────────────────────────────────────── */}
       {privacyOpen && (
