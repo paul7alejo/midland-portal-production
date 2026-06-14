@@ -88,7 +88,6 @@ export default function ProfilePage() {
       setAddressMessage("Please complete the required address fields first.");
       return;
     }
-
     saveDeliveryAddress(addressStorageKey, normalized);
     setDeliveryAddress(normalized);
     setAddressMessage("Default delivery address saved for supply requests.");
@@ -143,150 +142,191 @@ export default function ProfilePage() {
       <h1 className="font-display text-[28px] md:text-[34px] leading-tight font-semibold text-navy mb-2">
         My profile
       </h1>
-      <p className="text-base leading-6 text-charcoal/80 mb-4">
+      <p className="text-base leading-6 text-charcoal/80 mb-3">
         Your account details and Midland Sleep ID.
       </p>
 
-      <div className="space-y-5">
+      <div className="space-y-3">
 
-        {/* SECTION 1 — Your Details */}
-        <section className="bg-white border border-sand rounded-2xl p-5 md:p-6 space-y-4">
-          <div className="bg-seafoam-pale border border-seafoam/30 rounded-md px-4 py-3">
-            <p className="text-base leading-6 text-charcoal/85">
-              Your information is handled in accordance with the Health Information Privacy Code 2020.
-            </p>
-          </div>
+        {/* Row 1: Your details + Portal ID side by side on desktop */}
+        <div className="grid gap-3 lg:grid-cols-2 lg:items-start">
 
-          <h2 className="font-display text-xl font-semibold text-navy leading-snug">Your details</h2>
+          {/* SECTION 1 — Your Details */}
+          <section className="bg-white border border-sand rounded-2xl p-4 md:p-5 space-y-3">
+            <div className="bg-seafoam-pale border border-seafoam/30 rounded-md px-3 py-2.5">
+              <p className="text-sm leading-5 text-charcoal/85">
+                Your information is handled in accordance with the Health Information Privacy Code 2020.
+              </p>
+            </div>
 
-          {profileLoading ? (
-            <p className="text-lg leading-7 text-charcoal/80">Loading...</p>
-          ) : profile ? (
-            <dl className="grid gap-x-8 gap-y-5 md:grid-cols-2 text-lg leading-7">
-              <div>
-                <dt className="text-sm uppercase tracking-wide text-charcoal/80 font-mono mb-1.5">
-                  Full name
-                </dt>
-                <dd className="font-medium text-charcoal">{profile.name}</dd>
-              </div>
-              <div>
-                <dt className="text-sm uppercase tracking-wide text-charcoal/80 font-mono mb-1.5">
-                  Email
-                </dt>
-                <dd className="text-charcoal break-words">{profile.email}</dd>
-              </div>
-              <div>
-                <dt className="text-sm uppercase tracking-wide text-charcoal/80 font-mono mb-1.5">
-                  Midland Sleep ID
-                </dt>
-                <dd className="font-mono text-charcoal break-all">{profile.msid}</dd>
-              </div>
-            </dl>
-          ) : (
-            <p className="text-lg leading-7 text-charcoal/80">
-              Unable to load your details. Please try again later.
-            </p>
-          )}
-        </section>
+            <h2 className="font-display text-xl font-semibold text-navy leading-snug">Your details</h2>
 
-        {/* SECTION 2 — Portal ID Card */}
-        <section className="bg-navy rounded-2xl p-5 md:p-6 space-y-4">
-          <div>
-            <h2 className="font-display text-xl font-semibold text-cream leading-snug">Portal ID card</h2>
-            <p className="text-base leading-6 text-cream/80 mt-1">
-              Use this ID when contacting Midland Sleep.
-            </p>
-          </div>
-
-          <div className="bg-deep-teal/40 rounded-md px-5 py-4">
-            <p className="text-sm uppercase tracking-wide text-seafoam font-mono mb-2">
-              Your Midland Sleep ID
-            </p>
-            <p className="font-mono text-3xl text-cream tracking-widest break-all">
-              {msid || "—"}
-            </p>
-          </div>
-
-          <button
-            onClick={handleCopy}
-            disabled={!msid}
-            className={cn(
-              "flex items-center justify-center gap-2 px-5 py-3 rounded-lg text-base font-medium transition-colors disabled:cursor-not-allowed min-h-[48px]",
-              copied
-                ? "bg-seafoam text-navy"
-                : "bg-cream/10 text-cream hover:bg-cream/20 border border-cream/20"
+            {profileLoading ? (
+              <p className="text-base leading-6 text-charcoal/80">Loading...</p>
+            ) : profile ? (
+              <dl className="grid gap-x-6 gap-y-3 md:grid-cols-2 text-base leading-6">
+                <div>
+                  <dt className="text-xs uppercase tracking-wide text-charcoal/80 font-mono mb-1">
+                    Full name
+                  </dt>
+                  <dd className="font-medium text-charcoal">{profile.name}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs uppercase tracking-wide text-charcoal/80 font-mono mb-1">
+                    Email
+                  </dt>
+                  <dd className="text-charcoal break-words">{profile.email}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs uppercase tracking-wide text-charcoal/80 font-mono mb-1">
+                    Midland Sleep ID
+                  </dt>
+                  <dd className="font-mono text-charcoal break-all">{profile.msid}</dd>
+                </div>
+              </dl>
+            ) : (
+              <p className="text-base leading-6 text-charcoal/80">
+                Unable to load your details. Please try again later.
+              </p>
             )}
-          >
-            {copied ? "Copied!" : "Copy to clipboard"}
-          </button>
-        </section>
+          </section>
 
-        {/* SECTION 3 — NHI Number */}
-        <section className="bg-white border border-sand rounded-2xl p-5 md:p-6 space-y-4">
-          <div>
-            <h2 className="font-display text-xl font-semibold text-navy leading-snug">NHI number</h2>
-            <p className="text-lg leading-7 text-charcoal/80 mt-1">
-              Your National Health Index number.
-            </p>
-          </div>
+          {/* SECTION 2 — Portal ID Card */}
+          <section className="bg-navy rounded-2xl p-4 md:p-5 space-y-3">
+            <div>
+              <h2 className="font-display text-xl font-semibold text-cream leading-snug">Portal ID card</h2>
+              <p className="text-sm leading-5 text-cream/80 mt-1">
+                Use this ID when contacting Midland Sleep.
+              </p>
+            </div>
 
-          <div className="bg-sand-pale rounded-md px-4 py-4">
-            <p className="text-sm uppercase tracking-wide text-charcoal/80 font-mono mb-1.5">
-              NHI
-            </p>
-            <p className="text-2xl font-mono text-charcoal font-medium tracking-widest break-all">
-              {nhiState.status === "revealed" ? nhiState.nhi : "Hidden"}
-            </p>
-          </div>
+            <div className="bg-deep-teal/40 rounded-md px-4 py-3">
+              <p className="text-xs uppercase tracking-wide text-seafoam font-mono mb-1.5">
+                Your Midland Sleep ID
+              </p>
+              <p className="font-mono text-2xl text-cream tracking-widest break-all">
+                {msid || "—"}
+              </p>
+            </div>
 
-          {nhiState.status === "revealed" && (
-            <p className="text-base font-medium text-amber">
-              Hiding in {nhiState.secondsLeft}s
-            </p>
-          )}
-
-          {nhiState.status === "error" && (
-            <p className="text-base leading-6 text-amber">{nhiState.message}</p>
-          )}
-
-          {nhiState.status !== "revealed" && (
             <button
-              onClick={handleRevealNhi}
-              disabled={nhiState.status === "loading"}
-              className="bg-[#0B5C6C] text-white px-7 py-3.5 rounded-lg text-lg font-medium
-                         min-h-[52px] hover:bg-[#0B5C6C]/90 transition-colors
-                         disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={handleCopy}
+              disabled={!msid}
+              className={cn(
+                "flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-base font-medium transition-colors disabled:cursor-not-allowed min-h-[44px]",
+                copied
+                  ? "bg-seafoam text-navy"
+                  : "bg-cream/10 text-cream hover:bg-cream/20 border border-cream/20"
+              )}
             >
-              {nhiState.status === "loading" ? "Revealing..." : "Reveal NHI"}
+              {copied ? "Copied!" : "Copy to clipboard"}
             </button>
-          )}
+          </section>
+        </div>
 
-          <p className="text-base leading-6 text-charcoal/80">
-            Your NHI is protected. Revealing it is logged for security.
-          </p>
-        </section>
+        {/* Row 2: NHI + Notification preferences side by side on desktop */}
+        <div className="grid gap-3 lg:grid-cols-2 lg:items-start">
 
-        {/* SECTION 4 — Default Delivery Address */}
-        <section id="delivery-address" className="bg-white border border-sand rounded-2xl p-5 md:p-6 space-y-4">
+          {/* SECTION 3 — NHI Number */}
+          <section className="bg-white border border-sand rounded-2xl p-4 md:p-5 space-y-3">
+            <div>
+              <h2 className="font-display text-xl font-semibold text-navy leading-snug">NHI number</h2>
+              <p className="text-base leading-6 text-charcoal/80 mt-0.5">
+                Your National Health Index number.
+              </p>
+            </div>
+
+            <div className="bg-sand-pale rounded-md px-4 py-3">
+              <p className="text-xs uppercase tracking-wide text-charcoal/80 font-mono mb-1">
+                NHI
+              </p>
+              <p className="text-xl font-mono text-charcoal font-medium tracking-widest break-all">
+                {nhiState.status === "revealed" ? nhiState.nhi : "Hidden"}
+              </p>
+            </div>
+
+            {nhiState.status === "revealed" && (
+              <p className="text-sm font-medium text-amber">
+                Hiding in {nhiState.secondsLeft}s
+              </p>
+            )}
+
+            {nhiState.status === "error" && (
+              <p className="text-sm leading-5 text-amber">{nhiState.message}</p>
+            )}
+
+            {nhiState.status !== "revealed" && (
+              <button
+                onClick={handleRevealNhi}
+                disabled={nhiState.status === "loading"}
+                className="bg-[#0B5C6C] text-white px-6 py-2.5 rounded-lg text-base font-medium
+                           min-h-[44px] hover:bg-[#0B5C6C]/90 transition-colors
+                           disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {nhiState.status === "loading" ? "Revealing..." : "Reveal NHI"}
+              </button>
+            )}
+
+            <p className="text-sm leading-5 text-charcoal/80">
+              Your NHI is protected. Revealing it is logged for security.
+            </p>
+          </section>
+
+          {/* SECTION 5 — Notification Preferences */}
+          <section className="bg-white border border-sand rounded-2xl p-4 md:p-5 space-y-3">
+            <div>
+              <h2 className="font-display text-xl font-semibold text-navy leading-snug">Notification preferences</h2>
+              <p className="text-base leading-6 text-charcoal/80 mt-0.5">
+                Notification settings are not available yet.
+              </p>
+            </div>
+
+            <div>
+              {[
+                { label: "Email notifications", detail: "General portal messages" },
+                { label: "SMS notifications", detail: "Urgent clinic updates" },
+              ].map(({ label, detail }) => (
+                <div
+                  key={label}
+                  className="flex items-center justify-between gap-3 py-3 border-b border-sand last:border-0"
+                >
+                  <div>
+                    <p className="text-base leading-6 font-medium text-charcoal/80">{label}</p>
+                    <p className="text-sm leading-5 text-charcoal/70">{detail}</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-xs text-charcoal/70 font-mono whitespace-nowrap">Coming soon</span>
+                    <div className="w-10 h-6 rounded-full bg-gray-200 border border-gray-300 flex items-center px-1 cursor-not-allowed">
+                      <div className="w-4 h-4 rounded-full bg-white shadow-sm" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+
+        {/* SECTION 4 — Default Delivery Address, full width */}
+        <section id="delivery-address" className="bg-white border border-sand rounded-2xl p-4 md:p-5 space-y-3">
           <div>
             <h2 className="font-display text-xl font-semibold text-navy leading-snug">Default delivery address</h2>
-            <p className="text-lg leading-7 text-charcoal/80 mt-1">
+            <p className="text-base leading-6 text-charcoal/80 mt-0.5">
               Used for supply requests unless you choose a different delivery
               address for a specific request.
             </p>
           </div>
 
           {hasCompleteDeliveryAddress(deliveryAddress) && (
-            <div className="rounded-xl border border-deep-teal/20 bg-seafoam-pale/30 p-5">
-              <div className="flex items-start justify-between gap-3 mb-3">
-                <p className="font-mono text-sm uppercase tracking-wide text-charcoal/60">
+            <div className="rounded-xl border border-deep-teal/20 bg-seafoam-pale/30 p-4">
+              <div className="flex items-start justify-between gap-3 mb-2">
+                <p className="font-mono text-xs uppercase tracking-wide text-charcoal/60">
                   Saved address
                 </p>
                 <span className="shrink-0 rounded-full border border-deep-teal/20 bg-white px-2.5 py-0.5 text-xs font-medium text-deep-teal">
                   Default
                 </span>
               </div>
-              <div className="space-y-0.5 text-lg leading-7 text-charcoal font-medium">
+              <div className="space-y-0.5 text-base leading-6 text-charcoal font-medium">
                 {formatDeliveryAddress(deliveryAddress).map((line) => (
                   <p key={line}>{line}</p>
                 ))}
@@ -294,125 +334,85 @@ export default function ProfilePage() {
             </div>
           )}
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-3 md:grid-cols-2">
             <label className="block md:col-span-2">
-              <span className="mb-2 block text-base font-medium text-charcoal">
+              <span className="mb-1.5 block text-sm font-medium text-charcoal">
                 Address line 1
               </span>
               <input
                 value={deliveryAddress.line1}
                 onChange={(event) => updateDeliveryAddress("line1", event.target.value)}
-                className="min-h-[52px] w-full rounded-lg border border-sand bg-white px-4 py-3 text-lg text-charcoal placeholder:text-charcoal/45 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-deep-teal"
+                className="min-h-[44px] w-full rounded-lg border border-sand bg-white px-3 py-2.5 text-base text-charcoal placeholder:text-charcoal/45 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-deep-teal"
                 placeholder="Street address"
               />
             </label>
 
             <label className="block md:col-span-2">
-              <span className="mb-2 block text-base font-medium text-charcoal">
-                Address line 2 <span className="font-normal text-charcoal/60">(optional)</span>
+              <span className="mb-1.5 block text-sm font-medium text-charcoal">
+                Address line 2{" "}
+                <span className="font-normal text-charcoal/60">(optional)</span>
               </span>
               <input
                 value={deliveryAddress.line2}
                 onChange={(event) => updateDeliveryAddress("line2", event.target.value)}
-                className="min-h-[52px] w-full rounded-lg border border-sand bg-white px-4 py-3 text-lg text-charcoal placeholder:text-charcoal/45 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-deep-teal"
+                className="min-h-[44px] w-full rounded-lg border border-sand bg-white px-3 py-2.5 text-base text-charcoal placeholder:text-charcoal/45 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-deep-teal"
                 placeholder="Apartment, unit, or care of"
               />
             </label>
 
             <label className="block">
-              <span className="mb-2 block text-base font-medium text-charcoal">
-                City
-              </span>
+              <span className="mb-1.5 block text-sm font-medium text-charcoal">City</span>
               <input
                 value={deliveryAddress.city}
                 onChange={(event) => updateDeliveryAddress("city", event.target.value)}
-                className="min-h-[52px] w-full rounded-lg border border-sand bg-white px-4 py-3 text-lg text-charcoal placeholder:text-charcoal/45 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-deep-teal"
+                className="min-h-[44px] w-full rounded-lg border border-sand bg-white px-3 py-2.5 text-base text-charcoal placeholder:text-charcoal/45 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-deep-teal"
                 placeholder="Hamilton"
               />
             </label>
 
             <label className="block">
-              <span className="mb-2 block text-base font-medium text-charcoal">
-                Region
-              </span>
+              <span className="mb-1.5 block text-sm font-medium text-charcoal">Region</span>
               <input
                 value={deliveryAddress.region}
                 onChange={(event) => updateDeliveryAddress("region", event.target.value)}
-                className="min-h-[52px] w-full rounded-lg border border-sand bg-white px-4 py-3 text-lg text-charcoal placeholder:text-charcoal/45 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-deep-teal"
+                className="min-h-[44px] w-full rounded-lg border border-sand bg-white px-3 py-2.5 text-base text-charcoal placeholder:text-charcoal/45 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-deep-teal"
                 placeholder="Waikato"
               />
             </label>
 
             <label className="block">
-              <span className="mb-2 block text-base font-medium text-charcoal">
-                Postcode
-              </span>
+              <span className="mb-1.5 block text-sm font-medium text-charcoal">Postcode</span>
               <input
                 value={deliveryAddress.postcode}
                 onChange={(event) => updateDeliveryAddress("postcode", event.target.value)}
-                className="min-h-[52px] w-full rounded-lg border border-sand bg-white px-4 py-3 text-lg text-charcoal placeholder:text-charcoal/45 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-deep-teal"
+                className="min-h-[44px] w-full rounded-lg border border-sand bg-white px-3 py-2.5 text-base text-charcoal placeholder:text-charcoal/45 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-deep-teal"
                 inputMode="numeric"
                 placeholder="3204"
               />
             </label>
 
             <label className="block">
-              <span className="mb-2 block text-base font-medium text-charcoal">
-                Country
-              </span>
+              <span className="mb-1.5 block text-sm font-medium text-charcoal">Country</span>
               <input
                 value={deliveryAddress.country}
                 onChange={(event) => updateDeliveryAddress("country", event.target.value)}
-                className="min-h-[52px] w-full rounded-lg border border-sand bg-white px-4 py-3 text-lg text-charcoal placeholder:text-charcoal/45 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-deep-teal"
+                className="min-h-[44px] w-full rounded-lg border border-sand bg-white px-3 py-2.5 text-base text-charcoal placeholder:text-charcoal/45 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-deep-teal"
                 placeholder="New Zealand"
               />
             </label>
           </div>
 
           {addressMessage && (
-            <p className="text-base leading-6 text-charcoal/80">{addressMessage}</p>
+            <p className="text-sm leading-5 text-charcoal/80">{addressMessage}</p>
           )}
 
           <button
             onClick={handleSaveDeliveryAddress}
-            className="bg-[#0B5C6C] text-white px-7 py-3.5 rounded-lg text-lg font-medium
-                       min-h-[52px] hover:bg-[#0B5C6C]/90 transition-colors"
+            className="bg-[#0B5C6C] text-white px-6 py-2.5 rounded-lg text-base font-medium
+                       min-h-[44px] hover:bg-[#0B5C6C]/90 transition-colors"
           >
             Save default delivery address
           </button>
-        </section>
-
-        {/* SECTION 5 — Notification Preferences */}
-        <section className="bg-white border border-sand rounded-2xl p-5 md:p-6 space-y-4">
-          <div>
-            <h2 className="font-display text-xl font-semibold text-navy leading-snug">Notification preferences</h2>
-            <p className="text-lg leading-7 text-charcoal/80 mt-1">
-              Notification settings are not available yet.
-            </p>
-          </div>
-
-          <div>
-            {[
-              { label: "Email notifications", detail: "General portal messages" },
-              { label: "SMS notifications", detail: "Urgent clinic updates" },
-            ].map(({ label, detail }) => (
-              <div
-                key={label}
-                className="flex flex-col items-start justify-between gap-3 py-4 border-b border-sand last:border-0 sm:flex-row sm:items-center"
-              >
-                <div>
-                  <p className="text-lg leading-7 font-medium text-charcoal/80">{label}</p>
-                  <p className="text-base leading-6 text-charcoal/70">{detail}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-charcoal/70 font-mono whitespace-nowrap">Coming soon</span>
-                  <div className="w-10 h-6 rounded-full bg-gray-200 border border-gray-300 flex items-center px-1 cursor-not-allowed">
-                    <div className="w-4 h-4 rounded-full bg-white shadow-sm" />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
         </section>
 
       </div>

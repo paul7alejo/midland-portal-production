@@ -105,7 +105,7 @@ export default function EquipmentPage() {
       <h1 className="font-display text-[28px] md:text-[34px] leading-tight font-semibold text-navy mb-2">
         My Equipment
       </h1>
-      <p className="text-base leading-6 text-charcoal/80 mb-5">
+      <p className="text-base leading-6 text-charcoal/80 mb-4">
         These are the current equipment details held by Midland Sleep.
       </p>
 
@@ -113,7 +113,7 @@ export default function EquipmentPage() {
         {/* Two-column grid on desktop */}
         <div className="grid gap-4 lg:grid-cols-2">
           {/* Machine card */}
-          <section className="bg-white border border-sand rounded-2xl p-5 flex flex-col gap-4">
+          <section className="bg-white border border-sand rounded-2xl p-4 flex flex-col gap-3">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
                 <p className="font-mono text-xs uppercase tracking-wide text-charcoal/70">
@@ -135,10 +135,10 @@ export default function EquipmentPage() {
                 <button
                   type="button"
                   onClick={() => setModal("machine")}
-                  className="group relative w-full rounded-xl border border-sand bg-sand-pale/50 overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-deep-teal focus-visible:ring-offset-2"
+                  className="group relative w-full rounded-xl bg-sand-pale/40 overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-deep-teal focus-visible:ring-offset-2"
                   aria-label={`View ${machineName || "machine"} details`}
                 >
-                  <EquipmentVisual type="machine" className="h-40 w-full" />
+                  <EquipmentVisual type="machine" className="h-48 w-full" />
                   <span className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity bg-navy/20">
                     <span className="bg-navy/80 text-white text-sm px-3 py-1.5 rounded-full">
                       View details
@@ -180,7 +180,7 @@ export default function EquipmentPage() {
           </section>
 
           {/* Mask card */}
-          <section className="bg-white border border-sand rounded-2xl p-5 flex flex-col gap-4">
+          <section className="bg-white border border-sand rounded-2xl p-4 flex flex-col gap-3">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
                 <p className="font-mono text-xs uppercase tracking-wide text-charcoal/70">
@@ -202,10 +202,10 @@ export default function EquipmentPage() {
                 <button
                   type="button"
                   onClick={() => setModal("mask")}
-                  className="group relative w-full rounded-xl border border-sand bg-deep-teal/5 overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-deep-teal focus-visible:ring-offset-2"
+                  className="group relative w-full rounded-xl bg-deep-teal/5 overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-deep-teal focus-visible:ring-offset-2"
                   aria-label={`View ${maskName || "mask"} details`}
                 >
-                  <EquipmentVisual type="mask" className="h-40 w-full" />
+                  <EquipmentVisual type="mask" className="h-48 w-full" />
                   <span className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity bg-deep-teal/10">
                     <span className="bg-navy/80 text-white text-sm px-3 py-1.5 rounded-full">
                       View details
@@ -243,7 +243,7 @@ export default function EquipmentPage() {
           </section>
         </div>
 
-        <section className="bg-white border border-sand rounded-xl p-5">
+        <section className="bg-white border border-sand rounded-xl p-4">
           <h2 className="font-display text-lg font-semibold text-navy mb-1.5 leading-snug">
             Maintenance timeline
           </h2>
@@ -260,7 +260,7 @@ export default function EquipmentPage() {
           </p>
         </section>
 
-        <section className="bg-white border border-dashed border-sand rounded-xl p-5">
+        <section className="bg-white border border-dashed border-sand rounded-xl p-4">
           <h2 className="font-display text-lg font-semibold text-navy mb-1.5 leading-snug">
             Previous equipment
           </h2>

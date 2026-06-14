@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { usePatientData } from "@/hooks/usePatientData";
 import { cn } from "@/lib/utils";
@@ -28,6 +29,21 @@ function displayValue(value?: string | null, fallback = "Not recorded"): string 
   return value?.trim() || fallback;
 }
 
+function formatMaskType(type?: string): string {
+  if (!type) return "Not recorded";
+  if (type === "full_face") return "Full face";
+  if (type === "nasal") return "Nasal";
+  if (type === "nasal_pillow") return "Nasal pillow";
+  return type;
+}
+
+function addYears(iso?: string | null, years = 5): string | null {
+  const date = parseValidDate(iso);
+  if (!date) return null;
+  date.setFullYear(date.getFullYear() + years);
+  return date.toISOString();
+}
+
 function addMonths(value: string | undefined, months: number): Date | null {
   const date = parseValidDate(value);
   if (!date) return null;
@@ -45,6 +61,31 @@ function monthsSince(value: string | undefined): number | null {
   );
 }
 
+function DetailRow({
+  label,
+  value,
+  mono = false,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
+  return (
+    <div className="min-w-0">
+      <dt className="mb-1 font-mono text-xs uppercase tracking-wide text-charcoal/70">
+        {label}
+      </dt>
+      <dd
+        className={`text-base leading-6 text-charcoal ${
+          mono ? "break-all font-mono" : "font-medium"
+        }`}
+      >
+        {value}
+      </dd>
+    </div>
+  );
+}
+
 type CheckStatus = "OVERDUE" | "OK";
 
 interface MaintenanceCheck {
@@ -55,15 +96,42 @@ interface MaintenanceCheck {
   due_date: Date;
 }
 
+type ModalType = "machine" | "mask" | null;
+
 export default function MaintenancePage() {
   const { patient } = useAuth();
   const { device, mask, loading } = usePatientData();
+  const [modal, setModal] = useState<ModalType>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!modal) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setModal(null);
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [modal]);
+
+  useEffect(() => {
+    if (modal) closeRef.current?.focus();
+  }, [modal]);
 
   if (loading)
     return (
       <div className="p-8 text-charcoal/80 text-base leading-6">Loading...</div>
     );
   if (!patient) return null;
+
+  const machineName = device
+    ? device.name ||
+      [device.brand, device.model].filter(Boolean).join(" ") ||
+      "Machine details not recorded"
+    : "";
+  const maskName = mask
+    ? mask.name || mask.brand || "Mask details not recorded"
+    : "";
+  const replacementDue = addYears(device?.setup_date);
 
   const maintenance: MaintenanceCheck[] = [];
   let hasUnscheduledEquipment = false;
@@ -129,10 +197,22 @@ export default function MaintenancePage() {
         {device && (
           <div className="bg-white border border-sand rounded-2xl p-4 md:p-5">
             <div className="grid gap-4 sm:grid-cols-[minmax(140px,0.6fr)_minmax(0,1.4fr)] sm:items-center">
-              <EquipmentVisual
-                type="machine"
-                className="h-32 w-full min-w-0 sm:h-36"
-              />
+              <button
+                type="button"
+                onClick={() => setModal("machine")}
+                className="group relative rounded-xl overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-deep-teal focus-visible:ring-offset-2 min-w-0"
+                aria-label="View machine details"
+              >
+                <EquipmentVisual
+                  type="machine"
+                  className="h-32 w-full min-w-0 sm:h-36"
+                />
+                <span className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity bg-navy/20">
+                  <span className="bg-navy/80 text-white text-sm px-3 py-1.5 rounded-full">
+                    View details
+                  </span>
+                </span>
+              </button>
               <div className="min-w-0">
                 <p className="text-xs uppercase tracking-wide text-charcoal/80 font-mono mb-1">
                   Your machine
@@ -162,10 +242,22 @@ export default function MaintenancePage() {
         {mask && (
           <div className="bg-white border border-sand rounded-2xl p-4 md:p-5">
             <div className="grid gap-4 sm:grid-cols-[minmax(140px,0.6fr)_minmax(0,1.4fr)] sm:items-center">
-              <EquipmentVisual
-                type="mask"
-                className="h-32 w-full min-w-0 sm:h-36"
-              />
+              <button
+                type="button"
+                onClick={() => setModal("mask")}
+                className="group relative rounded-xl overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-deep-teal focus-visible:ring-offset-2 min-w-0"
+                aria-label="View mask details"
+              >
+                <EquipmentVisual
+                  type="mask"
+                  className="h-32 w-full min-w-0 sm:h-36"
+                />
+                <span className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity bg-deep-teal/10">
+                  <span className="bg-navy/80 text-white text-sm px-3 py-1.5 rounded-full">
+                    View details
+                  </span>
+                </span>
+              </button>
               <div className="min-w-0">
                 <p className="text-xs uppercase tracking-wide text-charcoal/80 font-mono mb-1">
                   Your mask
@@ -306,6 +398,116 @@ export default function MaintenancePage() {
           </div>
         </section>
       </div>
+
+      {/* Equipment detail modal */}
+      {modal && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+          role="dialog"
+          aria-modal="true"
+          aria-label={modal === "machine" ? "Machine details" : "Mask details"}
+        >
+          <div
+            className="absolute inset-0 bg-navy/40 backdrop-blur-sm"
+            onClick={() => setModal(null)}
+            aria-hidden="true"
+          />
+          <div className="relative z-10 w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-xl flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between gap-4 px-6 pt-5 pb-4 border-b border-sand shrink-0">
+              <h2 className="font-display text-xl font-semibold text-navy leading-snug">
+                {modal === "machine" ? "Machine details" : "Mask details"}
+              </h2>
+              <button
+                ref={closeRef}
+                type="button"
+                onClick={() => setModal(null)}
+                className="shrink-0 rounded-lg p-2 text-charcoal/60 hover:bg-sand-pale hover:text-charcoal focus:outline-none focus-visible:ring-2 focus-visible:ring-deep-teal"
+                aria-label="Close"
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M15 5L5 15M5 5l10 10"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            <div className="overflow-y-auto px-6 py-5 space-y-4">
+              {modal === "machine" && device && (
+                <>
+                  <EquipmentVisual
+                    type="machine"
+                    className="h-32 w-full rounded-xl border border-sand bg-sand-pale/50"
+                  />
+                  <dl className="grid gap-4 sm:grid-cols-2">
+                    <DetailRow label="Machine name" value={machineName} />
+                    <DetailRow label="Brand" value={displayValue(device.brand)} />
+                    <DetailRow
+                      label="Model"
+                      value={displayValue(device.name ?? device.model)}
+                    />
+                    <DetailRow
+                      label="Serial number"
+                      value={displayValue(device.serial_number)}
+                      mono
+                    />
+                    <DetailRow
+                      label="Set up"
+                      value={formatDateValue(device.setup_date)}
+                    />
+                    <DetailRow
+                      label="Replacement due"
+                      value={formatDateValue(replacementDue)}
+                    />
+                    <DetailRow
+                      label="Entitlement"
+                      value="Health New Zealand | Te Whatu Ora"
+                    />
+                  </dl>
+                </>
+              )}
+              {modal === "mask" && mask && (
+                <>
+                  <EquipmentVisual
+                    type="mask"
+                    className="h-32 w-full rounded-xl border border-sand bg-deep-teal/5"
+                  />
+                  <dl className="grid gap-4 sm:grid-cols-2">
+                    <DetailRow label="Mask name" value={maskName} />
+                    <DetailRow label="Brand" value={displayValue(mask.brand)} />
+                    <DetailRow label="Model" value={displayValue(mask.name)} />
+                    <DetailRow label="Type" value={formatMaskType(mask.type)} />
+                    <DetailRow label="Size" value={displayValue(mask.size)} />
+                    <DetailRow
+                      label="Fitted"
+                      value={formatDateValue(mask.fitted_date)}
+                    />
+                  </dl>
+                </>
+              )}
+            </div>
+
+            <div className="px-6 pb-6 pt-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setModal(null)}
+                className="w-full rounded-lg bg-navy text-white py-3 text-base font-medium min-h-[48px] hover:bg-navy/90 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-deep-teal focus-visible:ring-offset-2"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
