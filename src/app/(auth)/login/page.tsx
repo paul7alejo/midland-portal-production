@@ -1,7 +1,7 @@
 "use client";
 import "../../landing-styles.css";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { useRouter } from "next/navigation";
 import { getCurrentUser, configureCognito } from "@/lib/aws/cognito";
@@ -23,6 +23,8 @@ export default function LandingPage() {
   const [confirmPassword, setConfirmPassword]     = useState("");
   const [showNewPassword, setShowNewPassword]     = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [privacyOpen, setPrivacyOpen]               = useState(false);
+  const privacyCloseRef                              = useRef<HTMLButtonElement>(null);
 
   const { login, completePasswordChallenge, isAuthenticated, patient } = useAuth();
   const router = useRouter();
@@ -38,6 +40,14 @@ export default function LandingPage() {
   useEffect(() => {
     if (isAuthenticated) router.replace(isAdminIdentity(patient ?? {}) ? "/admin" : "/portal/dashboard");
   }, [isAuthenticated, patient, router]);
+
+  useEffect(() => {
+    if (!privacyOpen) return;
+    privacyCloseRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setPrivacyOpen(false); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [privacyOpen]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -246,9 +256,13 @@ export default function LandingPage() {
                 </h2>
                 <p style={{ fontSize: "13px", color: "#888", margin: 0, lineHeight: 1.55 }}>
                   Your details are used only to verify your identity.{" "}
-                  <a href="#" style={{ color: "#0B5C6C", fontWeight: 500, textDecoration: "none" }}>
+                  <button
+                    type="button"
+                    onClick={() => setPrivacyOpen(true)}
+                    style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "#0B5C6C", fontWeight: 500, fontSize: "inherit", textDecoration: "none" }}
+                  >
                     Privacy notice →
-                  </a>
+                  </button>
                 </p>
               </div>
 
@@ -464,10 +478,98 @@ export default function LandingPage() {
             <a href="tel:078381234" style={{ color: "#74C0A2", fontWeight: 500, textDecoration: "none" }}>
               07 838 1234
             </a>
-            {" "}and we can help.
+            {" "}or email{" "}
+            <a href="mailto:support@midlandsleep.co.nz" style={{ color: "#74C0A2", fontWeight: 500, textDecoration: "none" }}>
+              support@midlandsleep.co.nz
+            </a>
+            .
           </p>
         </div>
       </main>
+
+      {/* ── Privacy modal ────────────────────────────────────────────────────── */}
+      {privacyOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="privacy-modal-title"
+          onClick={() => setPrivacyOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 50,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "24px",
+            background: "rgba(5,20,30,0.72)",
+            backdropFilter: "blur(4px)",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "#FDFCF5",
+              borderRadius: "20px",
+              padding: "36px 32px",
+              maxWidth: "480px",
+              width: "100%",
+              boxShadow: "0 8px 40px rgba(11,42,60,0.38)",
+              boxSizing: "border-box",
+            }}
+          >
+            <h2
+              id="privacy-modal-title"
+              style={{
+                fontFamily: "'Cormorant Garamond', serif",
+                fontWeight: 600,
+                fontSize: "26px",
+                color: "#0B2A3C",
+                margin: "0 0 20px",
+                lineHeight: 1.2,
+              }}
+            >
+              Privacy notice
+            </h2>
+            <p style={{ fontSize: "15px", color: "#444", lineHeight: 1.7, margin: "0 0 14px" }}>
+              Midland Sleep uses the details you enter here only to verify your identity and provide access to your sleep care portal.
+            </p>
+            <p style={{ fontSize: "15px", color: "#444", lineHeight: 1.7, margin: "0 0 14px" }}>
+              Your portal may show information related to your CPAP equipment, supply requests, account access, and clinic updates.
+            </p>
+            <p style={{ fontSize: "15px", color: "#444", lineHeight: 1.7, margin: "0 0 14px" }}>
+              Your information is handled in line with New Zealand privacy obligations and Midland Sleep&rsquo;s internal privacy processes.
+            </p>
+            <p style={{ fontSize: "15px", color: "#444", lineHeight: 1.7, margin: "0 0 28px" }}>
+              If you have questions about your information, contact Midland Sleep at{" "}
+              <a href="mailto:support@midlandsleep.co.nz" style={{ color: "#0B5C6C", fontWeight: 500, textDecoration: "none" }}>
+                support@midlandsleep.co.nz
+              </a>
+              .
+            </p>
+            <button
+              ref={privacyCloseRef}
+              type="button"
+              onClick={() => setPrivacyOpen(false)}
+              style={{
+                display: "block",
+                width: "100%",
+                padding: "14px",
+                background: "#0B2A3C",
+                color: "#FDFCF5",
+                border: "none",
+                borderRadius: "10px",
+                fontSize: "15px",
+                fontWeight: 600,
+                cursor: "pointer",
+                letterSpacing: "0.2px",
+              }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
