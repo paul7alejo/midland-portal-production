@@ -17,12 +17,18 @@ export default function AdminLoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading]       = useState(false);
   const [error, setError]               = useState("");
-  const [forgotOpen, setForgotOpen]     = useState(false);
-  const [forgotEmail, setForgotEmail]   = useState("");
-  const [forgotLoading, setForgotLoading] = useState(false);
-  const [forgotDone, setForgotDone]     = useState(false);
-  const [forgotError, setForgotError]   = useState("");
-  const forgotEmailRef                  = useRef<HTMLInputElement>(null);
+  const [forgotOpen, setForgotOpen]               = useState(false);
+  const [forgotEmail, setForgotEmail]             = useState("");
+  const [forgotLoading, setForgotLoading]         = useState(false);
+  const [forgotStep, setForgotStep]               = useState<"email" | "code" | "done">("email");
+  const [forgotCode, setForgotCode]               = useState("");
+  const [forgotNewPassword, setForgotNewPassword] = useState("");
+  const [forgotConfirmPwd, setForgotConfirmPwd]   = useState("");
+  const [forgotShowNewPwd, setForgotShowNewPwd]   = useState(false);
+  const [forgotShowConfPwd, setForgotShowConfPwd] = useState(false);
+  const [forgotError, setForgotError]             = useState("");
+  const forgotEmailRef                            = useRef<HTMLInputElement>(null);
+  const forgotCodeRef                             = useRef<HTMLInputElement>(null);
 
   const { login } = useAuth();
   const router = useRouter();
@@ -58,15 +64,20 @@ export default function AdminLoginPage() {
     forgotEmailRef.current?.focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        setForgotOpen(false); setForgotEmail(""); setForgotDone(false); setForgotError("");
+        setForgotOpen(false); setForgotStep("email"); setForgotEmail("");
+        setForgotCode(""); setForgotNewPassword(""); setForgotConfirmPwd("");
+        setForgotShowNewPwd(false); setForgotShowConfPwd(false); setForgotError("");
       }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [forgotOpen]);
 
-  const handleForgotSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  useEffect(() => {
+    if (forgotStep === "code") forgotCodeRef.current?.focus();
+  }, [forgotStep]);
+
+  const sendResetCode = async () => {
     setForgotError("");
     setForgotLoading(true);
     try {
@@ -75,7 +86,50 @@ export default function AdminLoginPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: forgotEmail.trim(), userType: "staff" }),
       });
-      setForgotDone(true);
+      setForgotCode(""); setForgotNewPassword(""); setForgotConfirmPwd("");
+      setForgotShowNewPwd(false); setForgotShowConfPwd(false);
+      setForgotStep("code");
+    } catch {
+      setForgotError("Something went wrong. Please try again.");
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  const handleForgotSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await sendResetCode();
+  };
+
+  const handleConfirmSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (forgotNewPassword !== forgotConfirmPwd) {
+      setForgotError("Passwords do not match.");
+      return;
+    }
+    if (forgotNewPassword.length < 8) {
+      setForgotError("Password must be at least 8 characters.");
+      return;
+    }
+    setForgotError("");
+    setForgotLoading(true);
+    try {
+      const res = await fetch("/api/auth/confirm-forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: forgotEmail.trim(),
+          userType: "staff",
+          code: forgotCode.trim(),
+          newPassword: forgotNewPassword,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data?.ok) {
+        setForgotStep("done");
+      } else {
+        setForgotError("We couldn't reset the password. Check the code and try again, or request a new code.");
+      }
     } catch {
       setForgotError("Something went wrong. Please try again.");
     } finally {
@@ -309,7 +363,11 @@ export default function AdminLoginPage() {
           role="dialog"
           aria-modal="true"
           aria-labelledby="forgot-modal-title"
-          onClick={() => { setForgotOpen(false); setForgotEmail(""); setForgotDone(false); setForgotError(""); }}
+          onClick={() => {
+            setForgotOpen(false); setForgotStep("email"); setForgotEmail("");
+            setForgotCode(""); setForgotNewPassword(""); setForgotConfirmPwd("");
+            setForgotShowNewPwd(false); setForgotShowConfPwd(false); setForgotError("");
+          }}
           style={{
             position: "fixed",
             inset: 0,
@@ -330,6 +388,8 @@ export default function AdminLoginPage() {
               padding: "36px 32px",
               maxWidth: "420px",
               width: "100%",
+              maxHeight: "90vh",
+              overflowY: "auto",
               boxShadow: "0 8px 40px rgba(11,42,60,0.38)",
               boxSizing: "border-box",
             }}
@@ -348,55 +408,146 @@ export default function AdminLoginPage() {
               Reset your password
             </h2>
 
-            {forgotDone ? (
+            {forgotStep === "done" ? (
               <>
                 <p style={{ fontSize: "15px", color: "#444", lineHeight: 1.7, margin: "0 0 28px" }}>
-                  If an account matches this email, password reset instructions will be sent.
+                  Your password has been reset. You can now sign in with your new password.
                 </p>
                 <button
                   type="button"
-                  onClick={() => { setForgotOpen(false); setForgotEmail(""); setForgotDone(false); setForgotError(""); }}
+                  onClick={() => {
+                    setForgotOpen(false); setForgotStep("email"); setForgotEmail("");
+                    setForgotCode(""); setForgotNewPassword(""); setForgotConfirmPwd("");
+                    setForgotShowNewPwd(false); setForgotShowConfPwd(false); setForgotError("");
+                  }}
                   style={{
-                    display: "block",
-                    width: "100%",
-                    padding: "14px",
-                    background: "#0B2A3C",
-                    color: "#FDFCF5",
-                    border: "none",
-                    borderRadius: "10px",
-                    fontSize: "15px",
-                    fontWeight: 600,
-                    cursor: "pointer",
+                    display: "block", width: "100%", padding: "14px",
+                    background: "#0B2A3C", color: "#FDFCF5", border: "none",
+                    borderRadius: "10px", fontSize: "15px", fontWeight: 600, cursor: "pointer",
                   }}
                 >
                   Close
                 </button>
               </>
-            ) : (
+            ) : forgotStep === "code" ? (
               <>
-                <p style={{ fontSize: "14px", color: "#888", margin: "0 0 20px", lineHeight: 1.55 }}>
-                  Enter your email address and we&rsquo;ll send password reset instructions.
+                <p style={{ fontSize: "14px", color: "#888", margin: "0 0 4px", lineHeight: 1.55 }}>
+                  Enter the reset code from your email and choose a new password.
+                </p>
+                <p style={{ fontSize: "13px", color: "#aaa", margin: "0 0 20px", lineHeight: 1.5 }}>
+                  This code is time-limited. If it expires, request a new code.
                 </p>
 
                 {forgotError && (
-                  <div
-                    style={{
-                      marginBottom: "16px",
-                      padding: "12px 14px",
-                      background: "#FEF2F2",
-                      border: "1px solid #FECACA",
-                      borderRadius: "10px",
-                    }}
+                  <div style={{ marginBottom: "16px", padding: "12px 14px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: "10px" }}>
+                    <p style={{ fontSize: "14px", color: "#B91C1C", margin: 0 }}>{forgotError}</p>
+                  </div>
+                )}
+
+                <form onSubmit={handleConfirmSubmit}>
+                  <div style={{ marginBottom: "16px" }}>
+                    <label style={{ display: "block", fontSize: "14px", fontWeight: 600, color: "#444", marginBottom: "8px" }}>
+                      Reset code
+                    </label>
+                    <input
+                      ref={forgotCodeRef}
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      className="landing-input"
+                      placeholder="Enter the code from your email"
+                      value={forgotCode}
+                      onChange={(e) => { setForgotCode(e.target.value); if (forgotError) setForgotError(""); }}
+                      required
+                    />
+                  </div>
+
+                  <div style={{ marginBottom: "16px" }}>
+                    <label style={{ display: "block", fontSize: "14px", fontWeight: 600, color: "#444", marginBottom: "8px" }}>
+                      New password
+                    </label>
+                    <div className="landing-password-wrap">
+                      <input
+                        type={forgotShowNewPwd ? "text" : "password"}
+                        className="landing-input"
+                        placeholder="At least 8 characters"
+                        value={forgotNewPassword}
+                        autoComplete="new-password"
+                        onChange={(e) => { setForgotNewPassword(e.target.value); if (forgotError) setForgotError(""); }}
+                        required
+                      />
+                      <button type="button" className="landing-password-toggle" onClick={() => setForgotShowNewPwd(!forgotShowNewPwd)}>
+                        {forgotShowNewPwd ? "Hide" : "Show"}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div style={{ marginBottom: "24px" }}>
+                    <label style={{ display: "block", fontSize: "14px", fontWeight: 600, color: "#444", marginBottom: "8px" }}>
+                      Confirm new password
+                    </label>
+                    <div className="landing-password-wrap">
+                      <input
+                        type={forgotShowConfPwd ? "text" : "password"}
+                        className="landing-input"
+                        placeholder="Repeat your new password"
+                        value={forgotConfirmPwd}
+                        autoComplete="new-password"
+                        onChange={(e) => { setForgotConfirmPwd(e.target.value); if (forgotError) setForgotError(""); }}
+                        required
+                      />
+                      <button type="button" className="landing-password-toggle" onClick={() => setForgotShowConfPwd(!forgotShowConfPwd)}>
+                        {forgotShowConfPwd ? "Hide" : "Show"}
+                      </button>
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="landing-submit"
+                    disabled={forgotLoading || !forgotCode.trim() || !forgotNewPassword || !forgotConfirmPwd}
                   >
+                    {forgotLoading ? (
+                      <span className="landing-spinner-wrap">
+                        <svg width="16" height="16" viewBox="0 0 24 24" className="landing-spinner">
+                          <circle cx="12" cy="12" r="10" stroke="white" strokeWidth="3" fill="none" opacity="0.3" />
+                          <path d="M12 2a10 10 0 019.95 9" stroke="white" strokeWidth="3" fill="none" strokeLinecap="round" />
+                        </svg>
+                        Resetting...
+                      </span>
+                    ) : (
+                      "Reset password"
+                    )}
+                  </button>
+                </form>
+
+                <p style={{ marginTop: "16px", textAlign: "center", fontSize: "13px", color: "#888" }}>
+                  Didn&rsquo;t receive a code?{" "}
+                  <button
+                    type="button"
+                    onClick={sendResetCode}
+                    disabled={forgotLoading}
+                    style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "#0B5C6C", fontWeight: 500, fontSize: "inherit" }}
+                  >
+                    Send a new code
+                  </button>
+                </p>
+              </>
+            ) : (
+              <>
+                <p style={{ fontSize: "14px", color: "#888", margin: "0 0 20px", lineHeight: 1.55 }}>
+                  Enter your email address and we&rsquo;ll send you a reset code.
+                </p>
+
+                {forgotError && (
+                  <div style={{ marginBottom: "16px", padding: "12px 14px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: "10px" }}>
                     <p style={{ fontSize: "14px", color: "#B91C1C", margin: 0 }}>{forgotError}</p>
                   </div>
                 )}
 
                 <form onSubmit={handleForgotSubmit}>
                   <div style={{ marginBottom: "20px" }}>
-                    <label
-                      style={{ display: "block", fontSize: "14px", fontWeight: 600, color: "#444", marginBottom: "8px" }}
-                    >
+                    <label style={{ display: "block", fontSize: "14px", fontWeight: 600, color: "#444", marginBottom: "8px" }}>
                       Email address
                     </label>
                     <input
@@ -425,7 +576,7 @@ export default function AdminLoginPage() {
                         Sending...
                       </span>
                     ) : (
-                      "Send reset instructions"
+                      "Send reset code"
                     )}
                   </button>
                 </form>
