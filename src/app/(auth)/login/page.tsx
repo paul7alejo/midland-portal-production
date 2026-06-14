@@ -6,6 +6,7 @@ import { useAuth } from "@/components/AuthProvider";
 import { useRouter } from "next/navigation";
 import { getCurrentUser, configureCognito } from "@/lib/aws/cognito";
 import { isAdminIdentity } from "@/lib/admin-identity";
+import AnimatedLoginBackground from "@/components/auth/AnimatedLoginBackground";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -118,31 +119,8 @@ export default function LandingPage() {
     ) : null;
 
   return (
-    <div
-      className="min-h-screen relative overflow-hidden flex flex-col"
-      style={{
-        background: "linear-gradient(135deg, #0B2A3C 0%, #0B5C6C 55%, #1A8A74 100%)",
-      }}
-    >
-      {/* Background glows */}
-      <div
-        className="pointer-events-none absolute"
-        style={{
-          top: "-80px", right: "-60px",
-          width: "540px", height: "540px",
-          borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(116,192,162,0.13) 0%, transparent 70%)",
-        }}
-      />
-      <div
-        className="pointer-events-none absolute"
-        style={{
-          bottom: "-80px", left: "6%",
-          width: "420px", height: "420px",
-          borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(116,192,162,0.08) 0%, transparent 70%)",
-        }}
-      />
+    <div className="min-h-screen relative overflow-hidden flex flex-col bg-[#0B2A3C]">
+      <AnimatedLoginBackground />
 
       {/* ── Header ─────────────────────────────────────────────────────────────── */}
       <header className="relative z-10 flex items-center justify-between px-6 py-5 md:px-10">
@@ -188,13 +166,16 @@ export default function LandingPage() {
         {/* Staff sign in */}
         <Link
           href="/admin/login"
-          className="flex items-center text-sm font-medium transition-colors hover:bg-white/10 hover:text-white"
+          className="flex items-center text-sm font-semibold transition-colors hover:bg-white/15 hover:text-white"
           style={{
-            color: "rgba(253,252,245,0.8)",
-            border: "1px solid rgba(255,255,255,0.28)",
-            borderRadius: "10px",
-            padding: "10px 18px",
+            color: "rgba(253,252,245,0.88)",
+            background: "rgba(253,252,245,0.08)",
+            border: "1px solid rgba(253,252,245,0.38)",
+            borderRadius: "999px",
+            padding: "10px 20px",
             minHeight: "44px",
+            boxShadow: "0 10px 30px rgba(5,20,30,0.18)",
+            backdropFilter: "blur(14px)",
             textDecoration: "none",
           }}
         >
