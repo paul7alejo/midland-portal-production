@@ -128,21 +128,20 @@ export default function LandingPage() {
               <span className="landing-logo-sub">Patient Portal</span>
             </div>
           </div>
-          <a href="tel:078381234" className="landing-help-link">
-            Need help?
-          </a>
+          <Link href="/admin/login" className="landing-help-link">
+            Staff sign in
+          </Link>
         </header>
 
         {/* Hero copy */}
         <div className="landing-hero-content">
           <h1 className="landing-hero-title">
-            Manage your CPAP
-            <br />
-            supplies online
+            Manage your{" "}
+            <em style={{ color: "#74C0A2", fontStyle: "italic" }}>sleep care</em>
+            {" "}online
           </h1>
-          <p className="landing-hero-subtitle">
-            Check your equipment, request funded supplies, and keep your therapy
-            on track.
+          <p className="landing-hero-subtitle" style={{ maxWidth: "380px" }}>
+            Check your CPAP equipment, request supplies, and view updates.
           </p>
         </div>
       </div>
@@ -152,6 +151,19 @@ export default function LandingPage() {
         <div className="landing-card">
           {step === "login" ? (
             <>
+              {/* Card heading */}
+              <div style={{ marginBottom: "20px" }}>
+                <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontWeight: 600, fontSize: "26px", color: "#0B2A3C", margin: "0 0 6px", lineHeight: 1.2 }}>
+                  Welcome back
+                </h2>
+                <p style={{ fontSize: "12px", color: "#999", margin: 0, lineHeight: 1.5 }}>
+                  Your details are used only to verify your identity.{" "}
+                  <a href="#" style={{ color: "#0B5C6C", fontWeight: 500, textDecoration: "none" }}>
+                    Privacy notice →
+                  </a>
+                </p>
+              </div>
+
               {/* Tabs */}
               <div className="landing-tabs">
                 <button
@@ -191,7 +203,7 @@ export default function LandingPage() {
                       autoComplete="off"
                     />
                     <p className="landing-hint">
-                      The 6-digit number from your welcome letter
+                      The 6-digit number on your welcome letter.
                     </p>
                   </div>
                 ) : (
@@ -249,9 +261,6 @@ export default function LandingPage() {
               <div className="landing-card-footer">
                 <Link href="#" className="landing-card-link">
                   Forgot password?
-                </Link>
-                <Link href="/register" className="landing-card-link">
-                  Register
                 </Link>
               </div>
             </>
@@ -344,13 +353,7 @@ export default function LandingPage() {
               <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
               <path d="M7 11V7a5 5 0 0110 0v4" />
             </svg>
-            Secure &amp; encrypted
-          </div>
-          <div className="landing-trust-item">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#74C0A2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
-            </svg>
-            ACC &amp; Health NZ funded
+            Secure sign-in
           </div>
           <div className="landing-trust-item">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#74C0A2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -359,6 +362,20 @@ export default function LandingPage() {
             </svg>
             NZ hosted data
           </div>
+        </div>
+
+        {/* Help */}
+        <div style={{ marginTop: "20px", textAlign: "center" }}>
+          <p style={{ fontSize: "14px", color: "#888", margin: "0 0 4px", fontWeight: 500 }}>
+            Need help signing in?
+          </p>
+          <p style={{ fontSize: "14px", color: "#888", margin: 0 }}>
+            Call us on{" "}
+            <a href="tel:078381234" style={{ color: "#0B5C6C", fontWeight: 500, textDecoration: "none" }}>
+              07 838 1234
+            </a>
+            {" "}and we can help.
+          </p>
         </div>
       </main>
 
