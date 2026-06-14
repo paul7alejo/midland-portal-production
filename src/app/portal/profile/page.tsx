@@ -140,24 +140,24 @@ export default function ProfilePage() {
 
   return (
     <>
-      <h1 className="font-display text-[34px] md:text-[38px] leading-tight font-semibold text-navy mb-2">
+      <h1 className="font-display text-[28px] md:text-[34px] leading-tight font-semibold text-navy mb-2">
         My profile
       </h1>
-      <p className="text-lg leading-7 text-charcoal/80 mb-7">
+      <p className="text-base leading-6 text-charcoal/80 mb-4">
         Your account details and Midland Sleep ID.
       </p>
 
-      <div className="space-y-7">
+      <div className="space-y-5">
 
         {/* SECTION 1 — Your Details */}
-        <section className="bg-white border border-sand rounded-2xl p-6 md:p-7 space-y-5">
-          <div className="bg-seafoam-pale border border-seafoam/30 rounded-md px-4 py-4">
+        <section className="bg-white border border-sand rounded-2xl p-5 md:p-6 space-y-4">
+          <div className="bg-seafoam-pale border border-seafoam/30 rounded-md px-4 py-3">
             <p className="text-base leading-6 text-charcoal/85">
               Your information is handled in accordance with the Health Information Privacy Code 2020.
             </p>
           </div>
 
-          <h2 className="font-display text-2xl font-semibold text-navy leading-snug">Your details</h2>
+          <h2 className="font-display text-xl font-semibold text-navy leading-snug">Your details</h2>
 
           {profileLoading ? (
             <p className="text-lg leading-7 text-charcoal/80">Loading...</p>
@@ -190,9 +190,9 @@ export default function ProfilePage() {
         </section>
 
         {/* SECTION 2 — Portal ID Card */}
-        <section className="bg-navy rounded-2xl p-6 md:p-7 space-y-5">
+        <section className="bg-navy rounded-2xl p-5 md:p-6 space-y-4">
           <div>
-            <h2 className="font-display text-2xl font-semibold text-cream leading-snug">Portal ID card</h2>
+            <h2 className="font-display text-xl font-semibold text-cream leading-snug">Portal ID card</h2>
             <p className="text-base leading-6 text-cream/80 mt-1">
               Use this ID when contacting Midland Sleep.
             </p>
@@ -222,9 +222,9 @@ export default function ProfilePage() {
         </section>
 
         {/* SECTION 3 — NHI Number */}
-        <section className="bg-white border border-sand rounded-2xl p-6 md:p-7 space-y-5">
+        <section className="bg-white border border-sand rounded-2xl p-5 md:p-6 space-y-4">
           <div>
-            <h2 className="font-display text-2xl font-semibold text-navy leading-snug">NHI number</h2>
+            <h2 className="font-display text-xl font-semibold text-navy leading-snug">NHI number</h2>
             <p className="text-lg leading-7 text-charcoal/80 mt-1">
               Your National Health Index number.
             </p>
@@ -267,9 +267,9 @@ export default function ProfilePage() {
         </section>
 
         {/* SECTION 4 — Default Delivery Address */}
-        <section id="delivery-address" className="bg-white border border-sand rounded-2xl p-6 md:p-7 space-y-5">
+        <section id="delivery-address" className="bg-white border border-sand rounded-2xl p-5 md:p-6 space-y-4">
           <div>
-            <h2 className="font-display text-2xl font-semibold text-navy leading-snug">Default delivery address</h2>
+            <h2 className="font-display text-xl font-semibold text-navy leading-snug">Default delivery address</h2>
             <p className="text-lg leading-7 text-charcoal/80 mt-1">
               Used for supply requests unless you choose a different delivery
               address for a specific request.
@@ -383,9 +383,9 @@ export default function ProfilePage() {
         </section>
 
         {/* SECTION 5 — Notification Preferences */}
-        <section className="bg-white border border-sand rounded-2xl p-6 md:p-7 space-y-5">
+        <section className="bg-white border border-sand rounded-2xl p-5 md:p-6 space-y-4">
           <div>
-            <h2 className="font-display text-2xl font-semibold text-navy leading-snug">Notification preferences</h2>
+            <h2 className="font-display text-xl font-semibold text-navy leading-snug">Notification preferences</h2>
             <p className="text-lg leading-7 text-charcoal/80 mt-1">
               Notification settings are not available yet.
             </p>

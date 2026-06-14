@@ -12,7 +12,7 @@ function TopBar() {
   if (!patient) return null;
 
   return (
-    <div className="relative z-50 hidden items-center justify-end gap-3 border-b border-sand bg-white px-4 py-2 md:px-8 lg:flex">
+    <div className="sticky top-0 z-40 hidden items-center justify-end gap-3 border-b border-sand bg-white px-4 py-2 md:px-8 lg:flex">
       <PortalUpdatesBell />
       <AccountMenu />
     </div>
@@ -50,7 +50,7 @@ function PortalInner({ children }: { children: React.ReactNode }) {
       </div>
 
       {/* Narrow/mobile header — visible below lg (1024px) */}
-      <div className="relative z-50 lg:hidden bg-navy px-4 py-3 flex items-center justify-between">
+      <div className="sticky top-0 z-50 lg:hidden bg-navy px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="h-8 w-8 rounded-full bg-deep-teal flex items-center justify-center text-white font-display text-sm font-bold">
             M
