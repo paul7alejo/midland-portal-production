@@ -12,7 +12,7 @@ import PortalUpdatesBell from "@/components/portal/PortalUpdatesBell";
 const BOTTOM_NAV_ITEMS = [
   { href: "/portal/dashboard",   label: "Dashboard",   icon: "home" },
   { href: "/portal/equipment",   label: "Equipment",   icon: "equipment" },
-  { href: "/portal/reorder",     label: "Supplies",    icon: "clipboard" },
+  { href: "/portal/reorder",     label: "Request",     icon: "clipboard" },
   { href: "/portal/maintenance", label: "Maintenance", icon: "wrench" },
   { href: "/portal/profile",     label: "Profile",     icon: "user" },
 ] as const;

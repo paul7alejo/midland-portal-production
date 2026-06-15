@@ -193,7 +193,7 @@ function DeliveryAddressFields({
   onChange: (field: keyof DeliveryAddress, value: string) => void;
 }) {
   return (
-    <div className="grid gap-4 md:grid-cols-2">
+    <div className="grid gap-3 sm:gap-4 md:grid-cols-2">
       <label className="block md:col-span-2">
         <span className="mb-2 block text-base font-medium text-charcoal">
           Address line 1
@@ -310,7 +310,7 @@ function OptionDrawer({
             <p className="font-mono text-sm uppercase tracking-wide text-deep-teal mb-1">
               Supply option
             </p>
-            <h2 className="font-display text-2xl font-semibold text-navy leading-snug">
+            <h2 className="font-display text-xl sm:text-2xl font-semibold text-navy leading-snug">
               {ITEM_LABELS[category]}
             </h2>
             <p className="mt-1 text-base leading-6 text-charcoal/75">
@@ -797,8 +797,8 @@ export default function ReorderPage() {
           </p>
         </div>
 
-        <div className="rounded-2xl border border-sand bg-white p-5 md:p-6 space-y-5">
-          <h2 className="font-display text-2xl font-semibold text-navy leading-snug">
+        <div className="rounded-2xl border border-sand bg-white p-4 sm:p-5 md:p-6 space-y-4 sm:space-y-5">
+          <h2 className="font-display text-xl sm:text-2xl font-semibold text-navy leading-snug">
             Send a message to Midland Sleep
           </h2>
 
@@ -871,13 +871,13 @@ export default function ReorderPage() {
 
   return (
     <>
-      <h1 className="font-display text-[34px] md:text-[38px] leading-tight font-semibold text-navy mb-2">
+      <h1 className="font-display text-[26px] sm:text-[34px] md:text-[38px] leading-tight font-semibold text-navy mb-2">
         Request Supplies
       </h1>
       {mask && (
-        <div className="mb-6 rounded-xl border border-sand bg-white p-5">
-          <div className="grid gap-4 sm:grid-cols-[160px_minmax(0,1fr)] sm:items-center">
-            <EquipmentVisual type="mask" className="h-32 w-full min-w-0" />
+        <div className="mb-5 rounded-xl border border-sand bg-white p-4 sm:p-5">
+          <div className="grid gap-3 sm:gap-4 sm:grid-cols-[160px_minmax(0,1fr)] sm:items-center">
+            <EquipmentVisual type="mask" className="h-24 sm:h-32 w-full min-w-0" />
             <div className="min-w-0">
               <p className="mb-1 font-mono text-sm uppercase tracking-wide text-gray-700">
                 Current mask
@@ -1003,13 +1003,13 @@ export default function ReorderPage() {
       ) : (
         <div className="space-y-7">
           {/* Step 1: Eligible items */}
-          <section className="rounded-2xl border border-sand bg-white p-5 md:p-6">
-            <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <section className="rounded-2xl border border-sand bg-white p-4 sm:p-5 md:p-6">
+            <div className="mb-4 sm:mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <p className="mb-1 font-mono text-sm font-semibold uppercase tracking-wide text-deep-teal">
                   Step 1
                 </p>
-                <h2 className="font-display text-2xl font-semibold text-navy leading-snug">
+                <h2 className="font-display text-xl sm:text-2xl font-semibold text-navy leading-snug">
                   Choose supplies
                 </h2>
                 <p className="mt-2 text-base leading-6 text-charcoal/75">
@@ -1030,32 +1030,50 @@ export default function ReorderPage() {
                     aria-pressed={isSelected}
                     onClick={() => setDrawerCategory(item.item_type)}
                     className={cn(
-                      "border rounded-2xl p-5 text-left transition-colors min-h-[190px] focus:outline-none focus:ring-2 focus:ring-deep-teal",
+                      "w-full border rounded-2xl p-3.5 sm:p-5 text-left transition-colors min-h-[64px] sm:min-h-[190px] focus:outline-none focus:ring-2 focus:ring-deep-teal",
                       isSelected
                         ? "border-deep-teal bg-seafoam-pale/50 shadow-sm"
                         : "border-sand bg-white hover:border-deep-teal/40 hover:bg-sand-pale/30"
                     )}
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="h-14 w-14 rounded-2xl bg-sand-pale flex items-center justify-center shrink-0">
+                    <div className="flex items-center sm:items-start justify-between gap-3">
+                      <div className="h-10 w-10 sm:h-14 sm:w-14 rounded-xl sm:rounded-2xl bg-sand-pale flex items-center justify-center shrink-0">
                         {ITEM_ICONS[item.item_type]}
                       </div>
-                      <div className="min-w-0">
-                        <p className="text-xl font-semibold text-charcoal leading-7">
-                          {ITEM_LABELS[item.item_type]}
-                        </p>
-                        <p className="text-base text-charcoal/80 mt-1 leading-6">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2 sm:block">
+                          <p className="text-base sm:text-xl font-semibold text-charcoal leading-snug sm:leading-7">
+                            {ITEM_LABELS[item.item_type]}
+                          </p>
+                          <span
+                            className={cn(
+                              "sm:hidden shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                              isSelected
+                                ? "bg-deep-teal text-white"
+                                : "border border-sand bg-white text-charcoal/60"
+                            )}
+                            aria-hidden="true"
+                          >
+                            {isSelected ? "✓ Added" : "+ Add"}
+                          </span>
+                        </div>
+                        <p className="text-sm sm:text-base text-charcoal/80 mt-0.5 sm:mt-1 leading-snug sm:leading-6">
                           {ITEM_DESCRIPTIONS[item.item_type]}
                         </p>
-                        <p className="text-sm text-charcoal/55 mt-1 leading-5">
+                        <p className="hidden sm:block text-sm text-charcoal/55 mt-1 leading-5">
                           {(CATALOGUE_COUNTS[item.item_type] ?? 0) === 1
                             ? "1 related catalogue item — helps staff match your request. Staff will confirm availability during review."
                             : `${CATALOGUE_COUNTS[item.item_type] ?? 0} related catalogue items — help staff match your request. Staff will confirm availability during review.`}
                         </p>
+                        {isSelected && selectedOptions[item.item_type] && (
+                          <p className="mt-1 text-sm font-medium text-deep-teal">
+                            {getOptionLabel(item.item_type, selectedOptions[item.item_type])}
+                          </p>
+                        )}
                       </div>
                       <span
                         className={cn(
-                          "shrink-0 rounded-full px-3 py-1 text-sm font-semibold",
+                          "hidden sm:inline-flex shrink-0 rounded-full px-3 py-1 text-sm font-semibold",
                           isSelected
                             ? "bg-deep-teal text-white"
                             : "border border-sand bg-white text-charcoal/70"
@@ -1064,7 +1082,7 @@ export default function ReorderPage() {
                         {isSelected ? "Selected" : "Select"}
                       </span>
                     </div>
-                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                    <div className="hidden sm:flex mt-4 flex-wrap items-center gap-2">
                       <span className="inline-flex rounded-full bg-seafoam-pale px-3 py-1 text-sm font-medium text-deep-teal">
                         Available for staff review
                       </span>
@@ -1072,13 +1090,8 @@ export default function ReorderPage() {
                         Replacement item
                       </span>
                     </div>
-                    {isSelected && selectedOptions[item.item_type] && (
-                      <p className="mt-3 text-sm font-medium text-deep-teal">
-                        {getOptionLabel(item.item_type, selectedOptions[item.item_type])}
-                      </p>
-                    )}
                     {!isSelected && (
-                      <p className="mt-3 text-sm text-charcoal/50">
+                      <p className="hidden sm:block mt-3 text-sm text-charcoal/50">
                         Tap to choose a specific option
                       </p>
                     )}
@@ -1108,13 +1121,13 @@ export default function ReorderPage() {
                     ))}
                   </ul>
                 </div>
-                <div className="rounded-xl border border-sand bg-sand-pale/40 p-4">
-                  <p className="mb-2 font-mono text-sm uppercase tracking-wide text-charcoal/70">Staff review</p>
-                  <p className="text-base font-semibold text-charcoal">Available for staff review</p>
-                  <p className="mt-1 text-base leading-6 text-charcoal/75">
-                    Some items may require staff review. Midland Sleep staff will confirm availability before arranging supply.
+                <div className="rounded-xl border border-sand bg-sand-pale/40 p-3 sm:p-4">
+                  <p className="hidden sm:block mb-2 font-mono text-sm uppercase tracking-wide text-charcoal/70">Staff review</p>
+                  <p className="hidden sm:block text-base font-semibold text-charcoal">Available for staff review</p>
+                  <p className="text-sm sm:text-base leading-5 sm:leading-6 text-charcoal/75">
+                    Staff will confirm eligibility and availability before arranging supply.
                   </p>
-                  <p className="mt-3 text-sm text-charcoal/60">
+                  <p className="hidden sm:block mt-3 text-sm text-charcoal/60">
                     Staff will check your eligibility and availability before confirming supplies.
                   </p>
                 </div>
@@ -1156,12 +1169,12 @@ export default function ReorderPage() {
           )}
 
           {/* Step 2: Delivery address */}
-          <section className="rounded-2xl border border-sand bg-white p-5 md:p-6 space-y-5">
+          <section className="rounded-2xl border border-sand bg-white p-4 sm:p-5 md:p-6 space-y-4 sm:space-y-5">
             <div>
               <p className="mb-1 font-mono text-sm font-semibold uppercase tracking-wide text-deep-teal">
                 Step 2
               </p>
-              <h2 className="font-display text-2xl font-semibold text-navy leading-snug">
+              <h2 className="font-display text-xl sm:text-2xl font-semibold text-navy leading-snug">
                 Confirm delivery address
               </h2>
               <p className="mt-1 text-base leading-6 text-charcoal/75">
@@ -1215,13 +1228,12 @@ export default function ReorderPage() {
             {showAddressForm && (
               <div className="space-y-5">
                 {!savedAddress && (
-                  <div className="rounded-xl border border-dashed border-sand bg-sand-pale/50 p-5">
-                    <p className="text-lg font-semibold text-charcoal">
-                      No default delivery address is saved yet
+                  <div className="rounded-lg border border-dashed border-sand bg-sand-pale/50 p-3 sm:p-5">
+                    <p className="text-base font-semibold text-charcoal">
+                      No default address saved
                     </p>
-                    <p className="mt-1 text-base leading-6 text-charcoal/75">
-                      Enter an address for this request. You can choose whether
-                      to save it as your default.
+                    <p className="mt-0.5 sm:mt-1 text-sm sm:text-base leading-5 sm:leading-6 text-charcoal/75">
+                      Enter an address for this request.
                     </p>
                   </div>
                 )}
@@ -1253,13 +1265,25 @@ export default function ReorderPage() {
             )}
           </section>
 
+          {/* Sticky mobile send bar — sits above the bottom nav (fixed bottom-16 = 64px) */}
+          <div className="fixed bottom-16 left-0 right-0 z-30 lg:hidden bg-white border-t border-sand shadow-lg px-4 py-3">
+            <button
+              onClick={handleSubmit}
+              disabled={!canSendRequest || isSubmitting}
+              className="w-full min-h-[52px] rounded-lg bg-[#0B5C6C] text-white text-base font-medium
+                         hover:bg-[#0B5C6C]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSubmitting ? "Sending..." : canSendRequest ? "Send request" : "Select supplies to send"}
+            </button>
+          </div>
+
           {/* Step 3: Review and submit */}
-          <section className="rounded-2xl border border-sand bg-white p-5 md:p-6 space-y-5">
+          <section className="rounded-2xl border border-sand bg-white p-4 sm:p-5 md:p-6 space-y-4 sm:space-y-5">
             <div>
               <p className="mb-1 font-mono text-sm font-semibold uppercase tracking-wide text-deep-teal">
                 Step 3
               </p>
-              <h2 className="font-display text-2xl font-semibold text-navy leading-snug">
+              <h2 className="font-display text-xl sm:text-2xl font-semibold text-navy leading-snug">
                 Review and send request
               </h2>
               <p className="mt-1 text-base leading-6 text-charcoal/75">
@@ -1317,13 +1341,13 @@ export default function ReorderPage() {
             </div>
 
             <div className="space-y-3">
-              <p className="text-base leading-6 text-charcoal/75">
+              <p className="hidden sm:block text-base leading-6 text-charcoal/75">
                 Select at least one item and confirm a delivery address to send your request.
               </p>
               <button
                 onClick={handleSubmit}
                 disabled={!canSendRequest || isSubmitting}
-                className="bg-[#0B5C6C] text-white px-7 py-3.5 rounded-lg text-lg
+                className="w-full sm:w-auto bg-[#0B5C6C] text-white px-7 py-3.5 rounded-lg text-lg
                            font-medium min-h-[52px] hover:bg-[#0B5C6C]/90 transition-colors
                            disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -1336,6 +1360,9 @@ export default function ReorderPage() {
               )}
             </div>
           </section>
+
+          {/* Spacer: keeps Step 3 clear of the sticky send bar + bottom nav on mobile */}
+          <div className="h-20 lg:hidden" aria-hidden="true" />
         </div>
       )}
       {drawerCategory !== null && (
