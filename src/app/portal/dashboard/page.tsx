@@ -269,6 +269,48 @@ function isCompletedRequestStatus(status: string | null | undefined): boolean {
   return status === "delivered" || status === "complete" || status === "completed";
 }
 
+function LeafMark({ className }: { className?: string }) {
+  return (
+    <svg
+      width="170"
+      height="170"
+      viewBox="0 0 100 100"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className={className}
+    >
+      <path d="M50 5C22 27 20 68 50 95 80 68 78 27 50 5Z" strokeWidth="2" />
+      <path d="M50 14V88" strokeWidth="1.6" />
+      <path d="M50 32C41 35 35 41 31 50" strokeWidth="1.3" />
+      <path d="M50 32C59 35 65 41 69 50" strokeWidth="1.3" />
+      <path d="M50 52C43 55 39 61 36 69" strokeWidth="1.3" />
+      <path d="M50 52C57 55 61 61 64 69" strokeWidth="1.3" />
+    </svg>
+  );
+}
+
+function RequestStatusBadge({ status }: { status: ReorderStatus }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex w-fit items-center rounded-full border px-3 py-1 text-sm font-semibold",
+        isCompletedRequestStatus(status)
+          ? "border-seafoam/30 bg-seafoam-pale text-[#0B5C6C]"
+          : status === "declined"
+          ? "border-rose-200 bg-rose-50 text-rose-800"
+          : status === "needs_followup"
+          ? "border-amber-200 bg-amber-50 text-amber-900"
+          : "border-[#E6D3A3] bg-[#FFF8E7] text-[#0B5C6C]"
+      )}
+    >
+      {STATUS_LABELS[status]}
+    </span>
+  );
+}
+
 export default function DashboardPage() {
   const { patient } = useAuth();
   const [currentRequest, setCurrentRequest] =
@@ -375,465 +417,348 @@ export default function DashboardPage() {
   );
 
   return (
-    <div className="relative left-1/2 w-[calc(100vw-2rem)] max-w-[88rem] -translate-x-1/2 lg:w-[calc(100vw-18rem)]">
-      {/* Hero */}
-      <div className="relative mb-5 overflow-hidden rounded-xl bg-[#0B2A3C] px-5 py-4 md:px-7 md:py-6">
-        <svg width="170" height="170" viewBox="0 0 100 100" fill="none" stroke="#74C0A2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 opacity-[0.22]">
-          <path d="M50 5C22 27 20 68 50 95 80 68 78 27 50 5Z" strokeWidth="2" />
-          <path d="M50 14V88" strokeWidth="1.6" />
-          <path d="M50 32C41 35 35 41 31 50" strokeWidth="1.3" />
-          <path d="M50 32C59 35 65 41 69 50" strokeWidth="1.3" />
-          <path d="M50 52C43 55 39 61 36 69" strokeWidth="1.3" />
-          <path d="M50 52C57 55 61 61 64 69" strokeWidth="1.3" />
-        </svg>
-        <div className="relative z-[2]">
-          <p className="mb-1 font-mono text-xs uppercase tracking-[0.18em] text-seafoam/75">Patient Portal</p>
-          <h1 className="mb-2 font-display text-[26px] sm:text-[34px] font-semibold leading-tight text-cream md:text-[42px]">
+    <div className="relative left-1/2 flex w-[calc(100vw-2rem)] max-w-[82rem] -translate-x-1/2 flex-col gap-5 pb-20 md:w-[calc(100vw-4rem)] md:gap-6 lg:w-[calc(100vw-19rem)] lg:pb-10">
+      <section className="relative min-h-[164px] overflow-hidden rounded-[20px] border border-white/10 bg-[radial-gradient(circle_at_78%_36%,rgba(116,192,162,0.28),transparent_34%),linear-gradient(118deg,#0B2A3C_0%,#0B3348_48%,#0B5C6C_100%)] px-6 py-7 shadow-[0_14px_34px_rgba(11,42,60,0.18)] sm:px-9 sm:py-9 md:min-h-[176px]">
+        <div className="pointer-events-none absolute -right-16 -top-20 h-72 w-72 rounded-full bg-seafoam/20 blur-3xl" aria-hidden="true" />
+        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(11,42,60,0.08),rgba(11,42,60,0.28))]" aria-hidden="true" />
+        <div className="relative z-[2] max-w-4xl">
+          <p className="mb-3 font-mono text-xs uppercase tracking-[0.22em] text-seafoam/75">
+            Patient Portal
+          </p>
+          <h1 className="mb-4 font-display text-[34px] font-semibold leading-[1.05] text-cream sm:text-[44px]">
             {greeting}, {firstName}
           </h1>
-          <p className="font-mono text-base sm:text-xl font-semibold leading-6 sm:leading-7 text-cream">Midland Sleep ID: {msid}</p>
+          <div className="flex items-center gap-3">
+            <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-cream/60">
+              Sleep ID
+            </span>
+            <span className="rounded-md border border-white/10 bg-white/10 px-3 py-1 font-mono text-sm font-medium text-cream shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+              {msid}
+            </span>
+          </div>
         </div>
-      </div>
+      </section>
 
-      {/* Supply request status */}
-      {isCompletedRequest && currentRequest ? (
-        <section id="supply-request-status" className="mb-5 scroll-mt-6 rounded-xl border border-[#E6D3A3] bg-white p-5 shadow-sm md:p-6">
-          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
-            <div className="min-w-0">
-              <p className="mb-1 font-mono text-xs uppercase tracking-[0.16em] text-charcoal/60">
-                Last supply request
-              </p>
-              <h2 className="font-display text-xl sm:text-[28px] font-semibold leading-tight text-[#0B2A3C] md:text-[32px]">
-                Your supply request is complete
-              </h2>
-              <p className="mt-2 max-w-3xl text-lg leading-7 text-charcoal/75">
-                You can submit a new request when you need supplies again.
-              </p>
-            </div>
-            <div className="flex flex-col sm:flex-row flex-wrap gap-3 lg:justify-end">
-              <Link
-                href="/portal/reorder"
-                className="inline-flex w-full sm:w-auto min-h-[52px] items-center justify-center rounded-lg bg-[#0B5C6C] px-6 py-3 text-lg font-medium text-white transition-colors hover:bg-[#0B5C6C]/90"
-              >
-                Request supplies again
-              </Link>
-              <Link
-                href="#request-history"
-                className="inline-flex w-full sm:w-auto min-h-[52px] items-center justify-center rounded-lg border border-[#E6D3A3] bg-white px-6 py-3 text-lg font-medium text-[#0B5C6C] transition-colors hover:border-[#0B5C6C]/40 hover:bg-[#F5F3EE]"
-              >
-                View request history
-              </Link>
-            </div>
+      <section
+        id="supply-request-status"
+        className="scroll-mt-24 rounded-[20px] border border-[#E6D3A3] bg-white p-6 shadow-[0_12px_30px_rgba(11,42,60,0.07)] md:p-8"
+      >
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <p className="mb-3 font-mono text-[11px] uppercase tracking-[0.18em] text-charcoal/50">
+              {isCompletedRequest && currentRequest ? "Last supply request" : "Supply request status"}
+            </p>
+            <h2 className="font-display text-[28px] font-semibold leading-[1.12] text-[#0B2A3C] sm:text-[32px]">
+              {config.title}
+            </h2>
+            <p className="mt-2 max-w-2xl text-base leading-7 text-charcoal/75">
+              {config.body}
+            </p>
           </div>
 
-          <div className="mt-5 grid gap-3 rounded-lg border border-[#E6D3A3] bg-[#F5F3EE] p-4 text-charcoal md:grid-cols-2 lg:grid-cols-4">
+          <div className="flex flex-col gap-3 sm:flex-row lg:justify-end">
+            {config.ctaLabel && (
+              <Link
+                href={config.ctaHref}
+                className="inline-flex min-h-[46px] items-center justify-center rounded-lg bg-[#0B5C6C] px-6 py-2.5 text-base font-semibold text-white shadow-[0_8px_18px_rgba(11,92,108,0.18)] transition-colors hover:bg-[#094d5a]"
+              >
+                {isCompletedRequest && currentRequest ? "Request supplies again" : config.ctaLabel}
+              </Link>
+            )}
+            {currentRequest && (
+              <Link
+                href="#request-history"
+                className="inline-flex min-h-[46px] items-center justify-center rounded-lg border border-[#0B5C6C] bg-transparent px-6 py-2.5 text-base font-semibold text-[#0B5C6C] transition-colors hover:bg-[#0B5C6C]/5"
+              >
+                View history
+              </Link>
+            )}
+          </div>
+        </div>
+
+        {stepCount > 0 && (
+          <div aria-label="Supply request progress" className="mx-auto mt-8 max-w-[620px]">
+            <div className="grid items-start" style={{ gridTemplateColumns: gridCols }}>
+              {config.steps.map((step, index) => (
+                <Fragment key={step.label}>
+                  <div className="flex min-w-0 flex-col items-center text-center">
+                    <div
+                      className={cn(
+                        "flex h-8 w-8 items-center justify-center rounded-full border-2",
+                        step.state === "completed" && "border-[#74C0A2] bg-[#74C0A2] text-white",
+                        step.state === "active" && toneStyles.activeCircle,
+                        step.state === "active" && "text-white",
+                        step.state === "future" && "border-[#E6D3A3] bg-transparent"
+                      )}
+                      aria-hidden="true"
+                    >
+                      {step.state === "completed" ? (
+                        <span className="text-base font-bold leading-none">&#10003;</span>
+                      ) : step.state === "active" ? (
+                        <span className="h-2.5 w-2.5 rounded-full bg-white" />
+                      ) : null}
+                    </div>
+                    <p
+                      className={cn(
+                        "mt-2 text-sm leading-5 text-charcoal/60",
+                        step.state === "completed" && "font-medium text-[#74C0A2]",
+                        step.state === "active" && cn("font-semibold", toneStyles.activeLabel)
+                      )}
+                    >
+                      {step.label}
+                    </p>
+                  </div>
+                  {index < stepCount - 1 && (
+                    <div
+                      className={cn(
+                        "mt-4 border-t-2",
+                        step.state === "completed"
+                          ? "border-[#74C0A2]"
+                          : "border-dashed border-[#E6D3A3]"
+                      )}
+                      aria-hidden="true"
+                    />
+                  )}
+                </Fragment>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {currentRequest && (
+          <div className="mt-7 grid gap-3 rounded-xl border border-[#E6D3A3] bg-[#F5F3EE] p-4 md:grid-cols-2 lg:grid-cols-4">
             <div>
-              <p className="mb-1 font-mono text-xs uppercase tracking-wide text-charcoal/60">
+              <p className="mb-1 font-mono text-[11px] uppercase tracking-[0.08em] text-charcoal/60">
                 Reference
               </p>
-              <p className="font-mono text-base font-semibold text-[#0B5C6C]">
+              <p className="font-mono text-sm font-semibold text-[#0B5C6C] sm:text-base">
                 {currentRequest.referenceNumber}
               </p>
             </div>
             <div>
-              <p className="mb-1 font-mono text-xs uppercase tracking-wide text-charcoal/60">
+              <p className="mb-1 font-mono text-[11px] uppercase tracking-[0.08em] text-charcoal/60">
                 Status
               </p>
-              <span className="inline-flex rounded-full bg-[#74C0A2]/20 px-3 py-1 text-sm font-semibold text-[#0B5C6C]">
-                {STATUS_LABELS[currentRequest.status]}
-              </span>
+              <RequestStatusBadge status={currentRequest.status} />
             </div>
             <div>
-              <p className="mb-1 font-mono text-xs uppercase tracking-wide text-charcoal/60">
+              <p className="mb-1 font-mono text-[11px] uppercase tracking-[0.08em] text-charcoal/60">
                 Requested
               </p>
-              <p className="text-base font-semibold leading-6 text-[#0B2A3C]">
+              <p className="text-sm font-semibold leading-6 text-[#0B2A3C] sm:text-base">
                 {requestedItems ?? "Supply request"}
               </p>
             </div>
             <div>
-              <p className="mb-1 font-mono text-xs uppercase tracking-wide text-charcoal/60">
+              <p className="mb-1 font-mono text-[11px] uppercase tracking-[0.08em] text-charcoal/60">
                 Last updated
               </p>
-              <p className="text-base leading-6 text-charcoal/75">
+              <p className="text-sm leading-6 text-charcoal/75 sm:text-base">
                 {getRequestDate(currentRequest)}
               </p>
             </div>
           </div>
-        </section>
-      ) : (
-        <section id="supply-request-status" className={cn("mb-5 scroll-mt-6 rounded-xl border p-5 shadow-sm md:p-6", toneStyles.card)}>
-          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
-            <div className="min-w-0">
-              <p className="mb-1 font-mono text-xs uppercase tracking-[0.16em] text-charcoal/60">
-                Supply request status
-              </p>
-              <h2 className={cn("font-display text-xl sm:text-[28px] font-semibold leading-tight md:text-[32px]", toneStyles.title)}>
-                {config.title}
-              </h2>
-              <p className="mt-2 max-w-3xl text-lg leading-7">{config.body}</p>
-            </div>
-            {config.ctaLabel && (
-              <Link
-                href={config.ctaHref}
-                className="inline-flex w-full sm:w-auto min-h-[52px] items-center justify-center rounded-lg bg-[#0B5C6C] px-6 py-3 text-lg font-medium text-white transition-colors hover:bg-[#0B5C6C]/90"
-              >
-                {config.ctaLabel}
-              </Link>
-            )}
-          </div>
-
-          {stepCount > 0 && (
-            <div aria-label="Supply request progress" className="mx-auto mt-6 max-w-5xl">
-              <div className="grid items-start" style={{ gridTemplateColumns: gridCols }}>
-                {config.steps.map((step, index) => (
-                  <Fragment key={step.label}>
-                    <div className="flex min-w-0 flex-col items-center text-center">
-                      <div
-                        className={cn(
-                          "flex h-8 w-8 items-center justify-center rounded-full border-2",
-                          step.state === "completed" && "border-[#74C0A2] bg-[#74C0A2] text-white",
-                          step.state === "active"    && toneStyles.activeCircle,
-                          step.state === "active"    && "text-white",
-                          step.state === "future"    && "border-[#E6D3A3] bg-transparent"
-                        )}
-                        aria-hidden="true"
-                      >
-                        {step.state === "completed" ? (
-                          <span className="text-base font-bold leading-none">&#10003;</span>
-                        ) : step.state === "active" ? (
-                          <span className="h-2 w-2 rounded-full bg-white" />
-                        ) : null}
-                      </div>
-                      <p
-                        className={cn(
-                          "mt-2 text-sm leading-5 text-charcoal/60",
-                          step.state === "completed" && "font-medium text-[#74C0A2]",
-                          step.state === "active"    && cn("font-semibold", toneStyles.activeLabel)
-                        )}
-                      >
-                        {step.label}
-                      </p>
-                    </div>
-                    {index < stepCount - 1 && (
-                      <div
-                        className={cn(
-                          "mt-4 border-t-2",
-                          step.state === "completed"
-                            ? "border-[#74C0A2]"
-                            : "border-dashed border-[#E6D3A3]"
-                        )}
-                        aria-hidden="true"
-                      />
-                    )}
-                  </Fragment>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {requestedItems && currentRequest && (
-            <div className="mt-5 rounded-lg border border-white/60 bg-white/60 p-4 text-charcoal">
-              <p className="mb-1 font-mono text-xs uppercase tracking-wide text-charcoal/60">
-                Requested
-              </p>
-              <p className="text-lg font-semibold leading-7">{requestedItems}</p>
-            </div>
-          )}
-        </section>
-      )}
-
-      <div
-        className={cn(
-          "grid gap-5",
-          isCompletedRequest
-            ? "xl:grid-cols-[minmax(420px,1.25fr)_minmax(280px,0.85fr)] 2xl:grid-cols-[minmax(520px,1.35fr)_minmax(320px,0.85fr)]"
-            : "xl:grid-cols-[minmax(420px,1.25fr)_minmax(280px,0.85fr)_minmax(280px,0.85fr)] 2xl:grid-cols-[minmax(520px,1.35fr)_minmax(320px,0.85fr)_minmax(320px,0.85fr)]"
         )}
-      >
+      </section>
 
-        {/* CARD 1 — MY EQUIPMENT */}
-        <section className="space-y-4 rounded-xl border border-[#E6D3A3] bg-white p-5 md:p-6">
-          <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#E6D3A3] pb-3">
-            <h2 className="font-display text-[28px] font-semibold leading-snug text-[#0B2A3C]">My Equipment</h2>
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(280px,0.85fr)] md:gap-6">
+        <section className="rounded-[20px] border border-[#E6D3A3] bg-white p-6 shadow-[0_10px_26px_rgba(11,42,60,0.045)] md:p-7">
+          <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+            <h2 className="font-display text-2xl font-semibold leading-tight text-[#0B2A3C] sm:text-[28px]">
+              My equipment
+            </h2>
             <Link
               href="/portal/equipment"
-              className="text-lg text-deep-teal hover:underline font-medium"
+              className="text-sm font-semibold text-[#0B5C6C] hover:underline sm:text-base"
             >
               View full details
             </Link>
           </div>
 
-          {(device || mask) && (
-            <div className="grid gap-5 border-b border-[#E6D3A3] pb-4 md:grid-cols-2">
-              {device && (
-                <div className="min-h-[120px] rounded-xl border border-[#D9E8E4] bg-[#EFF5F4] p-5">
-                  <Link
-                    href="/portal/equipment"
-                    aria-label={`View equipment details for ${device.name}`}
-                    className="flex h-20 items-center justify-center rounded-lg border border-[#E6D3A3] bg-white shadow-sm transition-colors hover:bg-white/80 focus:outline-none focus:ring-2 focus:ring-deep-teal"
-                  >
-                    <EquipmentVisual type="machine" className="h-12 w-20 min-w-0 text-[#0B5C6C]" />
-                  </Link>
-                  <div className="mt-4 min-w-0 text-center">
-                    <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-[#888888]">Machine</p>
-                    <Link
-                      href="/portal/equipment"
-                      className="mt-1 block text-[22px] font-bold leading-[1.2] text-[#0B2A3C] hover:text-deep-teal hover:underline"
-                    >
-                      {device.name}
-                    </Link>
-                    {machineReplacementDue && (
-                      <p className="mt-2 text-base leading-6 text-charcoal/80">
-                        Replacement due {formatDate(machineReplacementDue)}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
-              {mask && (
-                <div className="min-h-[120px] rounded-xl border border-[#E6D3A3]/70 bg-[#F5F3EE] p-5">
-                  <Link
-                    href="/portal/equipment"
-                    aria-label={`View equipment details for ${mask.name}`}
-                    className="flex h-20 items-center justify-center rounded-lg border border-[#E6D3A3] bg-white shadow-sm transition-colors hover:bg-white/80 focus:outline-none focus:ring-2 focus:ring-deep-teal"
-                  >
-                    <EquipmentVisual type="mask" className="h-12 w-20 min-w-0 text-[#0B5C6C]" />
-                  </Link>
-                  <div className="mt-4 min-w-0 text-center">
-                    <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-[#888888]">Mask</p>
-                    <Link
-                      href="/portal/equipment"
-                      className="mt-1 block text-[22px] font-bold leading-[1.2] text-[#0B2A3C] hover:text-deep-teal hover:underline"
-                    >
-                      {mask.name}
-                    </Link>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          <div className="grid gap-x-8 gap-y-4 text-base leading-6 md:grid-cols-2">
-            {!device && (
-              <div>
-                <p className="mb-1.5 font-mono text-[11px] uppercase tracking-[0.08em] text-charcoal/70">Machine</p>
-                <p className="text-charcoal font-medium">No machine on file</p>
+          <div className="grid gap-4 border-b border-[#E6D3A3] pb-5 sm:grid-cols-2">
+            <Link
+              href="/portal/equipment"
+              aria-label={device ? `View equipment details for ${device.name}` : "View machine details"}
+              className="group rounded-[20px] bg-[#EFF5F4] p-5 transition-colors hover:bg-[#EAF3E8] focus:outline-none focus:ring-2 focus:ring-[#0B5C6C]"
+            >
+              <div className="flex h-20 items-center justify-center rounded-xl border border-[#E6D3A3] bg-white shadow-[0_1px_3px_rgba(11,42,60,0.04)]">
+                <EquipmentVisual type="machine" className="h-12 w-20 text-[#0B5C6C]" />
               </div>
-            )}
+              <p className="mt-3 font-mono text-[11px] uppercase tracking-[0.08em] text-charcoal/55">
+                Machine
+              </p>
+              <p className="mt-1 text-[22px] font-bold leading-tight text-[#0B2A3C] group-hover:text-[#0B5C6C]">
+                {device ? device.name : "No machine on file"}
+              </p>
+            </Link>
+
+            <Link
+              href="/portal/equipment"
+              aria-label={mask ? `View mask details for ${mask.name}` : "View mask details"}
+              className="group rounded-[20px] bg-[#F5F3EE] p-5 transition-colors hover:bg-[#FFF8E7] focus:outline-none focus:ring-2 focus:ring-[#0B5C6C]"
+            >
+              <div className="flex h-20 items-center justify-center rounded-xl border border-[#E6D3A3] bg-white shadow-[0_1px_3px_rgba(11,42,60,0.04)]">
+                <EquipmentVisual type="mask" className="h-12 w-20 text-[#0B5C6C]" />
+              </div>
+              <p className="mt-3 font-mono text-[11px] uppercase tracking-[0.08em] text-charcoal/55">
+                Mask
+              </p>
+              <p className="mt-1 text-[22px] font-bold leading-tight text-[#0B2A3C] group-hover:text-[#0B5C6C]">
+                {mask ? mask.name : "No mask on file"}
+              </p>
+            </Link>
+          </div>
+
+          <div className="mt-5 grid gap-x-8 gap-y-4 text-base leading-6 md:grid-cols-2">
             <div>
-              <p className="mb-1.5 font-mono text-[11px] uppercase tracking-[0.08em] text-charcoal/70">Serial number</p>
-              <p className="text-charcoal font-mono break-all">
+              <p className="mb-1 font-mono text-[11px] uppercase tracking-[0.08em] text-charcoal/60">
+                Serial number
+              </p>
+              <p className="break-all font-mono text-charcoal">
                 {device ? device.serial_number : "No serial on file"}
               </p>
             </div>
             <div>
-              <p className="mb-1.5 font-mono text-[11px] uppercase tracking-[0.08em] text-charcoal/70">Issued</p>
+              <p className="mb-1 font-mono text-[11px] uppercase tracking-[0.08em] text-charcoal/60">
+                Issued
+              </p>
               <p className="text-charcoal">
                 {device ? formatDate(device.setup_date) : "Not recorded"}
               </p>
             </div>
             <div>
-              <p className="mb-1.5 font-mono text-[11px] uppercase tracking-[0.08em] text-charcoal/70">Replacement due</p>
-              <p className="text-charcoal font-medium">
+              <p className="mb-1 font-mono text-[11px] uppercase tracking-[0.08em] text-charcoal/60">
+                Replacement due
+              </p>
+              <p className="font-semibold text-charcoal">
                 {machineReplacementDue ? formatDate(machineReplacementDue) : "Not recorded"}
               </p>
             </div>
-            {/* Safety check + Water chamber status badges */}
+            <div>
+              <p className="mb-1 font-mono text-[11px] uppercase tracking-[0.08em] text-charcoal/60">
+                Mask size
+              </p>
+              <p className="font-semibold text-charcoal">
+                {mask ? mask.size : "Not recorded"}
+              </p>
+            </div>
+            <div className="md:col-span-2">
+              <p className="mb-1 font-mono text-[11px] uppercase tracking-[0.08em] text-charcoal/60">
+                Last issued
+              </p>
+              <p className="text-charcoal">
+                {mask ? formatDate(mask.fitted_date) : "Not recorded"}
+              </p>
+            </div>
+
             {maintenance.map((check: any) => (
               <div key={check.check_type}>
-                <p className="mb-1.5 font-mono text-[11px] uppercase tracking-[0.08em] text-charcoal/70">
-                  {check.check_type === "safety_check" ? "Safety Check" : "Water Chamber"}
+                <p className="mb-1 font-mono text-[11px] uppercase tracking-[0.08em] text-charcoal/60">
+                  {check.check_type === "safety_check" ? "Safety check" : "Water chamber"}
                 </p>
                 <span
                   className={cn(
-                    "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-base font-medium",
+                    "inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-semibold",
                     check.status === "OVERDUE"
-                      ? "bg-amber/10 text-amber border border-amber/30"
+                      ? "border-amber/30 bg-amber/10 text-amber"
                       : check.status === "DUE"
-                      ? "bg-sand-pale text-charcoal border border-sand"
-                      : "bg-seafoam-pale text-charcoal border border-seafoam/30"
+                      ? "border-[#E6D3A3] bg-[#FFF8E7] text-charcoal"
+                      : "border-seafoam/30 bg-seafoam-pale text-charcoal"
                   )}
                 >
                   {check.status === "OVERDUE"
-                    ? `Overdue — ${formatDate(check.due_date)}`
+                    ? `Overdue - ${formatDate(check.due_date)}`
                     : check.status === "DUE"
                     ? `Due ${formatDate(check.due_date)}`
                     : "OK"}
                 </span>
               </div>
             ))}
-
-            {/* Mask info */}
-            <div>
-              <p className="mb-1.5 font-mono text-[11px] uppercase tracking-[0.08em] text-charcoal/70">Mask</p>
-              <p className="text-charcoal font-medium">
-                {mask ? mask.name : "No mask on file"}
-              </p>
-            </div>
-            <div>
-              <p className="mb-1.5 font-mono text-[11px] uppercase tracking-[0.08em] text-charcoal/70">Size</p>
-              <p className="text-charcoal font-medium">
-                {mask ? mask.size : "Not recorded"}
-              </p>
-            </div>
-            <div className="md:col-span-2">
-              <p className="mb-1.5 font-mono text-[11px] uppercase tracking-[0.08em] text-charcoal/70">Last issued</p>
-              <p className="text-charcoal">
-                {mask ? formatDate(mask.fitted_date) : "Not recorded"}
-              </p>
-            </div>
           </div>
         </section>
 
-        {!isCompletedRequest && (
-          <section className="rounded-xl border border-[#E6D3A3] bg-white p-5 md:p-6">
-            <div className="border-b border-[#E6D3A3] pb-3">
-              <h2 className="font-display text-[28px] font-semibold leading-snug text-[#0B2A3C]">Recent Requests</h2>
-            </div>
-            {currentRequest ? (
-              <div className="mt-5 rounded-lg border border-sand bg-[#F5F3EE] p-4">
-                <p className="mb-2 font-mono text-xs uppercase tracking-wide text-charcoal/60">
-                  Latest request update
-                </p>
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <p className="font-mono text-base font-bold text-[#0B5C6C]">
-                    {currentRequest.referenceNumber}
-                  </p>
-                  <span className="rounded-full bg-[#74C0A2]/20 px-3 py-1 text-sm font-semibold text-[#0B5C6C]">
-                    {STATUS_LABELS[currentRequest.status]}
-                  </span>
-                </div>
-                <p className="mt-4 text-lg font-semibold leading-7 text-[#0B2A3C]">
-                  {requestedItems ?? "Supply request"}
-                </p>
-                <p className="mt-2 text-sm leading-6 text-charcoal/75">
-                  {currentRequest.updatedAt
-                    ? `Last updated: ${formatDate(currentRequest.updatedAt)}`
-                    : `Submitted: ${formatDate(currentRequest.createdAt)}`}
-                </p>
-                <p className="mt-2 text-sm leading-5 text-charcoal/70">
-                  {getStatusConfig(currentRequest.status).body}
-                </p>
-              </div>
-            ) : (
-              <p className="mt-5 text-base leading-7 text-charcoal/75">
-                No active supply request.
-              </p>
-            )}
-            <Link
-              href="/portal/reorder"
-              className="mt-5 inline-flex items-center text-base font-semibold text-[#0B5C6C] hover:underline"
-            >
-              View supply requests
-            </Link>
-          </section>
-        )}
+        <aside className="relative isolate overflow-hidden rounded-[20px] border border-[#E6D3A3] bg-[#FDFCF5] p-6 shadow-[0_10px_26px_rgba(11,42,60,0.045)] md:p-7">
+          <LeafMark className="pointer-events-none absolute bottom-4 right-4 -z-10 h-[118px] w-[118px] text-[#E6D3A3] opacity-30" />
+          <h2 className="font-display text-2xl font-semibold leading-tight text-[#0B2A3C] sm:text-[28px]">
+            Need help?
+          </h2>
+          <p className="mt-3 text-base leading-7 text-charcoal/80">
+            Our team is available Monday to Friday, 8:30am to 5pm.
+          </p>
+          <p className="mt-3 text-base leading-7 text-charcoal/75">
+            Need more supplies? You can{" "}
+            <Link href="/portal/reorder" className="font-semibold text-[#0B5C6C] hover:underline">
+              submit another request
+            </Link>{" "}
+            and Midland Sleep staff will review it.
+          </p>
 
-        <div className="space-y-5">
-          {/* CARD 2 — SAFETY AND MAINTENANCE */}
           {(overdueChecks.length > 0 || dueSoonChecks.length > 0) && (
-            <section className="space-y-4 rounded-xl border border-sand bg-white p-5 md:p-6">
-              <h2 className="font-display text-2xl font-semibold text-navy leading-snug">
-                Safety and maintenance
-              </h2>
-
-              <div className="space-y-3">
-                {overdueChecks.map((check: any) => (
-                  <div
-                    key={check.check_type}
-                    className="border border-amber/40 bg-sand-pale rounded-md p-4 flex items-start gap-3"
-                  >
-                    <span className="mt-1.5 h-2 w-2 rounded-full bg-amber shrink-0" />
-                    <div className="flex-1">
-                      <p className="text-lg font-medium text-charcoal leading-7">
-                        {check.label} - Overdue
-                      </p>
-                      <p className="text-base text-charcoal/80 mt-1 leading-6">
-                        Due {formatDate(check.due_date)}. Please call Midland Sleep on{" "}
-                        {phoneLink} to arrange this.
-                      </p>
-                    </div>
-                  </div>
-                ))}
-
-                {dueSoonChecks.map((check: any) => (
-                  <div
-                    key={check.check_type}
-                    className="border border-sand rounded-md p-4 flex items-start gap-3"
-                  >
-                    <span className="mt-1.5 h-2 w-2 rounded-full bg-sand shrink-0" />
-                    <div className="flex-1">
-                      <p className="text-lg font-medium text-charcoal leading-7">
-                        {check.label} - Due soon
-                      </p>
-                      <p className="text-base text-charcoal/80 mt-1 leading-6">
-                        Due {formatDate(check.due_date)}. Contact Midland Sleep if you have questions.
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
+            <div className="mt-5 space-y-3">
+              {[...overdueChecks, ...dueSoonChecks].map((check: any) => (
+                <div
+                  key={check.check_type}
+                  className={cn(
+                    "rounded-xl border p-4",
+                    check.status === "OVERDUE"
+                      ? "border-amber/40 bg-white/75"
+                      : "border-[#E6D3A3] bg-white/60"
+                  )}
+                >
+                  <p className="text-base font-semibold leading-6 text-charcoal">
+                    {check.label} - {check.status === "OVERDUE" ? "Overdue" : "Due soon"}
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-charcoal/75">
+                    Due {formatDate(check.due_date)}. Contact Midland Sleep if you have questions.
+                  </p>
+                </div>
+              ))}
+            </div>
           )}
 
-          {/* CARD 3 — NEED HELP */}
-          <section className="relative isolate overflow-hidden rounded-xl border border-[#E6D3A3] bg-white p-5 md:p-6">
-            <svg width="120" height="120" viewBox="0 0 100 100" fill="none" stroke="#E6D3A3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="pointer-events-none absolute bottom-2 right-2 opacity-60" style={{ zIndex: -1 }}>
-              <path d="M50 5C22 27 20 68 50 95 80 68 78 27 50 5Z" strokeWidth="2" />
-              <path d="M50 14V88" strokeWidth="1.6" />
-              <path d="M50 32C41 35 35 41 31 50" strokeWidth="1.3" />
-              <path d="M50 32C59 35 65 41 69 50" strokeWidth="1.3" />
-              <path d="M50 52C43 55 39 61 36 69" strokeWidth="1.3" />
-              <path d="M50 52C57 55 61 61 64 69" strokeWidth="1.3" />
-            </svg>
-            <h2 className="mb-3 border-b border-[#E6D3A3] pb-3 font-display text-[28px] font-semibold leading-snug text-[#0B2A3C]">Need Help?</h2>
-            <p className="text-base leading-7 text-charcoal/80">
-              Our team is available Monday to Friday, 8:30am to 5pm.
-            </p>
-            <p className="mt-3 text-base leading-7 text-charcoal/75">
-              Need more supplies? You can{" "}
-              <Link href="/portal/reorder" className="font-medium text-deep-teal hover:underline">
-                submit another request
-              </Link>{" "}
-              and Midland Sleep staff will review it.
-            </p>
-            <div className="mt-5 space-y-3 text-lg leading-7">
-              <p>Call Midland Sleep on {phoneLink}</p>
-              <p>Email {emailLink}</p>
-            </div>
-          </section>
-        </div>
-
+          <div className="mt-6 space-y-3 text-base leading-7 text-charcoal">
+            <p>Call Midland Sleep on {phoneLink}</p>
+            <p>Email {emailLink}</p>
+          </div>
+        </aside>
       </div>
 
       {currentRequest && (
-        <section id="request-history" className="mt-5 scroll-mt-6 rounded-xl border border-[#E6D3A3] bg-white p-5 md:p-6">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#E6D3A3] pb-3">
-            <h2 className="font-display text-[28px] font-semibold leading-snug text-[#0B2A3C]">My Supply Request History</h2>
-            <Link href="/portal/reorder" className="text-base font-semibold text-[#0B5C6C] hover:underline">
+        <section
+          id="request-history"
+          className="scroll-mt-24 rounded-[20px] border border-[#E6D3A3] bg-white p-6 shadow-[0_10px_26px_rgba(11,42,60,0.045)] md:p-7"
+        >
+          <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+            <h2 className="font-display text-2xl font-semibold leading-tight text-[#0B2A3C] sm:text-[28px]">
+              My supply request history
+            </h2>
+            <Link href="/portal/reorder" className="text-sm font-semibold text-[#0B5C6C] hover:underline sm:text-base">
               View all
             </Link>
           </div>
-          <div className="mt-4 overflow-x-auto">
-            <table className="min-w-full text-left text-base">
+          <div className="overflow-x-auto">
+            <table className="min-w-[540px] w-full border-collapse text-left text-base">
               <thead>
-                <tr className="border-b border-[#E6D3A3] font-mono text-[11px] uppercase tracking-[0.08em] text-charcoal/70">
-                  <th className="py-3 pr-4 font-medium">Date</th>
-                  <th className="py-3 pr-4 font-medium">Reference</th>
-                  <th className="py-3 pr-4 font-medium">Items</th>
-                  <th className="py-3 font-medium">Status</th>
+                <tr className="border-b border-[#E6D3A3] font-mono text-[11px] uppercase tracking-[0.08em] text-charcoal/60">
+                  <th className="pb-3 pr-4 font-medium">Date</th>
+                  <th className="pb-3 pr-4 font-medium">Reference</th>
+                  <th className="pb-3 pr-4 font-medium">Items</th>
+                  <th className="pb-3 text-right font-medium">Status</th>
                 </tr>
               </thead>
               <tbody>
-                <tr className="border-b border-sand/60 last:border-0">
-                  <td className="py-4 pr-4 text-charcoal">{getRequestDate(currentRequest)}</td>
-                  <td className="py-4 pr-4 font-mono font-semibold text-[#0B5C6C]">{currentRequest.referenceNumber}</td>
-                  <td className="py-4 pr-4 text-charcoal">{requestedItems ?? "Supply request"}</td>
-                  <td className="py-4">
-                    <span className="inline-flex rounded-full bg-[#74C0A2]/20 px-3 py-1 text-sm font-semibold text-[#0B5C6C]">
-                      {STATUS_LABELS[currentRequest.status]}
-                    </span>
+                <tr className="border-b border-[#E6D3A3]/70 last:border-0">
+                  <td className="py-4 pr-4 text-charcoal whitespace-nowrap">
+                    {getRequestDate(currentRequest)}
+                  </td>
+                  <td className="py-4 pr-4 font-mono font-semibold text-[#0B5C6C] whitespace-nowrap">
+                    {currentRequest.referenceNumber}
+                  </td>
+                  <td className="py-4 pr-4 text-charcoal">
+                    {requestedItems ?? "Supply request"}
+                  </td>
+                  <td className="py-4 text-right">
+                    <RequestStatusBadge status={currentRequest.status} />
                   </td>
                 </tr>
               </tbody>
