@@ -16,7 +16,7 @@ function TopBar() {
       <PortalUpdatesBell
         className="[&>button]:border-white/20 [&>button]:bg-white/10 [&>button]:text-white [&>button]:shadow-none [&>button:hover]:bg-white/15"
       />
-      <div className="[&>button:hover]:bg-white/10 [&>button_p]:text-white [&>button_p+p]:text-white/60 [&>button>svg]:text-white/40">
+      <div className="[&>div>button:hover]:bg-white/10 [&>div>button_p]:text-white [&>div>button_p+p]:text-white/60 [&>div>button>svg]:text-white/40">
         <AccountMenu />
       </div>
     </div>
