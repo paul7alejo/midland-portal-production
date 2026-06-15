@@ -149,9 +149,7 @@ function getStatusConfig(status: string | null | undefined): RequestStatusConfig
       return {
         title: "Supply request completed",
         body: "You can request supplies again when needed.",
-        steps: [
-          { label: "Completed", state: "active" },
-        ],
+        steps: [],
         tone: "green",
         ctaLabel: "Request supplies",
         ctaHref: "/portal/reorder",
@@ -241,9 +239,9 @@ function getNzGreeting(): string {
   return "Good evening";
 }
 
-function normalizeMsid(msid?: string): string {
+function formatDisplayMsid(msid?: string): string {
   if (!msid) return "Not available";
-  return msid.startsWith("MS-") ? msid : `MS-${msid}`;
+  return msid.replace(/^MS-/i, "");
 }
 
 const formatItemName = (name: string) =>
@@ -344,7 +342,7 @@ export default function DashboardPage() {
     : "not_eligible";
 
   const canReorder = requestAccessStatus === "eligible" || requestAccessStatus === "needs_review";
-  const msid = normalizeMsid(patient.msid);
+  const displayMsid = formatDisplayMsid(patient.msid);
   const firstName = getFirstName(patient.name);
   const greeting = getNzGreeting();
   const requestedItems = formatRequestedItems(currentRequest);
@@ -397,19 +395,19 @@ export default function DashboardPage() {
       <section className="relative min-h-[164px] overflow-hidden rounded-[20px] border border-white/10 bg-[radial-gradient(circle_at_78%_36%,rgba(116,192,162,0.28),transparent_34%),linear-gradient(118deg,#0B2A3C_0%,#0B3348_48%,#0B5C6C_100%)] px-6 py-7 shadow-[0_14px_34px_rgba(11,42,60,0.18)] sm:px-9 sm:py-9 md:min-h-[176px]">
         <div className="pointer-events-none absolute -right-16 -top-20 h-72 w-72 rounded-full bg-seafoam/20 blur-3xl" aria-hidden="true" />
         <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(11,42,60,0.08),rgba(11,42,60,0.28))]" aria-hidden="true" />
-        <div className="relative z-[2] max-w-4xl">
-          <p className="mb-3 font-mono text-xs uppercase tracking-[0.22em] text-seafoam/75">
-            Patient Portal
-          </p>
-          <h1 className="mb-4 font-display text-[34px] font-semibold leading-[1.05] text-cream sm:text-[44px]">
-            {greeting}, {firstName}
+        <div className="relative z-[2] max-w-4xl pt-2">
+          <h1 className="mb-5 font-display text-[34px] font-semibold leading-[1.05] text-cream sm:text-[44px]">
+            {greeting},{" "}
+            <span className="italic text-seafoam drop-shadow-[0_1px_12px_rgba(116,192,162,0.18)]">
+              {firstName}
+            </span>
           </h1>
-          <div className="flex items-center gap-3">
-            <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-cream/60">
-              Sleep ID
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-cream/60">
+              Midland Sleep ID
             </span>
             <span className="rounded-md border border-white/10 bg-white/10 px-3 py-1 font-mono text-sm font-medium text-cream shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
-              {msid}
+              {displayMsid}
             </span>
           </div>
         </div>

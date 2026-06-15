@@ -75,24 +75,31 @@ function TopBar() {
   const pageLabel = PAGE_LABELS[pathname] ?? "Portal";
 
   return (
-    <div className="sticky top-0 z-40 hidden h-[72px] items-center gap-4 border-b border-white/10 bg-navy px-4 md:px-8 lg:flex">
-      <div className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden">
-        <span className="shrink-0 text-sm font-semibold text-white">{pageLabel}</span>
-        <span className="shrink-0 text-white/25" aria-hidden="true">·</span>
-        <div className="min-w-0 flex-1 overflow-hidden">
-          <div className="portal-awareness-track flex w-max items-center gap-8 text-xs text-white/35">
-            <span className="portal-awareness-item">{AWARENESS_TEXT}</span>
-            <span className="portal-awareness-item" aria-hidden="true">{AWARENESS_TEXT}</span>
-            <span className="portal-awareness-item" aria-hidden="true">{AWARENESS_TEXT}</span>
-            <span className="portal-awareness-item" aria-hidden="true">{AWARENESS_TEXT}</span>
+    <div className="sticky top-0 z-40 hidden h-[72px] items-center gap-4 border-b border-[#E6D3A3]/70 bg-white/95 px-4 shadow-[0_1px_0_rgba(230,211,163,0.28)] backdrop-blur md:px-8 lg:flex">
+      <div className="flex min-w-0 flex-1 items-center gap-4 overflow-hidden">
+        <span className="shrink-0 text-sm font-semibold text-[#0B2A3C]">{pageLabel}</span>
+        <span className="h-5 w-px shrink-0 bg-[#E6D3A3]" aria-hidden="true" />
+        <div className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden rounded-full border border-[#E6D3A3]/70 bg-[#FDFCF5] px-4 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
+          <span className="inline-flex shrink-0 items-center gap-2 font-mono text-[10px] uppercase tracking-[0.18em] text-[#0B5C6C]">
+            <span className="h-1.5 w-1.5 rounded-full bg-seafoam" aria-hidden="true" />
+            Updates
+          </span>
+          <span className="h-4 w-px shrink-0 bg-[#E6D3A3]" aria-hidden="true" />
+          <div className="min-w-0 flex-1 overflow-hidden">
+            <div className="portal-awareness-track flex w-max items-center gap-10 text-xs font-medium text-[#0B5C6C]">
+              <span className="portal-awareness-item">{AWARENESS_TEXT}</span>
+              <span className="portal-awareness-item" aria-hidden="true">{AWARENESS_TEXT}</span>
+              <span className="portal-awareness-item" aria-hidden="true">{AWARENESS_TEXT}</span>
+              <span className="portal-awareness-item" aria-hidden="true">{AWARENESS_TEXT}</span>
+            </div>
           </div>
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-3">
         <PortalUpdatesBell
-          className="[&>button]:border-white/20 [&>button]:bg-white/10 [&>button]:text-white [&>button]:shadow-none [&>button:hover]:bg-white/15"
+          className="[&>button]:border-[#E6D3A3] [&>button]:bg-white [&>button]:text-[#0B2A3C] [&>button]:shadow-[0_4px_12px_rgba(11,42,60,0.08)] [&>button:hover]:bg-[#FDFCF5]"
         />
-        <div className="[&>div>button:hover]:bg-white/10 [&>div>button_p]:text-white [&>div>button_p+p]:text-white/60 [&>div>button>svg]:text-white/40">
+        <div>
           <AccountMenu />
         </div>
       </div>
