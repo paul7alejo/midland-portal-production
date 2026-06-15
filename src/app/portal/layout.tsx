@@ -12,9 +12,13 @@ function TopBar() {
   if (!patient) return null;
 
   return (
-    <div className="sticky top-0 z-40 hidden items-center justify-end gap-3 border-b border-sand bg-white px-4 py-2 md:px-8 lg:flex">
-      <PortalUpdatesBell />
-      <AccountMenu />
+    <div className="sticky top-0 z-40 hidden h-[72px] items-center justify-end gap-3 border-b border-white/10 bg-navy px-4 md:px-8 lg:flex">
+      <PortalUpdatesBell
+        className="[&>button]:border-white/20 [&>button]:bg-white/10 [&>button]:text-white [&>button]:shadow-none [&>button:hover]:bg-white/15"
+      />
+      <div className="[&>button:hover]:bg-white/10 [&>button_p]:text-white [&>button_p+p]:text-white/60 [&>button>svg]:text-white/40">
+        <AccountMenu />
+      </div>
     </div>
   );
 }
