@@ -296,24 +296,24 @@ function OptionDrawer({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4"
+      className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-end lg:items-center lg:p-4"
       role="dialog"
       aria-modal="true"
       aria-label={`${ITEM_LABELS[category]} supply options`}
     >
       <div className="absolute inset-0 bg-black/40" onClick={onClose} aria-hidden="true" />
-      <div className="relative z-10 flex max-h-[calc(100dvh-4.5rem)] w-full max-w-lg flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:max-h-[min(90dvh,44rem)] sm:rounded-2xl">
+      <div className="relative z-10 mb-[calc(4.75rem_+_env(safe-area-inset-bottom))] flex max-h-[calc(100dvh_-_6rem_-_env(safe-area-inset-bottom))] w-full max-w-lg flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl lg:mb-0 lg:max-h-[min(90dvh,44rem)]">
 
         {/* Header */}
-        <div className="flex shrink-0 items-start justify-between gap-4 px-6 pt-6 pb-4 border-b border-sand">
-          <div>
-            <p className="font-mono text-sm uppercase tracking-wide text-deep-teal mb-1">
+        <div className="sticky top-0 z-10 flex shrink-0 items-start justify-between gap-3 border-b border-sand bg-white px-4 pb-3 pt-4 sm:px-6 sm:pb-4 sm:pt-6">
+          <div className="min-w-0">
+            <p className="mb-1 font-mono text-xs uppercase tracking-wide text-deep-teal sm:text-sm">
               Supply option
             </p>
-            <h2 className="font-display text-xl sm:text-2xl font-semibold text-navy leading-snug">
+            <h2 className="font-display text-xl font-semibold leading-snug text-navy sm:text-2xl">
               {ITEM_LABELS[category]}
             </h2>
-            <p className="mt-1 text-base leading-6 text-charcoal/75">
+            <p className="mt-1 text-sm leading-5 text-charcoal/75 sm:text-base sm:leading-6">
               {ITEM_DESCRIPTIONS[category]}
             </p>
           </div>
@@ -328,9 +328,9 @@ function OptionDrawer({
         </div>
 
         {/* Options list */}
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5 pb-8 space-y-3">
-          <p className="text-sm font-medium text-charcoal/55 uppercase tracking-wide">
-            Related options — staff will confirm suitability
+        <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto px-4 py-3 pb-5 sm:px-6 sm:py-5 sm:pb-8">
+          <p className="text-xs font-medium uppercase tracking-wide text-charcoal/55 sm:text-sm">
+            Staff will confirm suitability before supply
           </p>
 
           {options.map((opt, idx) => {
@@ -343,23 +343,32 @@ function OptionDrawer({
                 onClick={() => setPicked(opt.id)}
                 aria-pressed={isPicked}
                 className={cn(
-                  "w-full text-left rounded-xl border p-4 transition-colors",
+                  "w-full rounded-xl border p-3 text-left transition-colors sm:p-4",
                   isPicked
                     ? "border-deep-teal bg-seafoam-pale/50"
+                    : isRecommended
+                    ? "border-seafoam/70 bg-seafoam-pale/25 hover:border-deep-teal/50"
                     : "border-sand bg-white hover:border-deep-teal/40 hover:bg-sand-pale/30"
                 )}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
-                    <p className="text-lg font-semibold text-charcoal leading-snug">{opt.name}</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-base font-semibold leading-snug text-charcoal sm:text-lg">{opt.name}</p>
+                      {isRecommended && (
+                        <span className="inline-flex rounded-full bg-[#0B5C6C] px-2.5 py-0.5 text-xs font-semibold text-white">
+                          Recommended match
+                        </span>
+                      )}
+                    </div>
                     <p className="mt-1 text-sm leading-5 text-charcoal/65">{opt.description}</p>
                     <span className={cn(
-                      "mt-2 inline-flex rounded-full px-3 py-0.5 text-sm font-medium",
+                      "mt-2 inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium sm:text-sm",
                       isRecommended
-                        ? "bg-seafoam-pale text-deep-teal"
+                        ? "bg-white/80 text-deep-teal"
                         : "border border-sand bg-white text-charcoal/60"
                     )}>
-                      {isRecommended ? "Recommended for your current equipment" : "Related supply option"}
+                      {isRecommended ? "Recommended for your current mask" : "Alternative option"}
                     </span>
                   </div>
                   <span className={cn(
@@ -379,7 +388,7 @@ function OptionDrawer({
             onClick={() => setPicked("staff_confirm")}
             aria-pressed={picked === "staff_confirm"}
             className={cn(
-              "w-full text-left rounded-xl border p-4 transition-colors",
+              "w-full rounded-xl border p-3 text-left transition-colors sm:p-4",
               picked === "staff_confirm"
                 ? "border-deep-teal bg-seafoam-pale/50"
                 : "border-sand bg-white hover:border-deep-teal/40 hover:bg-sand-pale/30"
@@ -387,7 +396,7 @@ function OptionDrawer({
           >
             <div className="flex items-start justify-between gap-3">
               <div className="flex-1 min-w-0">
-                <p className="text-lg font-semibold text-charcoal leading-snug">
+                <p className="text-base font-semibold leading-snug text-charcoal sm:text-lg">
                   Not sure — let staff choose
                 </p>
                 <p className="mt-1 text-sm leading-5 text-charcoal/65">
@@ -405,12 +414,12 @@ function OptionDrawer({
         </div>
 
         {/* Footer */}
-        <div className="sticky bottom-0 shrink-0 space-y-3 border-t border-sand bg-sand-pale/30 px-6 py-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
-          <p className="text-sm leading-5 text-charcoal/55">
+        <div className="sticky bottom-0 shrink-0 space-y-2.5 border-t border-sand bg-sand-pale/30 px-4 py-3 pb-[calc(0.875rem_+_env(safe-area-inset-bottom))] sm:px-6 sm:py-4 sm:pb-[calc(1rem_+_env(safe-area-inset-bottom))]">
+          <p className="text-xs leading-5 text-charcoal/60 sm:text-sm">
             Staff will check eligibility, compatibility, and availability before confirming supplies.
             This is a request for review, not a confirmed order.
           </p>
-          <div className="grid gap-3 sm:flex sm:flex-wrap">
+          <div className="grid gap-2 sm:flex sm:flex-wrap sm:gap-3">
             <button
               type="button"
               onClick={() => { if (picked) onConfirm(picked); }}
