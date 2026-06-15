@@ -22,6 +22,15 @@ export default function AccountMenu() {
     return () => document.removeEventListener("mousedown", handleOutside);
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open]);
+
   if (!patient) return null;
 
   const initials = (patient.name ?? "Patient")
@@ -66,8 +75,9 @@ export default function AccountMenu() {
         </svg>
       </button>
 
+      {/* Desktop dropdown — hidden on small screens */}
       {open && (
-        <div className="absolute right-0 top-full z-[110] mt-2 w-56 rounded-xl border border-sand bg-white shadow-xl overflow-hidden">
+        <div className="hidden sm:block absolute right-0 top-full z-[110] mt-2 w-56 rounded-xl border border-sand bg-white shadow-xl overflow-hidden">
           <div className="px-4 py-3 border-b border-sand bg-sand-pale/60">
             <p className="text-sm font-semibold text-charcoal truncate">{patient.name}</p>
             <p className="text-xs text-charcoal/50 font-mono truncate">{patient.msid}</p>
@@ -104,6 +114,63 @@ export default function AccountMenu() {
               </svg>
               Log out
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile bottom sheet — hidden on sm+ */}
+      {open && (
+        <div
+          className="sm:hidden fixed inset-0 z-[200] flex items-end"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Account menu"
+        >
+          <div
+            className="absolute inset-0 bg-navy/50 backdrop-blur-sm"
+            onClick={() => setOpen(false)}
+            aria-hidden="true"
+          />
+          <div className="relative w-full bg-white rounded-t-2xl shadow-xl overflow-hidden">
+            <div className="mx-auto mt-3 mb-2 h-1 w-10 rounded-full bg-sand" aria-hidden="true" />
+            <div className="px-5 py-4 border-b border-sand bg-sand-pale/60">
+              <p className="text-base font-semibold text-charcoal">{patient.name}</p>
+              <p className="text-sm text-charcoal/50 font-mono">{patient.msid}</p>
+            </div>
+            <div className="py-2">
+              <Link
+                href="/portal/profile"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-4 px-5 py-4 text-base text-charcoal hover:bg-sand-pale transition-colors"
+              >
+                <svg className="h-5 w-5 shrink-0 text-charcoal/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                My profile
+              </Link>
+              <Link
+                href="/portal/profile#delivery-address"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-4 px-5 py-4 text-base text-charcoal hover:bg-sand-pale transition-colors"
+              >
+                <svg className="h-5 w-5 shrink-0 text-charcoal/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                Delivery address
+              </Link>
+              <div className="border-t border-sand my-1" />
+              <button
+                onClick={handleLogout}
+                className="flex w-full items-center gap-4 px-5 py-4 text-base text-charcoal/70 hover:bg-sand-pale hover:text-charcoal transition-colors"
+              >
+                <svg className="h-5 w-5 shrink-0 text-charcoal/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                Log out
+              </button>
+            </div>
+            <div className="h-6" />
           </div>
         </div>
       )}

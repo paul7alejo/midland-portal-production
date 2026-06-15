@@ -377,13 +377,13 @@ export default function DashboardPage() {
   return (
     <div className="relative left-1/2 w-[calc(100vw-2rem)] max-w-[88rem] -translate-x-1/2 lg:w-[calc(100vw-18rem)]">
       {/* Hero */}
-      <div className="relative mb-5 overflow-hidden rounded-xl bg-[#0B2A3C] px-5 py-5 md:px-7 md:py-6">
+      <div className="relative mb-5 overflow-hidden rounded-xl bg-[#0B2A3C] px-5 py-4 md:px-7 md:py-6">
         <div className="relative">
-          <p className="mb-2 font-mono text-xs uppercase tracking-[0.18em] text-seafoam/75">Patient Portal</p>
-          <h1 className="mb-4 font-display text-[34px] font-semibold leading-tight text-cream md:text-[42px]">
+          <p className="mb-1 font-mono text-xs uppercase tracking-[0.18em] text-seafoam/75">Patient Portal</p>
+          <h1 className="mb-2 font-display text-[26px] sm:text-[34px] font-semibold leading-tight text-cream md:text-[42px]">
             {greeting}, {firstName}
           </h1>
-          <p className="font-mono text-xl font-semibold leading-7 text-cream">Midland Sleep ID: {msid}</p>
+          <p className="font-mono text-base sm:text-xl font-semibold leading-6 sm:leading-7 text-cream">Midland Sleep ID: {msid}</p>
         </div>
       </div>
 
@@ -395,23 +395,23 @@ export default function DashboardPage() {
               <p className="mb-1 font-mono text-xs uppercase tracking-[0.16em] text-charcoal/60">
                 Last supply request
               </p>
-              <h2 className="font-display text-[28px] font-semibold leading-tight text-[#0B2A3C] md:text-[32px]">
+              <h2 className="font-display text-xl sm:text-[28px] font-semibold leading-tight text-[#0B2A3C] md:text-[32px]">
                 Your supply request is complete
               </h2>
               <p className="mt-2 max-w-3xl text-lg leading-7 text-charcoal/75">
                 You can submit a new request when you need supplies again.
               </p>
             </div>
-            <div className="flex flex-wrap gap-3 lg:justify-end">
+            <div className="flex flex-col sm:flex-row flex-wrap gap-3 lg:justify-end">
               <Link
                 href="/portal/reorder"
-                className="inline-flex min-h-[52px] items-center justify-center rounded-lg bg-[#0B5C6C] px-6 py-3 text-lg font-medium text-white transition-colors hover:bg-[#0B5C6C]/90"
+                className="inline-flex w-full sm:w-auto min-h-[52px] items-center justify-center rounded-lg bg-[#0B5C6C] px-6 py-3 text-lg font-medium text-white transition-colors hover:bg-[#0B5C6C]/90"
               >
                 Request supplies again
               </Link>
               <Link
                 href="#request-history"
-                className="inline-flex min-h-[52px] items-center justify-center rounded-lg border border-[#E6D3A3] bg-white px-6 py-3 text-lg font-medium text-[#0B5C6C] transition-colors hover:border-[#0B5C6C]/40 hover:bg-[#F5F3EE]"
+                className="inline-flex w-full sm:w-auto min-h-[52px] items-center justify-center rounded-lg border border-[#E6D3A3] bg-white px-6 py-3 text-lg font-medium text-[#0B5C6C] transition-colors hover:border-[#0B5C6C]/40 hover:bg-[#F5F3EE]"
               >
                 View request history
               </Link>
@@ -460,7 +460,7 @@ export default function DashboardPage() {
               <p className="mb-1 font-mono text-xs uppercase tracking-[0.16em] text-charcoal/60">
                 Supply request status
               </p>
-              <h2 className={cn("font-display text-[28px] font-semibold leading-tight md:text-[32px]", toneStyles.title)}>
+              <h2 className={cn("font-display text-xl sm:text-[28px] font-semibold leading-tight md:text-[32px]", toneStyles.title)}>
                 {config.title}
               </h2>
               <p className="mt-2 max-w-3xl text-lg leading-7">{config.body}</p>
@@ -468,7 +468,7 @@ export default function DashboardPage() {
             {config.ctaLabel && (
               <Link
                 href={config.ctaHref}
-                className="inline-flex min-h-[52px] items-center justify-center rounded-lg bg-[#0B5C6C] px-6 py-3 text-lg font-medium text-white transition-colors hover:bg-[#0B5C6C]/90"
+                className="inline-flex w-full sm:w-auto min-h-[52px] items-center justify-center rounded-lg bg-[#0B5C6C] px-6 py-3 text-lg font-medium text-white transition-colors hover:bg-[#0B5C6C]/90"
               >
                 {config.ctaLabel}
               </Link>
