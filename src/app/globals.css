@@ -6,3 +6,9 @@ body {
   background-color: #FDFCF5;
   color: #333333;
 }
+
+.portal-canvas {
+  background-color: #FDFCF5;
+  background-image: radial-gradient(circle, rgba(0, 0, 0, 0.042) 1px, transparent 1px);
+  background-size: 22px 22px;
+}

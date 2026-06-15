@@ -2,25 +2,38 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useAuth } from "@/components/AuthProvider";
 import { cn } from "@/lib/utils";
 
-const NAV_ITEMS: { href: string; label: string; icon: string; comingSoon?: boolean }[] = [
-  { href: "/portal/dashboard",   label: "Dashboard",        icon: "home" },
-  { href: "/portal/equipment",   label: "My Equipment",     icon: "settings" },
-  { href: "/portal/reorder",     label: "Request Supplies",  icon: "clipboard" },
-  { href: "/portal/maintenance", label: "Maintenance",       icon: "wrench" },
-  { href: "/portal/contact",     label: "Contact",           icon: "message" },
-  { href: "/portal/profile",     label: "Profile",           icon: "user" },
+type NavItem = { href: string; label: string; icon: string; comingSoon?: boolean };
+
+const NAV_SECTIONS: { label: string; items: NavItem[] }[] = [
+  {
+    label: "Patient Care",
+    items: [
+      { href: "/portal/dashboard",   label: "Dashboard",        icon: "home" },
+      { href: "/portal/equipment",   label: "My Equipment",     icon: "settings" },
+      { href: "/portal/reorder",     label: "Request Supplies", icon: "clipboard" },
+    ],
+  },
+  {
+    label: "Support",
+    items: [
+      { href: "/portal/maintenance", label: "Maintenance",      icon: "wrench" },
+      { href: "/portal/contact",     label: "Contact",          icon: "message" },
+      { href: "/portal/profile",     label: "Profile",          icon: "user" },
+    ],
+  },
 ];
 
 function NavIcon({ name }: { name: string }) {
   const icons: Record<string, string> = {
-    home: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0h4",
-    settings: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z",
+    home:      "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0h4",
+    settings:  "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z",
     clipboard: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
-    wrench: "M14.121 14.121L19 19m-7-7l7-7m-2.5 2.5L12 3m0 0L8.5 6.5M12 3l4.5 4.5M3 12l2-2m0 0l2.5-2.5M5 10l2.5 2.5",
-    message: "M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z",
-    user: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z",
+    wrench:    "M14.121 14.121L19 19m-7-7l7-7m-2.5 2.5L12 3m0 0L8.5 6.5M12 3l4.5 4.5M3 12l2-2m0 0l2.5-2.5M5 10l2.5 2.5",
+    message:   "M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z",
+    user:      "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z",
   };
 
   return (
@@ -45,6 +58,17 @@ export default function PortalSidebar({
   onToggle: () => void;
 }) {
   const pathname = usePathname();
+  const { patient } = useAuth();
+
+  const initials = patient?.name
+    ? patient.name
+        .split(" ")
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((w: string) => w.charAt(0))
+        .join("")
+        .toUpperCase() || "P"
+    : "P";
 
   function expandIfCollapsed() {
     if (collapsed) onToggle();
@@ -63,9 +87,10 @@ export default function PortalSidebar({
         }
       }}
       className={cn(
-        "fixed inset-y-0 left-0 z-30 bg-navy flex flex-col overflow-hidden transition-all duration-200",
+        "fixed inset-y-0 left-0 z-30 flex flex-col overflow-hidden transition-all duration-200",
         collapsed ? "w-16 cursor-pointer" : "w-64"
       )}
+      style={{ background: "linear-gradient(165deg, #0D2F44 0%, #071C2B 100%)" }}
     >
 
       {/* Brand */}
@@ -107,47 +132,106 @@ export default function PortalSidebar({
       </div>
 
       {/* Navigation */}
-      <nav className={cn("flex-1 py-4 space-y-1 overflow-y-auto", collapsed ? "px-2" : "px-3")}>
-        {NAV_ITEMS.map((item) => {
-          const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
-          if (item.comingSoon) {
-            return (
-              <div
-                key={item.href}
-                title={collapsed ? item.label : undefined}
-                className={cn(
-                  "flex items-center py-3.5 text-base font-medium text-slate-400 cursor-not-allowed rounded-lg",
-                  collapsed ? "justify-center px-0" : "gap-3 px-4"
-                )}
-              >
-                <NavIcon name={item.icon} />
-                {!collapsed && <span>{item.label}</span>}
-              </div>
-            );
-          }
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              title={collapsed ? item.label : undefined}
-              className={cn(
-                "flex items-center py-3.5 text-base font-medium transition-colors rounded-lg",
-                collapsed
-                  ? "justify-center px-0"
-                  : isActive
-                    ? "gap-3 pl-[12px] pr-4"
-                    : "gap-3 px-4",
-                isActive
-                  ? cn("bg-[#0B5C6C]/25 text-white", !collapsed && "border-l-4 border-[#0B5C6C]")
-                  : "text-slate-300 hover:bg-white/5 hover:text-white"
-              )}
-            >
-              <NavIcon name={item.icon} />
-              {!collapsed && <span>{item.label}</span>}
-            </Link>
-          );
-        })}
+      <nav className={cn("flex-1 py-4 overflow-y-auto", collapsed ? "px-2" : "px-3")}>
+        {NAV_SECTIONS.map((section, idx) => (
+          <div key={section.label} className={idx > 0 ? "mt-4" : ""}>
+            {!collapsed && (
+              <p className="px-4 mb-1.5 text-[10px] font-semibold tracking-[0.16em] uppercase text-white/30 select-none">
+                {section.label}
+              </p>
+            )}
+            {idx > 0 && collapsed && (
+              <div className="my-2 mx-1 border-t border-white/10" aria-hidden="true" />
+            )}
+            <div className="space-y-1">
+              {section.items.map((item) => {
+                if (item.comingSoon) {
+                  return (
+                    <div
+                      key={item.href}
+                      title={collapsed ? item.label : undefined}
+                      className={cn(
+                        "flex items-center py-3.5 text-base font-medium text-slate-400 cursor-not-allowed rounded-lg",
+                        collapsed ? "justify-center px-0" : "gap-3 px-4"
+                      )}
+                    >
+                      <NavIcon name={item.icon} />
+                      {!collapsed && <span>{item.label}</span>}
+                    </div>
+                  );
+                }
+                const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    title={collapsed ? item.label : undefined}
+                    className={cn(
+                      "flex items-center py-3.5 text-base font-medium transition-colors rounded-lg",
+                      collapsed
+                        ? "justify-center px-0"
+                        : isActive
+                          ? "gap-3 pl-[12px] pr-4"
+                          : "gap-3 px-4",
+                      isActive
+                        ? cn("bg-[#0B5C6C]/25 text-white", !collapsed && "border-l-4 border-[#0B5C6C]")
+                        : "text-slate-300 hover:bg-white/5 hover:text-white"
+                    )}
+                  >
+                    <NavIcon name={item.icon} />
+                    {!collapsed && <span>{item.label}</span>}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
+
+      {/* Quote card — expanded sidebar, desktop only */}
+      {!collapsed && (
+        <div className="px-3 pb-3 shrink-0">
+          <div className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3.5">
+            <p className="text-xs leading-relaxed text-white/40 italic">
+              "Good sleep begins with small, consistent habits."
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Patient identity footer */}
+      {patient && (
+        <div className={cn(
+          "shrink-0 border-t border-white/10",
+          collapsed ? "py-3 flex justify-center" : "px-3 py-3"
+        )}>
+          {collapsed ? (
+            <div
+              className="h-8 w-8 rounded-full bg-deep-teal flex items-center justify-center text-white text-xs font-bold"
+              title={patient.name ?? undefined}
+              aria-hidden="true"
+            >
+              {initials}
+            </div>
+          ) : (
+            <Link
+              href="/portal/profile"
+              className="flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-white/5 transition-colors"
+            >
+              <div
+                className="h-8 w-8 shrink-0 rounded-full bg-deep-teal flex items-center justify-center text-white text-xs font-bold"
+                aria-hidden="true"
+              >
+                {initials}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-white truncate">{patient.name}</p>
+                <p className="font-mono text-[10px] text-white/40 truncate">{patient.msid}</p>
+              </div>
+            </Link>
+          )}
+        </div>
+      )}
     </aside>
   );
 }

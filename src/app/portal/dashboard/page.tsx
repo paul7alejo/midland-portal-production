@@ -269,28 +269,6 @@ function isCompletedRequestStatus(status: string | null | undefined): boolean {
   return status === "delivered" || status === "complete" || status === "completed";
 }
 
-function LeafMark({ className }: { className?: string }) {
-  return (
-    <svg
-      width="170"
-      height="170"
-      viewBox="0 0 100 100"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className={className}
-    >
-      <path d="M50 5C22 27 20 68 50 95 80 68 78 27 50 5Z" strokeWidth="2" />
-      <path d="M50 14V88" strokeWidth="1.6" />
-      <path d="M50 32C41 35 35 41 31 50" strokeWidth="1.3" />
-      <path d="M50 32C59 35 65 41 69 50" strokeWidth="1.3" />
-      <path d="M50 52C43 55 39 61 36 69" strokeWidth="1.3" />
-      <path d="M50 52C57 55 61 61 64 69" strokeWidth="1.3" />
-    </svg>
-  );
-}
 
 function RequestStatusBadge({ status }: { status: ReorderStatus }) {
   return (
@@ -677,8 +655,7 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        <aside className="relative isolate overflow-hidden rounded-[20px] border border-[#E6D3A3] bg-[#FDFCF5] p-6 shadow-[0_10px_26px_rgba(11,42,60,0.045)] md:p-7">
-          <LeafMark className="pointer-events-none absolute bottom-4 right-4 -z-10 h-[118px] w-[118px] text-[#E6D3A3] opacity-30" />
+        <aside className="relative rounded-[20px] border border-[#E6D3A3] bg-[#FDFCF5] p-6 shadow-[0_10px_26px_rgba(11,42,60,0.045)] md:p-7">
           <h2 className="font-display text-2xl font-semibold leading-tight text-[#0B2A3C] sm:text-[28px]">
             Need help?
           </h2>

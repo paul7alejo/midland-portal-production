@@ -54,17 +54,39 @@ function MobileBottomNav() {
   );
 }
 
+const PAGE_LABELS: Record<string, string> = {
+  "/portal/dashboard":   "Dashboard",
+  "/portal/equipment":   "My Equipment",
+  "/portal/reorder":     "Request Supplies",
+  "/portal/maintenance": "Maintenance",
+  "/portal/contact":     "Contact",
+  "/portal/profile":     "Profile",
+  "/portal/notifications": "Notifications",
+};
+
 function TopBar() {
   const { patient } = useAuth();
+  const pathname = usePathname();
   if (!patient) return null;
 
+  const pageLabel = PAGE_LABELS[pathname] ?? "Portal";
+
   return (
-    <div className="sticky top-0 z-40 hidden h-[72px] items-center justify-end gap-3 border-b border-white/10 bg-navy px-4 md:px-8 lg:flex">
-      <PortalUpdatesBell
-        className="[&>button]:border-white/20 [&>button]:bg-white/10 [&>button]:text-white [&>button]:shadow-none [&>button:hover]:bg-white/15"
-      />
-      <div className="[&>div>button:hover]:bg-white/10 [&>div>button_p]:text-white [&>div>button_p+p]:text-white/60 [&>div>button>svg]:text-white/40">
-        <AccountMenu />
+    <div className="sticky top-0 z-40 hidden h-[72px] items-center gap-4 border-b border-white/10 bg-navy px-4 md:px-8 lg:flex">
+      <div className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden">
+        <span className="shrink-0 text-sm font-semibold text-white">{pageLabel}</span>
+        <span className="shrink-0 text-white/25" aria-hidden="true">·</span>
+        <span className="truncate text-xs text-white/35">
+          Care note · Clean your mask cushion weekly for optimal therapy
+        </span>
+      </div>
+      <div className="flex shrink-0 items-center gap-3">
+        <PortalUpdatesBell
+          className="[&>button]:border-white/20 [&>button]:bg-white/10 [&>button]:text-white [&>button]:shadow-none [&>button:hover]:bg-white/15"
+        />
+        <div className="[&>div>button:hover]:bg-white/10 [&>div>button_p]:text-white [&>div>button_p+p]:text-white/60 [&>div>button>svg]:text-white/40">
+          <AccountMenu />
+        </div>
       </div>
     </div>
   );
@@ -92,7 +114,7 @@ function PortalInner({ children }: { children: React.ReactNode }) {
   if (!isAuthenticated) return null;
 
   return (
-    <div className="min-h-screen bg-cream overflow-x-hidden">
+    <div className="min-h-screen overflow-x-hidden portal-canvas">
       <div className="hidden lg:block">
         <PortalSidebar
           collapsed={sidebarCollapsed}
