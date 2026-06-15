@@ -140,9 +140,12 @@ function PortalInner({ children }: { children: React.ReactNode }) {
       {/* Narrow/mobile header — visible below lg (1024px) */}
       <div className="sticky top-0 z-50 lg:hidden bg-navy px-4 py-2.5 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="h-8 w-8 rounded-full bg-deep-teal flex items-center justify-center text-white font-display text-sm font-bold shrink-0">
-            M
-          </div>
+          <img
+            src="/portal-assets/logo/midland-logo-mark-deep-teal.png"
+            alt=""
+            className="h-8 w-8 shrink-0 rounded-full bg-white object-contain p-0.5"
+            aria-hidden="true"
+          />
           <p className="text-white font-display text-sm font-semibold whitespace-nowrap">
             Midland Sleep
           </p>
