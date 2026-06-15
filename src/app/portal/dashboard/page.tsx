@@ -377,6 +377,8 @@ export default function DashboardPage() {
   const gridCols = config.steps
     .map((_, i) => (i < stepCount - 1 ? "1fr minmax(32px,1fr)" : "1fr"))
     .join(" ");
+  const heroRequestDate = currentRequest ? getRequestDate(currentRequest) : null;
+  const heroRequestedItems = requestedItems ?? "Supply request";
 
   const overdueChecks = maintenance.filter((c: any) => c.status === "OVERDUE");
   const dueSoonChecks = maintenance.filter((c: any) => c.status === "DUE");
@@ -399,20 +401,57 @@ export default function DashboardPage() {
       <section className="relative min-h-[164px] overflow-hidden rounded-[20px] border border-white/10 bg-[radial-gradient(circle_at_78%_36%,rgba(116,192,162,0.28),transparent_34%),linear-gradient(118deg,#0B2A3C_0%,#0B3348_48%,#0B5C6C_100%)] px-6 py-7 shadow-[0_14px_34px_rgba(11,42,60,0.18)] sm:px-9 sm:py-9 md:min-h-[176px]">
         <div className="pointer-events-none absolute -right-16 -top-20 h-72 w-72 rounded-full bg-seafoam/20 blur-3xl" aria-hidden="true" />
         <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(11,42,60,0.08),rgba(11,42,60,0.28))]" aria-hidden="true" />
-        <div className="relative z-[2] max-w-4xl">
-          <p className="mb-3 font-mono text-xs uppercase tracking-[0.22em] text-seafoam/75">
-            Patient Portal
-          </p>
-          <h1 className="mb-4 font-display text-[34px] font-semibold leading-[1.05] text-cream sm:text-[44px]">
-            {greeting}, {firstName}
-          </h1>
-          <div className="flex items-center gap-3">
-            <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-cream/60">
-              Sleep ID
-            </span>
-            <span className="rounded-md border border-white/10 bg-white/10 px-3 py-1 font-mono text-sm font-medium text-cream shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
-              {msid}
-            </span>
+        <div className="relative z-[2] grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(260px,340px)] lg:items-center">
+          <div className="min-w-0">
+            <p className="mb-3 font-mono text-xs uppercase tracking-[0.22em] text-seafoam/75">
+              Patient Portal
+            </p>
+            <h1 className="mb-4 font-display text-[34px] font-semibold leading-[1.05] text-cream sm:text-[44px]">
+              {greeting}, {firstName}
+            </h1>
+            <div className="flex items-center gap-3">
+              <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-cream/60">
+                Sleep ID
+              </span>
+              <span className="rounded-md border border-white/10 bg-white/10 px-3 py-1 font-mono text-sm font-medium text-cream shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+                {msid}
+              </span>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-white/15 bg-white/[0.09] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-sm sm:p-5">
+            <p className="mb-3 font-mono text-[10px] uppercase tracking-[0.18em] text-cream/55">
+              Latest supply request
+            </p>
+            {requestLoading ? (
+              <div>
+                <p className="text-base font-semibold text-cream">Checking request...</p>
+                <p className="mt-1 text-sm leading-6 text-cream/65">
+                  We are checking your latest supply request.
+                </p>
+              </div>
+            ) : currentRequest ? (
+              <div className="space-y-3">
+                <RequestStatusBadge status={currentRequest.status} />
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold leading-6 text-cream">
+                    {heroRequestedItems}
+                  </p>
+                  {heroRequestDate && (
+                    <p className="text-xs leading-5 text-cream/60">
+                      Last updated {heroRequestDate}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div>
+                <p className="text-base font-semibold text-cream">No active request</p>
+                <p className="mt-1 text-sm leading-6 text-cream/65">
+                  You can request supplies when needed.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </section>

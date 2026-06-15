@@ -12,3 +12,31 @@ body {
   background-image: radial-gradient(circle, rgba(0, 0, 0, 0.042) 1px, transparent 1px);
   background-size: 22px 22px;
 }
+
+@keyframes portal-awareness-ticker {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.portal-awareness-track {
+  animation: portal-awareness-ticker 38s linear infinite;
+}
+
+.portal-awareness-item {
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .portal-awareness-track {
+    animation: none;
+    transform: none;
+  }
+
+  .portal-awareness-track .portal-awareness-item:nth-child(n + 2) {
+    display: none;
+  }
+}

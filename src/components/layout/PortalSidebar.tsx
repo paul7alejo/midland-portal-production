@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useAuth } from "@/components/AuthProvider";
 import { cn } from "@/lib/utils";
 
 type NavItem = { href: string; label: string; icon: string; comingSoon?: boolean };
@@ -58,17 +57,6 @@ export default function PortalSidebar({
   onToggle: () => void;
 }) {
   const pathname = usePathname();
-  const { patient } = useAuth();
-
-  const initials = patient?.name
-    ? patient.name
-        .split(" ")
-        .filter(Boolean)
-        .slice(0, 2)
-        .map((w: string) => w.charAt(0))
-        .join("")
-        .toUpperCase() || "P"
-    : "P";
 
   function expandIfCollapsed() {
     if (collapsed) onToggle();
@@ -196,40 +184,6 @@ export default function PortalSidebar({
               "Good sleep begins with small, consistent habits."
             </p>
           </div>
-        </div>
-      )}
-
-      {/* Patient identity footer */}
-      {patient && (
-        <div className={cn(
-          "shrink-0 border-t border-white/10",
-          collapsed ? "py-3 flex justify-center" : "px-3 py-3"
-        )}>
-          {collapsed ? (
-            <div
-              className="h-8 w-8 rounded-full bg-deep-teal flex items-center justify-center text-white text-xs font-bold"
-              title={patient.name ?? undefined}
-              aria-hidden="true"
-            >
-              {initials}
-            </div>
-          ) : (
-            <Link
-              href="/portal/profile"
-              className="flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-white/5 transition-colors"
-            >
-              <div
-                className="h-8 w-8 shrink-0 rounded-full bg-deep-teal flex items-center justify-center text-white text-xs font-bold"
-                aria-hidden="true"
-              >
-                {initials}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-white truncate">{patient.name}</p>
-                <p className="font-mono text-[10px] text-white/40 truncate">{patient.msid}</p>
-              </div>
-            </Link>
-          )}
         </div>
       )}
     </aside>

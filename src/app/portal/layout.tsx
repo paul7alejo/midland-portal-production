@@ -64,6 +64,9 @@ const PAGE_LABELS: Record<string, string> = {
   "/portal/notifications": "Notifications",
 };
 
+const AWARENESS_TEXT =
+  "Updates · Supply request delivered · Clean your mask cushion weekly · Support hours Monday-Friday, 8:30am-5pm";
+
 function TopBar() {
   const { patient } = useAuth();
   const pathname = usePathname();
@@ -76,9 +79,14 @@ function TopBar() {
       <div className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden">
         <span className="shrink-0 text-sm font-semibold text-white">{pageLabel}</span>
         <span className="shrink-0 text-white/25" aria-hidden="true">·</span>
-        <span className="truncate text-xs text-white/35">
-          Care note · Clean your mask cushion weekly for optimal therapy
-        </span>
+        <div className="min-w-0 flex-1 overflow-hidden">
+          <div className="portal-awareness-track flex w-max items-center gap-8 text-xs text-white/35">
+            <span className="portal-awareness-item">{AWARENESS_TEXT}</span>
+            <span className="portal-awareness-item" aria-hidden="true">{AWARENESS_TEXT}</span>
+            <span className="portal-awareness-item" aria-hidden="true">{AWARENESS_TEXT}</span>
+            <span className="portal-awareness-item" aria-hidden="true">{AWARENESS_TEXT}</span>
+          </div>
+        </div>
       </div>
       <div className="flex shrink-0 items-center gap-3">
         <PortalUpdatesBell
