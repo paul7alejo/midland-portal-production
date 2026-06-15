@@ -132,9 +132,13 @@ export default function PortalSidebar({
               title={collapsed ? item.label : undefined}
               className={cn(
                 "flex items-center py-3.5 text-base font-medium transition-colors rounded-lg",
-                collapsed ? "justify-center px-0" : "gap-3 px-4",
+                collapsed
+                  ? "justify-center px-0"
+                  : isActive
+                    ? "gap-3 pl-[12px] pr-4"
+                    : "gap-3 px-4",
                 isActive
-                  ? "bg-[#0B5C6C]/25 text-white border-l-4 border-[#0B5C6C]"
+                  ? cn("bg-[#0B5C6C]/25 text-white", !collapsed && "border-l-4 border-[#0B5C6C]")
                   : "text-slate-300 hover:bg-white/5 hover:text-white"
               )}
             >

@@ -135,7 +135,7 @@ export default function EquipmentPage() {
                 <button
                   type="button"
                   onClick={() => setModal("machine")}
-                  className="group relative w-full rounded-xl bg-sand-pale/40 overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-deep-teal focus-visible:ring-offset-2"
+                  className="group relative w-full rounded-xl bg-gradient-to-br from-[#f0f4f5] to-[#e8eeef] overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-deep-teal focus-visible:ring-offset-2"
                   aria-label={`View ${machineName || "machine"} details`}
                 >
                   <EquipmentVisual type="machine" className="h-48 w-full" />
@@ -202,7 +202,7 @@ export default function EquipmentPage() {
                 <button
                   type="button"
                   onClick={() => setModal("mask")}
-                  className="group relative w-full rounded-xl bg-deep-teal/5 overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-deep-teal focus-visible:ring-offset-2"
+                  className="group relative w-full rounded-xl bg-gradient-to-br from-[#eef5f0] to-[#e5ede8] overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-deep-teal focus-visible:ring-offset-2"
                   aria-label={`View ${maskName || "mask"} details`}
                 >
                   <EquipmentVisual type="mask" className="h-48 w-full" />

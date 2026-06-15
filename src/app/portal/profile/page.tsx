@@ -161,6 +161,24 @@ export default function ProfilePage() {
 
             <h2 className="font-display text-xl font-semibold text-navy leading-snug">Your details</h2>
 
+            {profile && (
+              <div className="flex items-center gap-3 rounded-xl border border-sand bg-sand-pale/60 px-4 py-3">
+                <div className="h-11 w-11 shrink-0 rounded-full bg-deep-teal flex items-center justify-center text-white text-sm font-bold select-none" aria-hidden="true">
+                  {profile.name
+                    .split(" ")
+                    .filter(Boolean)
+                    .slice(0, 2)
+                    .map(w => w.charAt(0))
+                    .join("")
+                    .toUpperCase() || "P"}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-base font-semibold text-charcoal leading-snug truncate">{profile.name}</p>
+                  <p className="font-mono text-xs text-charcoal/60 truncate">{profile.msid}</p>
+                </div>
+              </div>
+            )}
+
             {profileLoading ? (
               <p className="text-base leading-6 text-charcoal/80">Loading...</p>
             ) : profile ? (

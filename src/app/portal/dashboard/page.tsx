@@ -378,7 +378,15 @@ export default function DashboardPage() {
     <div className="relative left-1/2 w-[calc(100vw-2rem)] max-w-[88rem] -translate-x-1/2 lg:w-[calc(100vw-18rem)]">
       {/* Hero */}
       <div className="relative mb-5 overflow-hidden rounded-xl bg-[#0B2A3C] px-5 py-4 md:px-7 md:py-6">
-        <div className="relative">
+        <svg width="170" height="170" viewBox="0 0 100 100" fill="none" stroke="#74C0A2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 opacity-[0.22]">
+          <path d="M50 5C22 27 20 68 50 95 80 68 78 27 50 5Z" strokeWidth="2" />
+          <path d="M50 14V88" strokeWidth="1.6" />
+          <path d="M50 32C41 35 35 41 31 50" strokeWidth="1.3" />
+          <path d="M50 32C59 35 65 41 69 50" strokeWidth="1.3" />
+          <path d="M50 52C43 55 39 61 36 69" strokeWidth="1.3" />
+          <path d="M50 52C57 55 61 61 64 69" strokeWidth="1.3" />
+        </svg>
+        <div className="relative z-[2]">
           <p className="mb-1 font-mono text-xs uppercase tracking-[0.18em] text-seafoam/75">Patient Portal</p>
           <h1 className="mb-2 font-display text-[26px] sm:text-[34px] font-semibold leading-tight text-cream md:text-[42px]">
             {greeting}, {firstName}
@@ -770,7 +778,15 @@ export default function DashboardPage() {
           )}
 
           {/* CARD 3 — NEED HELP */}
-          <section className="relative overflow-hidden rounded-xl border border-[#E6D3A3] bg-white p-5 md:p-6">
+          <section className="relative isolate overflow-hidden rounded-xl border border-[#E6D3A3] bg-white p-5 md:p-6">
+            <svg width="120" height="120" viewBox="0 0 100 100" fill="none" stroke="#E6D3A3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="pointer-events-none absolute bottom-2 right-2 opacity-60" style={{ zIndex: -1 }}>
+              <path d="M50 5C22 27 20 68 50 95 80 68 78 27 50 5Z" strokeWidth="2" />
+              <path d="M50 14V88" strokeWidth="1.6" />
+              <path d="M50 32C41 35 35 41 31 50" strokeWidth="1.3" />
+              <path d="M50 32C59 35 65 41 69 50" strokeWidth="1.3" />
+              <path d="M50 52C43 55 39 61 36 69" strokeWidth="1.3" />
+              <path d="M50 52C57 55 61 61 64 69" strokeWidth="1.3" />
+            </svg>
             <h2 className="mb-3 border-b border-[#E6D3A3] pb-3 font-display text-[28px] font-semibold leading-snug text-[#0B2A3C]">Need Help?</h2>
             <p className="text-base leading-7 text-charcoal/80">
               Our team is available Monday to Friday, 8:30am to 5pm.
