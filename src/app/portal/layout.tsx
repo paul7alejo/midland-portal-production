@@ -65,7 +65,7 @@ const PAGE_LABELS: Record<string, string> = {
 };
 
 const AWARENESS_TEXT =
-  "Updates · Supply request delivered · Clean your mask cushion weekly · Support hours Monday-Friday, 8:30am-5pm";
+  "Care note · Clean your mask cushion weekly · Support hours Monday–Friday, 8:30am–5pm";
 
 function TopBar() {
   const { patient } = useAuth();
