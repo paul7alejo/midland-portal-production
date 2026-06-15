@@ -141,10 +141,9 @@ function PortalInner({ children }: { children: React.ReactNode }) {
       <div className="sticky top-0 z-50 lg:hidden bg-navy px-4 py-2.5 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <img
-            src="/portal-assets/logo/midland-logo-mark-deep-teal.png"
-            alt=""
-            className="h-8 w-8 shrink-0 rounded-full bg-white object-contain p-0.5"
-            aria-hidden="true"
+            src="/midland-logo.png"
+            alt="Midland Sleep"
+            className="h-8 w-8 shrink-0 rounded-lg bg-white object-contain"
           />
           <p className="text-white font-display text-sm font-semibold whitespace-nowrap">
             Midland Sleep

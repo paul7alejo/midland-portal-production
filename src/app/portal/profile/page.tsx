@@ -152,7 +152,7 @@ export default function ProfilePage() {
         <div className="grid gap-3 lg:grid-cols-2 lg:items-start">
 
           {/* SECTION 1 — Your Details */}
-          <section className="bg-white border border-sand rounded-2xl p-4 md:p-5 space-y-3">
+          <section className="min-w-0 bg-white border border-sand rounded-2xl p-4 md:p-5 space-y-3">
             <div className="bg-seafoam-pale border border-seafoam/30 rounded-md px-3 py-2.5">
               <p className="text-sm leading-5 text-charcoal/85">
                 Your information is handled in accordance with the Health Information Privacy Code 2020.
@@ -162,7 +162,7 @@ export default function ProfilePage() {
             <h2 className="font-display text-xl font-semibold text-navy leading-snug">Your details</h2>
 
             {profile && (
-              <div className="flex items-center gap-3 rounded-xl border border-sand bg-sand-pale/60 px-4 py-3">
+              <div className="flex min-w-0 items-center gap-3 rounded-xl border border-sand bg-sand-pale/60 px-4 py-3">
                 <div className="h-11 w-11 shrink-0 rounded-full bg-deep-teal flex items-center justify-center text-white text-sm font-bold select-none" aria-hidden="true">
                   {profile.name
                     .split(" ")
@@ -172,9 +172,9 @@ export default function ProfilePage() {
                     .join("")
                     .toUpperCase() || "P"}
                 </div>
-                <div className="min-w-0">
-                  <p className="text-base font-semibold text-charcoal leading-snug truncate">{profile.name}</p>
-                  <p className="font-mono text-xs text-charcoal/60 truncate">{profile.msid}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="max-w-full truncate text-base font-semibold leading-snug text-charcoal">{profile.name}</p>
+                  <p className="max-w-full truncate font-mono text-xs text-charcoal/60">{profile.msid}</p>
                 </div>
               </div>
             )}
@@ -183,19 +183,19 @@ export default function ProfilePage() {
               <p className="text-base leading-6 text-charcoal/80">Loading...</p>
             ) : profile ? (
               <dl className="grid gap-x-6 gap-y-3 md:grid-cols-2 text-base leading-6">
-                <div>
+                <div className="min-w-0">
                   <dt className="text-xs uppercase tracking-wide text-charcoal/80 font-mono mb-1">
                     Full name
                   </dt>
-                  <dd className="font-medium text-charcoal">{profile.name}</dd>
+                  <dd className="break-words font-medium text-charcoal">{profile.name}</dd>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <dt className="text-xs uppercase tracking-wide text-charcoal/80 font-mono mb-1">
                     Email
                   </dt>
-                  <dd className="text-charcoal break-words">{profile.email}</dd>
+                  <dd className="break-all text-charcoal">{profile.email}</dd>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <dt className="text-xs uppercase tracking-wide text-charcoal/80 font-mono mb-1">
                     Midland Sleep ID
                   </dt>
@@ -210,19 +210,19 @@ export default function ProfilePage() {
           </section>
 
           {/* SECTION 2 — Portal ID Card */}
-          <section className="bg-navy rounded-2xl p-4 md:p-5 space-y-3">
-            <div>
+          <section className="min-w-0 bg-navy rounded-2xl p-4 md:p-5 space-y-3">
+            <div className="min-w-0">
               <h2 className="font-display text-xl font-semibold text-cream leading-snug">Portal ID card</h2>
               <p className="text-sm leading-5 text-cream/80 mt-1">
                 Use this ID when contacting Midland Sleep.
               </p>
             </div>
 
-            <div className="bg-deep-teal/40 rounded-md px-4 py-3">
+            <div className="min-w-0 bg-deep-teal/40 rounded-md px-4 py-3">
               <p className="text-xs uppercase tracking-wide text-seafoam font-mono mb-1.5">
                 Your Midland Sleep ID
               </p>
-              <p className="font-mono text-2xl text-cream tracking-widest break-all">
+              <p className="break-all font-mono text-xl text-cream tracking-widest sm:text-2xl">
                 {msid || "—"}
               </p>
             </div>

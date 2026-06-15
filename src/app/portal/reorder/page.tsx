@@ -296,16 +296,16 @@ function OptionDrawer({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4"
       role="dialog"
       aria-modal="true"
       aria-label={`${ITEM_LABELS[category]} supply options`}
     >
       <div className="absolute inset-0 bg-black/40" onClick={onClose} aria-hidden="true" />
-      <div className="relative z-10 w-full max-w-lg rounded-2xl bg-white shadow-2xl overflow-hidden">
+      <div className="relative z-10 flex max-h-[calc(100dvh-4.5rem)] w-full max-w-lg flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:max-h-[min(90dvh,44rem)] sm:rounded-2xl">
 
         {/* Header */}
-        <div className="flex items-start justify-between gap-4 px-6 pt-6 pb-4 border-b border-sand">
+        <div className="flex shrink-0 items-start justify-between gap-4 px-6 pt-6 pb-4 border-b border-sand">
           <div>
             <p className="font-mono text-sm uppercase tracking-wide text-deep-teal mb-1">
               Supply option
@@ -328,7 +328,7 @@ function OptionDrawer({
         </div>
 
         {/* Options list */}
-        <div className="px-6 py-5 space-y-3 max-h-[55vh] overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5 pb-8 space-y-3">
           <p className="text-sm font-medium text-charcoal/55 uppercase tracking-wide">
             Related options — staff will confirm suitability
           </p>
@@ -405,17 +405,17 @@ function OptionDrawer({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-sand bg-sand-pale/30 space-y-3">
+        <div className="sticky bottom-0 shrink-0 space-y-3 border-t border-sand bg-sand-pale/30 px-6 py-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
           <p className="text-sm leading-5 text-charcoal/55">
             Staff will check eligibility, compatibility, and availability before confirming supplies.
             This is a request for review, not a confirmed order.
           </p>
-          <div className="flex flex-wrap gap-3">
+          <div className="grid gap-3 sm:flex sm:flex-wrap">
             <button
               type="button"
               onClick={() => { if (picked) onConfirm(picked); }}
               disabled={!picked}
-              className="bg-[#0B5C6C] text-white px-6 py-3 rounded-lg text-base font-medium min-h-[48px]
+              className="w-full bg-[#0B5C6C] text-white px-6 py-3 rounded-lg text-base font-medium min-h-[48px] sm:w-auto
                          hover:bg-[#0B5C6C]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Confirm selection
@@ -424,7 +424,7 @@ function OptionDrawer({
               <button
                 type="button"
                 onClick={onRemove}
-                className="px-6 py-3 rounded-lg text-base font-medium min-h-[48px] border border-red-200 text-red-700 bg-white hover:bg-red-50 transition-colors"
+                className="w-full px-6 py-3 rounded-lg text-base font-medium min-h-[48px] border border-red-200 text-red-700 bg-white hover:bg-red-50 transition-colors sm:w-auto"
               >
                 Remove item
               </button>
@@ -432,7 +432,7 @@ function OptionDrawer({
             <button
               type="button"
               onClick={onClose}
-              className="px-6 py-3 rounded-lg text-base font-medium min-h-[48px] border border-sand bg-white text-charcoal hover:border-deep-teal/40 transition-colors"
+              className="w-full px-6 py-3 rounded-lg text-base font-medium min-h-[48px] border border-sand bg-white text-charcoal hover:border-deep-teal/40 transition-colors sm:w-auto"
             >
               Cancel
             </button>

@@ -5,6 +5,21 @@ import { useAuth } from "@/components/AuthProvider";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
+function UserIcon({ className = "h-5 w-5" }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={1.7}
+      aria-hidden="true"
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+    </svg>
+  );
+}
+
 export default function AccountMenu() {
   const { patient, logout } = useAuth();
   const router = useRouter();
@@ -33,11 +48,6 @@ export default function AccountMenu() {
 
   if (!patient) return null;
 
-  const initials = (patient.name ?? "Patient")
-    .split(" ")
-    .map((n: string) => n[0])
-    .join("");
-
   const handleLogout = async () => {
     setOpen(false);
     await logout();
@@ -60,8 +70,8 @@ export default function AccountMenu() {
             {patient.msid}
           </p>
         </div>
-        <div className="h-9 w-9 rounded-full bg-deep-teal flex items-center justify-center text-white text-sm font-bold shrink-0 ring-2 ring-deep-teal/20">
-          {initials}
+        <div className="h-9 w-9 rounded-full bg-deep-teal flex items-center justify-center text-white shrink-0 ring-2 ring-deep-teal/20">
+          <UserIcon className="h-5 w-5" />
         </div>
         <svg
           className={`h-3.5 w-3.5 text-charcoal/40 shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
@@ -75,9 +85,9 @@ export default function AccountMenu() {
         </svg>
       </button>
 
-      {/* Desktop dropdown — hidden on small screens */}
+      {/* Desktop dropdown — hidden below lg so tablet uses the safe sheet. */}
       {open && (
-        <div className="hidden sm:block absolute right-0 top-full z-[110] mt-2 w-56 rounded-xl border border-sand bg-white shadow-xl overflow-hidden">
+        <div className="hidden lg:block absolute right-0 top-full z-[110] mt-2 w-56 rounded-xl border border-sand bg-white shadow-xl overflow-hidden">
           <div className="px-4 py-3 border-b border-sand bg-sand-pale/60">
             <p className="text-sm font-semibold text-charcoal truncate">{patient.name}</p>
             <p className="text-xs text-charcoal/50 font-mono truncate">{patient.msid}</p>
@@ -118,10 +128,10 @@ export default function AccountMenu() {
         </div>
       )}
 
-      {/* Mobile bottom sheet — hidden on sm+ */}
+      {/* Mobile/tablet bottom sheet — hidden on desktop. */}
       {open && (
         <div
-          className="sm:hidden fixed inset-0 z-[200] flex items-end"
+          className="lg:hidden fixed inset-0 z-[200] flex items-end"
           role="dialog"
           aria-modal="true"
           aria-label="Account menu"
@@ -131,11 +141,16 @@ export default function AccountMenu() {
             onClick={() => setOpen(false)}
             aria-hidden="true"
           />
-          <div className="relative w-full bg-white rounded-t-2xl shadow-xl overflow-hidden">
+          <div className="relative w-full bg-white rounded-t-2xl shadow-xl overflow-hidden md:mx-auto md:mb-6 md:max-w-md md:rounded-2xl">
             <div className="mx-auto mt-3 mb-2 h-1 w-10 rounded-full bg-sand" aria-hidden="true" />
-            <div className="px-5 py-4 border-b border-sand bg-sand-pale/60">
-              <p className="text-base font-semibold text-charcoal">{patient.name}</p>
-              <p className="text-sm text-charcoal/50 font-mono">{patient.msid}</p>
+            <div className="flex items-center gap-3 px-5 py-4 border-b border-white/10 bg-navy">
+              <div className="h-10 w-10 rounded-full bg-deep-teal flex items-center justify-center text-white shrink-0 ring-1 ring-white/20">
+                <UserIcon className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-base font-semibold leading-tight text-white truncate">{patient.name}</p>
+                <p className="mt-1 text-sm text-white/65 font-mono truncate">{patient.msid}</p>
+              </div>
             </div>
             <div className="py-2">
               <Link
@@ -143,9 +158,7 @@ export default function AccountMenu() {
                 onClick={() => setOpen(false)}
                 className="flex items-center gap-4 px-5 py-4 text-base text-charcoal hover:bg-sand-pale transition-colors"
               >
-                <svg className="h-5 w-5 shrink-0 text-charcoal/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
+                <UserIcon className="h-5 w-5 shrink-0 text-charcoal/50" />
                 My profile
               </Link>
               <Link
@@ -170,7 +183,7 @@ export default function AccountMenu() {
                 Log out
               </button>
             </div>
-            <div className="h-6" />
+            <div className="h-[calc(1.5rem+env(safe-area-inset-bottom))]" />
           </div>
         </div>
       )}

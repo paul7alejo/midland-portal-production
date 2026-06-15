@@ -273,7 +273,7 @@ export default function EquipmentPage() {
       {/* Equipment detail modal */}
       {modal && (
         <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+          className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4"
           role="dialog"
           aria-modal="true"
           aria-label={modal === "machine" ? "Machine details" : "Mask details"}
@@ -283,7 +283,7 @@ export default function EquipmentPage() {
             onClick={() => setModal(null)}
             aria-hidden="true"
           />
-          <div className="relative z-10 w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-xl flex flex-col max-h-[90vh]">
+          <div className="relative z-10 flex max-h-[calc(100dvh-4.5rem)] w-full flex-col overflow-hidden rounded-t-2xl bg-white shadow-xl sm:max-h-[min(90dvh,42rem)] sm:max-w-md sm:rounded-2xl">
             <div className="flex items-center justify-between gap-4 px-6 pt-5 pb-4 border-b border-sand shrink-0">
               <h2 className="font-display text-xl font-semibold text-navy leading-snug">
                 {modal === "machine" ? "Machine details" : "Mask details"}
@@ -312,7 +312,7 @@ export default function EquipmentPage() {
               </button>
             </div>
 
-            <div className="overflow-y-auto px-6 py-5 space-y-4">
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5 pb-8 space-y-4">
               {modal === "machine" && device && (
                 <>
                   <EquipmentVisual
@@ -363,7 +363,7 @@ export default function EquipmentPage() {
               )}
             </div>
 
-            <div className="px-6 pb-6 pt-2 shrink-0">
+            <div className="sticky bottom-0 shrink-0 border-t border-sand bg-white px-6 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4">
               <button
                 type="button"
                 onClick={() => setModal(null)}

@@ -185,7 +185,7 @@ export default function PortalUpdatesBell({ className }: { className?: string })
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-[110] mt-2 w-[min(24rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-sand bg-white shadow-xl">
+        <div className="absolute right-0 top-full z-[110] mt-2 hidden w-[min(24rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-sand bg-white shadow-xl lg:block">
           <div className="border-b border-sand bg-sand-pale/60 px-4 py-3">
             <p className="text-sm font-semibold text-charcoal">Notifications</p>
             <p className="mt-0.5 text-xs leading-5 text-charcoal/60">
@@ -269,6 +269,114 @@ export default function PortalUpdatesBell({ className }: { className?: string })
             >
               See previous notifications
             </Link>
+          </div>
+        </div>
+      )}
+
+      {open && (
+        <div
+          className="fixed inset-0 z-[220] flex items-end bg-navy/45 backdrop-blur-sm lg:hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Notifications"
+        >
+          <div className="absolute inset-0" onClick={() => setOpen(false)} aria-hidden="true" />
+          <div className="relative z-10 flex max-h-[75dvh] w-full flex-col overflow-hidden rounded-t-2xl border border-sand bg-white shadow-2xl md:mx-auto md:mb-6 md:max-w-xl md:rounded-2xl">
+            <div className="mx-auto mt-3 h-1 w-10 rounded-full bg-sand lg:hidden" aria-hidden="true" />
+            <div className="flex items-start justify-between gap-4 border-b border-sand bg-sand-pale/60 px-5 py-4">
+              <div className="min-w-0">
+                <p className="text-base font-semibold text-charcoal">Notifications</p>
+                <p className="mt-1 text-sm leading-5 text-charcoal/65">
+                  Updates from Midland Sleep about your supply requests.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-full text-xl text-charcoal/55 transition-colors hover:bg-white hover:text-charcoal"
+                aria-label="Close notifications"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="flex border-b border-sand bg-white px-3 py-2">
+              {(["all", "unread"] as NotificationTab[]).map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setActiveTab(tab)}
+                  className={cn(
+                    "min-h-[44px] rounded-lg px-4 text-sm font-semibold transition-colors",
+                    activeTab === tab
+                      ? "bg-[#EFF5F4] text-[#0B5C6C]"
+                      : "text-charcoal/60 hover:bg-sand-pale hover:text-charcoal"
+                  )}
+                >
+                  {tab === "all" ? "All" : "Unread"}
+                </button>
+              ))}
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              {loading ? (
+                <p className="px-5 py-4 text-sm leading-6 text-charcoal/60">Checking for notifications...</p>
+              ) : visibleNotifications.length > 0 ? (
+                <div className="divide-y divide-sand/70">
+                  {visibleNotifications.map((notification) => {
+                    const unread = !notification.read_at;
+                    return (
+                      <button
+                        key={notification.notification_id}
+                        type="button"
+                        onClick={() => void handleNotificationClick(notification)}
+                        className="block w-full px-5 py-4 text-left transition-colors hover:bg-sand-pale/70"
+                      >
+                        <span className="flex items-start gap-3">
+                          <span
+                            className={cn(
+                              "mt-2 h-2 w-2 shrink-0 rounded-full",
+                              unread ? "bg-[#0B5C6C]" : "bg-transparent"
+                            )}
+                            aria-hidden="true"
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span className="flex flex-col gap-0.5 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+                              <span className="text-sm font-semibold leading-6 text-[#0B2A3C]">{notification.title}</span>
+                              <time className="text-xs leading-5 text-charcoal/45 sm:shrink-0" dateTime={notification.created_at}>
+                                {formatUpdateDateTime(notification.created_at)}
+                              </time>
+                            </span>
+                            <span className="mt-1 block text-sm leading-5 text-charcoal/70">{notification.message}</span>
+                            {notification.request_reference && (
+                              <span className="mt-2 block break-all font-mono text-[11px] uppercase tracking-wide text-charcoal/45">
+                                Request {notification.request_reference}
+                              </span>
+                            )}
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="px-5 py-4 text-sm leading-6 text-charcoal/60">
+                  {activeTab === "unread"
+                    ? "You have no unread notifications."
+                    : "No notifications yet. Updates about your supply requests will appear here."}
+                </p>
+              )}
+            </div>
+
+            <div className="shrink-0 border-t border-sand bg-white px-5 py-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+              <Link
+                href="/portal/notifications"
+                onClick={() => setOpen(false)}
+                className="inline-flex min-h-[44px] items-center text-sm font-semibold text-[#0B5C6C] hover:underline"
+              >
+                See previous notifications
+              </Link>
+            </div>
           </div>
         </div>
       )}

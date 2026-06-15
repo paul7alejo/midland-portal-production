@@ -709,7 +709,40 @@ export default function DashboardPage() {
               View all
             </Link>
           </div>
-          <div className="overflow-x-auto">
+          <div className="grid gap-3 md:hidden">
+            <div className="rounded-xl border border-[#E6D3A3] bg-[#F5F3EE] p-4">
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="mb-1 font-mono text-[11px] uppercase tracking-[0.08em] text-charcoal/60">
+                    Date
+                  </p>
+                  <p className="text-sm font-medium text-charcoal">
+                    {getRequestDate(currentRequest)}
+                  </p>
+                </div>
+                <RequestStatusBadge status={currentRequest.status} />
+              </div>
+              <div className="grid gap-3">
+                <div className="min-w-0">
+                  <p className="mb-1 font-mono text-[11px] uppercase tracking-[0.08em] text-charcoal/60">
+                    Reference
+                  </p>
+                  <p className="break-all font-mono text-sm font-semibold text-[#0B5C6C]">
+                    {currentRequest.referenceNumber}
+                  </p>
+                </div>
+                <div className="min-w-0">
+                  <p className="mb-1 font-mono text-[11px] uppercase tracking-[0.08em] text-charcoal/60">
+                    Items
+                  </p>
+                  <p className="text-sm leading-6 text-charcoal">
+                    {requestedItems ?? "Supply request"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="hidden overflow-x-auto md:block">
             <table className="min-w-[540px] w-full border-collapse text-left text-base">
               <thead>
                 <tr className="border-b border-[#E6D3A3] font-mono text-[11px] uppercase tracking-[0.08em] text-charcoal/60">
