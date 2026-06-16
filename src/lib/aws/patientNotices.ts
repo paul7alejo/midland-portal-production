@@ -108,10 +108,12 @@ export function sanitizePatientNotice(record: PatientNoticeRecord): AdminPatient
   }
 }
 
+// Midland-only fallback: Amplify sometimes fails to propagate env vars into the
+// server runtime even when the variable is set in the Amplify console. The
+// hardcoded name is safe here because this module is Midland-specific and the
+// table name is not a secret.
 function tableName(): string {
-  const t = process.env.PATIENT_NOTICES_TABLE_NAME
-  if (!t) throw new Error('PATIENT_NOTICES_TABLE_NAME is not configured')
-  return t
+  return process.env.PATIENT_NOTICES_TABLE_NAME ?? 'midland-sleep-patient-notices'
 }
 
 function orgPk(): string {
