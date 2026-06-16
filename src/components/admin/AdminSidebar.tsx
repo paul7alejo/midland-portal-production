@@ -13,6 +13,7 @@ import {
   Target,
   Gift,
   Mail,
+  Bell,
   FileText,
   BarChart3,
   Settings,
@@ -60,9 +61,10 @@ export default function AdminSidebar({ collapsed, onToggle }: AdminSidebarProps)
     {
       label: "PATIENT OPERATIONS",
       items: [
-        { href: "/admin/patients", label: "Patients", icon: Users },
-        { href: "/admin/orders",   label: "Requests", icon: ShoppingCart },
-        { href: "/admin/outreach", label: "Outreach", icon: Mail },
+        { href: "/admin/patients", label: "Patients",        icon: Users },
+        { href: "/admin/orders",   label: "Requests",        icon: ShoppingCart },
+        { href: "/admin/notices",  label: "Patient Notices", icon: Bell },
+        { href: "/admin/outreach", label: "Outreach",        icon: Mail },
       ],
     },
     {
