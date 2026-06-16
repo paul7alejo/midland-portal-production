@@ -30,8 +30,8 @@ export type NoticePriority     = 'info' | 'reminder' | 'important'
 export type NoticeStatus       = 'draft' | 'published' | 'expired' | 'archived'
 
 export interface PatientNoticeRecord {
-  pk:                string          // ORG#midland-sleep
-  sk:                string          // NOTICE#<notice_id>
+  PK:                string          // ORG#midland-sleep
+  SK:                string          // NOTICE#<notice_id>
   notice_id:         string
   org_id:            string
   title:             string
@@ -62,8 +62,8 @@ export interface PatientNoticeRecord {
 
 export type AdminPatientNotice = Omit<
   PatientNoticeRecord,
-  | 'pk'
-  | 'sk'
+  | 'PK'
+  | 'SK'
   | 'created_by'
   | 'updated_by'
   | 'published_by'
@@ -113,7 +113,8 @@ export function sanitizePatientNotice(record: PatientNoticeRecord): AdminPatient
 // hardcoded name is safe here because this module is Midland-specific and the
 // table name is not a secret.
 function tableName(): string {
-  return process.env.PATIENT_NOTICES_TABLE_NAME ?? 'midland-sleep-patient-notices'
+  const configured = process.env.PATIENT_NOTICES_TABLE_NAME?.trim()
+  return configured || 'midland-sleep-patient-notices'
 }
 
 function orgPk(): string {
@@ -140,8 +141,8 @@ export async function createPatientNotice(params: {
   const now       = new Date().toISOString()
 
   const item: PatientNoticeRecord = {
-    pk:               orgPk(),
-    sk:               noticeSk(notice_id),
+    PK:               orgPk(),
+    SK:               noticeSk(notice_id),
     notice_id,
     org_id:           ORG_ID,
     title:            params.title,
@@ -164,7 +165,7 @@ export async function createPatientNotice(params: {
   await docClient.send(new PutCommand({
     TableName:           tableName(),
     Item:                item,
-    ConditionExpression: 'attribute_not_exists(pk)',
+    ConditionExpression: 'attribute_not_exists(PK)',
   }))
 
   return item
@@ -173,7 +174,7 @@ export async function createPatientNotice(params: {
 export async function getPatientNotice(noticeId: string): Promise<PatientNoticeRecord | null> {
   const res = await docClient.send(new GetCommand({
     TableName: tableName(),
-    Key:       { pk: orgPk(), sk: noticeSk(noticeId) },
+    Key:       { PK: orgPk(), SK: noticeSk(noticeId) },
   }))
   return (res.Item as PatientNoticeRecord) ?? null
 }
@@ -181,7 +182,7 @@ export async function getPatientNotice(noticeId: string): Promise<PatientNoticeR
 export async function listPatientNotices(): Promise<PatientNoticeRecord[]> {
   const res = await docClient.send(new QueryCommand({
     TableName:                 tableName(),
-    KeyConditionExpression:    'pk = :pk',
+    KeyConditionExpression:    'PK = :pk',
     ExpressionAttributeValues: { ':pk': orgPk() },
     ScanIndexForward:          false,
   }))
@@ -264,9 +265,9 @@ export async function updatePatientNotice(params: {
 
   const res = await docClient.send(new UpdateCommand({
     TableName:                 tableName(),
-    Key:                       { pk: orgPk(), sk: noticeSk(params.noticeId) },
+    Key:                       { PK: orgPk(), SK: noticeSk(params.noticeId) },
     UpdateExpression:          updateExpression,
-    ConditionExpression:       'attribute_exists(pk) AND #status = :draft',
+    ConditionExpression:       'attribute_exists(PK) AND #status = :draft',
     ExpressionAttributeNames:  ean,
     ExpressionAttributeValues: eav,
     ReturnValues:              'ALL_NEW',
@@ -284,9 +285,9 @@ export async function publishPatientNotice(params: {
 
   const res = await docClient.send(new UpdateCommand({
     TableName:        tableName(),
-    Key:              { pk: orgPk(), sk: noticeSk(params.noticeId) },
+    Key:              { PK: orgPk(), SK: noticeSk(params.noticeId) },
     UpdateExpression: 'SET #status = :published, published_by = :by, published_by_email = :email, published_at = :at, updated_by = :by, updated_by_email = :email, updated_at = :at',
-    ConditionExpression: 'attribute_exists(pk) AND #status = :draft',
+    ConditionExpression: 'attribute_exists(PK) AND #status = :draft',
     ExpressionAttributeNames:  { '#status': 'status' },
     ExpressionAttributeValues: {
       ':published': 'published',
@@ -310,9 +311,9 @@ export async function expirePatientNotice(params: {
 
   const res = await docClient.send(new UpdateCommand({
     TableName:        tableName(),
-    Key:              { pk: orgPk(), sk: noticeSk(params.noticeId) },
+    Key:              { PK: orgPk(), SK: noticeSk(params.noticeId) },
     UpdateExpression: 'SET #status = :expired, expired_by = :by, expired_by_email = :email, expired_at = :at, updated_by = :by, updated_by_email = :email, updated_at = :at',
-    ConditionExpression: 'attribute_exists(pk) AND #status = :published',
+    ConditionExpression: 'attribute_exists(PK) AND #status = :published',
     ExpressionAttributeNames:  { '#status': 'status' },
     ExpressionAttributeValues: {
       ':expired':   'expired',
@@ -336,9 +337,9 @@ export async function archivePatientNotice(params: {
 
   const res = await docClient.send(new UpdateCommand({
     TableName:        tableName(),
-    Key:              { pk: orgPk(), sk: noticeSk(params.noticeId) },
+    Key:              { PK: orgPk(), SK: noticeSk(params.noticeId) },
     UpdateExpression: 'SET #status = :archived, archived_by = :by, archived_by_email = :email, archived_at = :at, updated_by = :by, updated_by_email = :email, updated_at = :at',
-    ConditionExpression: 'attribute_exists(pk) AND #status IN (:draft, :published)',
+    ConditionExpression: 'attribute_exists(PK) AND #status IN (:draft, :published)',
     ExpressionAttributeNames:  { '#status': 'status' },
     ExpressionAttributeValues: {
       ':archived':  'archived',
