@@ -19,6 +19,20 @@ interface PatientPortalNotification {
   delivery_status: "visible";
 }
 
+interface PatientNotice {
+  noticeId: string;
+  title: string;
+  message: string;
+  placement: string;
+  priority: string;
+  publishedAt: string;
+  expiresAt?: string;
+}
+
+type AllTabItem =
+  | { kind: "notification"; data: PatientPortalNotification; sortKey: string }
+  | { kind: "notice";       data: PatientNotice;             sortKey: string };
+
 function formatUpdateDateTime(iso: string): string {
   const date = new Date(iso);
   if (isNaN(date.getTime())) return iso;
@@ -35,34 +49,43 @@ export default function NotificationsPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<NotificationTab>("all");
   const [notifications, setNotifications] = useState<PatientPortalNotification[]>([]);
+  const [clinicNotices, setClinicNotices] = useState<PatientNotice[]>([]);
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState<string | null>(null);
-
-  const visibleNotifications = useMemo(() => {
-    return activeTab === "unread"
-      ? notifications.filter((notification) => !notification.read_at)
-      : notifications;
-  }, [activeTab, notifications]);
 
   useEffect(() => {
     let cancelled = false;
 
-    async function loadNotifications() {
+    async function load() {
       setLoading(true);
       try {
         configureCognito();
         const idToken = await getIdToken();
         if (!idToken) throw new Error("Session expired.");
 
-        const res = await fetch("/api/patient/notifications", {
-          headers: { Authorization: `Bearer ${idToken}` },
-        });
-        const data = await res.json().catch(() => ({})) as {
+        const [notifRes, noticesRes] = await Promise.all([
+          fetch("/api/patient/notifications", { headers: { Authorization: `Bearer ${idToken}` } }),
+          fetch("/api/patient/notices",       { headers: { Authorization: `Bearer ${idToken}` } }),
+        ]);
+
+        const notifData = await notifRes.json().catch(() => ({})) as {
           notifications?: PatientPortalNotification[];
         };
-        if (!cancelled && res.ok) {
-          setToken(idToken);
-          setNotifications(Array.isArray(data.notifications) ? data.notifications : []);
+        const noticesData = await noticesRes.json().catch(() => ({})) as {
+          notices?: PatientNotice[];
+        };
+
+        if (!cancelled) {
+          if (notifRes.ok) {
+            setToken(idToken);
+            setNotifications(Array.isArray(notifData.notifications) ? notifData.notifications : []);
+          }
+          if (noticesRes.ok) {
+            setClinicNotices(
+              (Array.isArray(noticesData.notices) ? noticesData.notices : [])
+                .filter((n) => n.placement === "notification_bell")
+            );
+          }
         }
       } catch {
         if (!cancelled) setNotifications([]);
@@ -71,22 +94,38 @@ export default function NotificationsPage() {
       }
     }
 
-    void loadNotifications();
-    return () => {
-      cancelled = true;
-    };
+    void load();
+    return () => { cancelled = true; };
   }, []);
 
+  const allItems = useMemo((): AllTabItem[] => {
+    const notifItems: AllTabItem[] = notifications.map((n) => ({
+      kind: "notification",
+      data: n,
+      sortKey: n.created_at,
+    }));
+    const noticeItems: AllTabItem[] = clinicNotices.map((n) => ({
+      kind: "notice",
+      data: n,
+      sortKey: n.publishedAt,
+    }));
+    return [...notifItems, ...noticeItems].sort((a, b) =>
+      b.sortKey.localeCompare(a.sortKey)
+    );
+  }, [notifications, clinicNotices]);
+
+  const visibleItems = activeTab === "unread"
+    ? notifications.filter((n) => !n.read_at)
+    : allItems;
+
   async function markRead(notificationId: string) {
-    const target = notifications.find((notification) => notification.notification_id === notificationId);
+    const target = notifications.find((n) => n.notification_id === notificationId);
     if (!target || target.read_at) return;
 
     const optimisticReadAt = new Date().toISOString();
     setNotifications((current) =>
-      current.map((notification) =>
-        notification.notification_id === notificationId
-          ? { ...notification, read_at: optimisticReadAt }
-          : notification
+      current.map((n) =>
+        n.notification_id === notificationId ? { ...n, read_at: optimisticReadAt } : n
       )
     );
 
@@ -108,17 +147,17 @@ export default function NotificationsPage() {
       if (!res.ok) throw new Error("Unable to mark notification read.");
       if (res.ok && data.notification) {
         setNotifications((current) =>
-          current.map((notification) =>
-            notification.notification_id === notificationId ? data.notification! : notification
+          current.map((n) =>
+            n.notification_id === notificationId ? data.notification! : n
           )
         );
       }
     } catch {
       setNotifications((current) =>
-        current.map((notification) =>
-          notification.notification_id === notificationId
-            ? { ...notification, read_at: target.read_at }
-            : notification
+        current.map((n) =>
+          n.notification_id === notificationId
+            ? { ...n, read_at: target.read_at }
+            : n
         )
       );
     }
@@ -126,9 +165,7 @@ export default function NotificationsPage() {
 
   async function handleNotificationClick(notification: PatientPortalNotification) {
     try {
-      if (!notification.read_at) {
-        await markRead(notification.notification_id);
-      }
+      if (!notification.read_at) await markRead(notification.notification_id);
     } finally {
       router.push(REQUEST_STATUS_DESTINATION);
     }
@@ -142,7 +179,7 @@ export default function NotificationsPage() {
             Notifications
           </h1>
           <p className="mt-2 text-lg leading-7 text-charcoal/75">
-            Updates from Midland Sleep about your supply requests.
+            Updates and notices from Midland Sleep.
           </p>
         </div>
 
@@ -169,52 +206,106 @@ export default function NotificationsPage() {
             <p className="rounded-lg border border-sand bg-[#F5F3EE] p-5 text-base leading-7 text-charcoal/70">
               Checking for notifications...
             </p>
-          ) : visibleNotifications.length > 0 ? (
+          ) : visibleItems.length > 0 ? (
             <div className="space-y-3">
-              {visibleNotifications.map((notification) => {
-                const unread = !notification.read_at;
-                return (
-                  <button
-                    key={notification.notification_id}
-                    type="button"
-                    onClick={() => void handleNotificationClick(notification)}
-                    className={cn(
-                      "block w-full rounded-lg border p-4 text-left transition-colors",
-                      unread
-                        ? "border-[#74C0A2]/50 bg-[#EFF5F4]"
-                        : "border-sand bg-[#F5F3EE] hover:bg-sand-pale"
-                    )}
-                  >
-                    <span className="flex items-start gap-3">
-                      <span
+              {activeTab === "unread"
+                ? (visibleItems as PatientPortalNotification[]).map((notification) => {
+                    const unread = !notification.read_at;
+                    return (
+                      <button
+                        key={notification.notification_id}
+                        type="button"
+                        onClick={() => void handleNotificationClick(notification)}
                         className={cn(
-                          "mt-2 h-2.5 w-2.5 shrink-0 rounded-full",
-                          unread ? "bg-[#0B5C6C]" : "bg-transparent"
+                          "block w-full rounded-lg border p-4 text-left transition-colors",
+                          unread ? "border-[#74C0A2]/50 bg-[#EFF5F4]" : "border-sand bg-[#F5F3EE] hover:bg-sand-pale"
                         )}
-                        aria-hidden="true"
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="flex flex-wrap items-start justify-between gap-2">
-                          <span className="text-lg font-semibold leading-7 text-[#0B2A3C]">
-                            {notification.title}
+                      >
+                        <span className="flex items-start gap-3">
+                          <span className="mt-2 h-2.5 w-2.5 shrink-0 rounded-full bg-[#0B5C6C]" aria-hidden="true" />
+                          <span className="min-w-0 flex-1">
+                            <span className="flex flex-wrap items-start justify-between gap-2">
+                              <span className="text-lg font-semibold leading-7 text-[#0B2A3C]">{notification.title}</span>
+                              <time className="text-sm leading-6 text-charcoal/55" dateTime={notification.created_at}>
+                                {formatUpdateDateTime(notification.created_at)}
+                              </time>
+                            </span>
+                            <span className="mt-1 block text-base leading-6 text-charcoal/75">{notification.message}</span>
+                            {notification.request_reference && (
+                              <span className="mt-3 block font-mono text-xs uppercase tracking-wide text-charcoal/55">
+                                Request {notification.request_reference}
+                              </span>
+                            )}
                           </span>
-                          <time className="text-sm leading-6 text-charcoal/55" dateTime={notification.created_at}>
-                            {formatUpdateDateTime(notification.created_at)}
-                          </time>
                         </span>
-                        <span className="mt-1 block text-base leading-6 text-charcoal/75">
-                          {notification.message}
-                        </span>
-                        {notification.request_reference && (
-                          <span className="mt-3 block font-mono text-xs uppercase tracking-wide text-charcoal/55">
-                            Request {notification.request_reference}
+                      </button>
+                    );
+                  })
+                : (visibleItems as AllTabItem[]).map((item) => {
+                    if (item.kind === "notification") {
+                      const notification = item.data;
+                      const unread = !notification.read_at;
+                      return (
+                        <button
+                          key={notification.notification_id}
+                          type="button"
+                          onClick={() => void handleNotificationClick(notification)}
+                          className={cn(
+                            "block w-full rounded-lg border p-4 text-left transition-colors",
+                            unread ? "border-[#74C0A2]/50 bg-[#EFF5F4]" : "border-sand bg-[#F5F3EE] hover:bg-sand-pale"
+                          )}
+                        >
+                          <span className="flex items-start gap-3">
+                            <span
+                              className={cn(
+                                "mt-2 h-2.5 w-2.5 shrink-0 rounded-full",
+                                unread ? "bg-[#0B5C6C]" : "bg-transparent"
+                              )}
+                              aria-hidden="true"
+                            />
+                            <span className="min-w-0 flex-1">
+                              <span className="flex flex-wrap items-start justify-between gap-2">
+                                <span className="text-lg font-semibold leading-7 text-[#0B2A3C]">{notification.title}</span>
+                                <time className="text-sm leading-6 text-charcoal/55" dateTime={notification.created_at}>
+                                  {formatUpdateDateTime(notification.created_at)}
+                                </time>
+                              </span>
+                              <span className="mt-1 block text-base leading-6 text-charcoal/75">{notification.message}</span>
+                              {notification.request_reference && (
+                                <span className="mt-3 block font-mono text-xs uppercase tracking-wide text-charcoal/55">
+                                  Request {notification.request_reference}
+                                </span>
+                              )}
+                            </span>
                           </span>
-                        )}
-                      </span>
-                    </span>
-                  </button>
-                );
-              })}
+                        </button>
+                      );
+                    }
+
+                    const notice = item.data;
+                    return (
+                      <div
+                        key={notice.noticeId}
+                        className="rounded-lg border border-sand bg-[#F5F3EE] p-4"
+                      >
+                        <span className="flex items-start gap-3">
+                          <span className="mt-2 h-2.5 w-2.5 shrink-0 rounded-full bg-transparent" aria-hidden="true" />
+                          <span className="min-w-0 flex-1">
+                            <span className="flex flex-wrap items-start justify-between gap-2">
+                              <span className="text-lg font-semibold leading-7 text-[#0B2A3C]">{notice.title}</span>
+                              <time className="text-sm leading-6 text-charcoal/55" dateTime={notice.publishedAt}>
+                                {formatUpdateDateTime(notice.publishedAt)}
+                              </time>
+                            </span>
+                            <span className="mt-1 block text-base leading-6 text-charcoal/75">{notice.message}</span>
+                            <span className="mt-3 inline-block rounded-full bg-[#EFF5F4] px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-[#0B5C6C]">
+                              Clinic notice
+                            </span>
+                          </span>
+                        </span>
+                      </div>
+                    );
+                  })}
             </div>
           ) : (
             <p className="rounded-lg border border-sand bg-[#F5F3EE] p-5 text-base leading-7 text-charcoal/70">

@@ -285,11 +285,48 @@ function RequestStatusBadge({ status }: { status: ReorderStatus }) {
   );
 }
 
+interface DashboardNotice {
+  noticeId: string;
+  title: string;
+  message: string;
+  placement: string;
+  priority: string;
+  publishedAt: string;
+  expiresAt?: string;
+}
+
+const NOTICE_BORDER: Record<string, string> = {
+  important: "border-l-rose-400",
+  reminder:  "border-l-amber-400",
+  info:      "border-l-[#74C0A2]",
+};
+
+function DashboardNoticeCard({ notice }: { notice: DashboardNotice }) {
+  const borderColor = NOTICE_BORDER[notice.priority] ?? NOTICE_BORDER.info;
+  return (
+    <div className={`rounded-xl border border-[#E6D3A3] bg-white p-4 shadow-sm border-l-4 ${borderColor} md:p-5`}>
+      <p className="text-sm font-semibold leading-6 text-[#0B2A3C]">{notice.title}</p>
+      <p className="mt-1 text-sm leading-6 text-charcoal/75">{notice.message}</p>
+      {notice.expiresAt && (
+        <p className="mt-2 text-xs text-charcoal/45">
+          Until{" "}
+          {new Date(notice.expiresAt).toLocaleDateString("en-NZ", {
+            day: "numeric",
+            month: "long",
+            year: "numeric",
+          })}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const { patient } = useAuth();
   const [currentRequest, setCurrentRequest] =
     useState<CurrentReorderRequest | null>(null);
   const [requestLoading, setRequestLoading] = useState(false);
+  const [dashboardNotices, setDashboardNotices] = useState<DashboardNotice[]>([]);
 
   useEffect(() => {
     if (!patient?.userId) return;
@@ -318,7 +355,29 @@ export default function DashboardPage() {
       }
     }
 
+    async function loadDashboardNotices() {
+      try {
+        configureCognito();
+        const token = await getIdToken();
+        if (!token) return;
+        const res = await fetch("/api/patient/notices", {
+          headers: { "Authorization": `Bearer ${token}` },
+        });
+        const data = await res.json().catch(() => ({})) as {
+          notices?: DashboardNotice[];
+        };
+        if (!cancelled && res.ok) {
+          setDashboardNotices(
+            (data.notices ?? []).filter((n) => n.placement === "dashboard_card")
+          );
+        }
+      } catch {
+        // non-critical — leave empty
+      }
+    }
+
     void loadCurrentRequest();
+    void loadDashboardNotices();
     return () => {
       cancelled = true;
     };
@@ -412,6 +471,14 @@ export default function DashboardPage() {
           </div>
         </div>
       </section>
+
+      {dashboardNotices.length > 0 && (
+        <section aria-label="Clinic notices" className="space-y-3">
+          {dashboardNotices.map((notice) => (
+            <DashboardNoticeCard key={notice.noticeId} notice={notice} />
+          ))}
+        </section>
+      )}
 
       <section
         id="supply-request-status"

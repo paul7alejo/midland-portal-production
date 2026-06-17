@@ -108,6 +108,58 @@ export function sanitizePatientNotice(record: PatientNoticeRecord): AdminPatient
   }
 }
 
+// ── Patient-facing type and helpers ──────────────────────────────────────────
+
+export interface PatientFacingNotice {
+  noticeId:    string
+  title:       string
+  message:     string
+  placement:   NoticePlacement
+  priority:    NoticePriority
+  publishedAt: string
+  expiresAt?:  string
+}
+
+export function sanitizeNoticeForPatient(record: PatientNoticeRecord): PatientFacingNotice {
+  return {
+    noticeId:    record.notice_id,
+    title:       record.title,
+    message:     record.message,
+    placement:   record.placement,
+    priority:    record.priority,
+    publishedAt: record.published_at ?? record.updated_at,
+    ...(record.expires_at !== undefined && { expiresAt: record.expires_at }),
+  }
+}
+
+const PRIORITY_ORDER: Record<NoticePriority, number> = {
+  important: 3,
+  reminder:  2,
+  info:      1,
+}
+
+export async function listPublishedNoticesForPatient(
+  patientMsid: string
+): Promise<PatientFacingNotice[]> {
+  const all = await listPatientNotices()
+  const now = Date.now()
+
+  return all
+    .filter((n) => {
+      if (n.status !== 'published') return false
+      if (n.audience_type === 'single_patient' && n.patient_msid !== patientMsid) return false
+      if (n.starts_at  && new Date(n.starts_at).getTime()  > now) return false
+      if (n.expires_at && new Date(n.expires_at).getTime() <= now) return false
+      return true
+    })
+    .sort((a, b) => {
+      const priorityDiff = PRIORITY_ORDER[b.priority] - PRIORITY_ORDER[a.priority]
+      if (priorityDiff !== 0) return priorityDiff
+      return (b.published_at ?? b.updated_at).localeCompare(a.published_at ?? a.updated_at)
+    })
+    .map(sanitizeNoticeForPatient)
+}
+
 // Midland-only fallback: Amplify sometimes fails to propagate env vars into the
 // server runtime even when the variable is set in the Amplify console. The
 // hardcoded name is safe here because this module is Midland-specific and the

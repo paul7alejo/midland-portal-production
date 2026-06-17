@@ -20,6 +20,16 @@ interface PatientPortalNotification {
   delivery_status: "visible";
 }
 
+interface PatientNotice {
+  noticeId: string;
+  title: string;
+  message: string;
+  placement: string;
+  priority: string;
+  publishedAt: string;
+  expiresAt?: string;
+}
+
 function formatUpdateDateTime(iso: string): string {
   const date = new Date(iso);
   if (isNaN(date.getTime())) return iso;
@@ -40,6 +50,7 @@ export default function PortalUpdatesBell({ className }: { className?: string })
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<NotificationTab>("all");
   const [notifications, setNotifications] = useState<PatientPortalNotification[]>([]);
+  const [bellNotices, setBellNotices] = useState<PatientNotice[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [token, setToken] = useState<string | null>(null);
@@ -62,20 +73,36 @@ export default function PortalUpdatesBell({ className }: { className?: string })
         const idToken = await getIdToken();
         if (!idToken) throw new Error("Session expired.");
 
-        const res = await fetch("/api/patient/notifications", {
-          headers: { Authorization: `Bearer ${idToken}` },
-        });
-        const data = await res.json().catch(() => ({})) as {
+        const [notifRes, noticesRes] = await Promise.all([
+          fetch("/api/patient/notifications", {
+            headers: { Authorization: `Bearer ${idToken}` },
+          }),
+          fetch("/api/patient/notices", {
+            headers: { Authorization: `Bearer ${idToken}` },
+          }),
+        ]);
+
+        const notifData = await notifRes.json().catch(() => ({})) as {
           notifications?: PatientPortalNotification[];
           unreadCount?: number;
         };
-        if (!cancelled && res.ok) {
-          const safeNotifications = Array.isArray(data.notifications) ? data.notifications : [];
-          setToken(idToken);
-          setNotifications(safeNotifications);
-          setUnreadCount(typeof data.unreadCount === "number"
-            ? data.unreadCount
-            : safeNotifications.filter((notification) => !notification.read_at).length);
+        const noticesData = await noticesRes.json().catch(() => ({})) as {
+          notices?: PatientNotice[];
+        };
+
+        if (!cancelled) {
+          if (notifRes.ok) {
+            const safeNotifications = Array.isArray(notifData.notifications) ? notifData.notifications : [];
+            setToken(idToken);
+            setNotifications(safeNotifications);
+            setUnreadCount(typeof notifData.unreadCount === "number"
+              ? notifData.unreadCount
+              : safeNotifications.filter((n) => !n.read_at).length);
+          }
+          if (noticesRes.ok) {
+            const raw = Array.isArray(noticesData.notices) ? noticesData.notices : [];
+            setBellNotices(raw.filter((n) => n.placement === "notification_bell"));
+          }
         }
       } catch {
         if (!cancelled) {
@@ -164,6 +191,88 @@ export default function PortalUpdatesBell({ className }: { className?: string })
     }
   }
 
+  const hasItems = visibleNotifications.length > 0 || (activeTab === "all" && bellNotices.length > 0);
+
+  function NotificationList({ mobile }: { mobile: boolean }) {
+    const px = mobile ? "px-5 py-4" : "px-4 py-3";
+    const textSm = mobile ? "text-sm" : "text-sm";
+    return (
+      <>
+        {loading ? (
+          <p className={cn(px, textSm, "leading-6 text-charcoal/60")}>Checking for notifications...</p>
+        ) : hasItems ? (
+          <div className="divide-y divide-sand/70">
+            {visibleNotifications.map((notification) => {
+              const unread = !notification.read_at;
+              return (
+                <button
+                  key={notification.notification_id}
+                  type="button"
+                  onClick={() => void handleNotificationClick(notification)}
+                  className={cn("block w-full text-left transition-colors hover:bg-sand-pale/70", mobile ? "px-5 py-4" : "px-4 py-3")}
+                >
+                  <span className="flex items-start gap-3">
+                    <span
+                      className={cn(
+                        "mt-2 h-2 w-2 shrink-0 rounded-full",
+                        unread ? "bg-[#0B5C6C]" : "bg-transparent"
+                      )}
+                      aria-hidden="true"
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className={cn("flex items-start justify-between gap-3", mobile && "flex-col gap-0.5 sm:flex-row sm:items-start sm:justify-between sm:gap-3")}>
+                        <span className="text-sm font-semibold leading-6 text-[#0B2A3C]">{notification.title}</span>
+                        <time className={cn("text-xs leading-6 text-charcoal/45", mobile && "sm:shrink-0")} dateTime={notification.created_at}>
+                          {formatUpdateDateTime(notification.created_at)}
+                        </time>
+                      </span>
+                      <span className="mt-1 block text-sm leading-5 text-charcoal/70">{notification.message}</span>
+                      {notification.request_reference && (
+                        <span className={cn("mt-2 block font-mono text-[11px] uppercase tracking-wide text-charcoal/45", mobile && "break-all")}>
+                          Request {notification.request_reference}
+                        </span>
+                      )}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+            {activeTab === "all" && bellNotices.map((notice) => (
+              <button
+                key={notice.noticeId}
+                type="button"
+                onClick={() => setOpen(false)}
+                className={cn("block w-full text-left transition-colors hover:bg-sand-pale/70", mobile ? "px-5 py-4" : "px-4 py-3")}
+              >
+                <span className="flex items-start gap-3">
+                  <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-transparent" aria-hidden="true" />
+                  <span className="min-w-0 flex-1">
+                    <span className={cn("flex items-start justify-between gap-3", mobile && "flex-col gap-0.5 sm:flex-row sm:items-start sm:justify-between sm:gap-3")}>
+                      <span className="text-sm font-semibold leading-6 text-[#0B2A3C]">{notice.title}</span>
+                      <time className={cn("text-xs leading-6 text-charcoal/45", mobile && "sm:shrink-0")} dateTime={notice.publishedAt}>
+                        {formatUpdateDateTime(notice.publishedAt)}
+                      </time>
+                    </span>
+                    <span className="mt-1 block text-sm leading-5 text-charcoal/70">{notice.message}</span>
+                    <span className="mt-2 inline-block rounded-full bg-[#EFF5F4] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#0B5C6C]">
+                      Clinic notice
+                    </span>
+                  </span>
+                </span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className={cn(px, textSm, "leading-6 text-charcoal/60")}>
+            {activeTab === "unread"
+              ? "You have no unread notifications."
+              : "No notifications yet. Updates about your supply requests will appear here."}
+          </p>
+        )}
+      </>
+    );
+  }
+
   return (
     <div ref={popoverRef} className={cn("relative z-[100]", className)}>
       <button
@@ -189,7 +298,7 @@ export default function PortalUpdatesBell({ className }: { className?: string })
           <div className="border-b border-sand bg-sand-pale/60 px-4 py-3">
             <p className="text-sm font-semibold text-charcoal">Notifications</p>
             <p className="mt-0.5 text-xs leading-5 text-charcoal/60">
-              Updates from Midland Sleep about your supply requests.
+              Updates and notices from Midland Sleep.
             </p>
           </div>
 
@@ -212,53 +321,7 @@ export default function PortalUpdatesBell({ className }: { className?: string })
           </div>
 
           <div className="max-h-[24rem] overflow-y-auto">
-            {loading ? (
-              <p className="px-4 py-4 text-sm leading-6 text-charcoal/60">Checking for notifications...</p>
-            ) : visibleNotifications.length > 0 ? (
-              <div className="divide-y divide-sand/70">
-                {visibleNotifications.map((notification) => {
-                  const unread = !notification.read_at;
-                  return (
-                    <button
-                      key={notification.notification_id}
-                      type="button"
-                      onClick={() => void handleNotificationClick(notification)}
-                      className="block w-full px-4 py-3 text-left transition-colors hover:bg-sand-pale/70"
-                    >
-                      <span className="flex items-start gap-3">
-                        <span
-                          className={cn(
-                            "mt-2 h-2 w-2 shrink-0 rounded-full",
-                            unread ? "bg-[#0B5C6C]" : "bg-transparent"
-                          )}
-                          aria-hidden="true"
-                        />
-                        <span className="min-w-0 flex-1">
-                          <span className="flex items-start justify-between gap-3">
-                            <span className="text-sm font-semibold leading-6 text-[#0B2A3C]">{notification.title}</span>
-                            <time className="shrink-0 text-xs leading-6 text-charcoal/45" dateTime={notification.created_at}>
-                              {formatUpdateDateTime(notification.created_at)}
-                            </time>
-                          </span>
-                          <span className="mt-1 block text-sm leading-5 text-charcoal/70">{notification.message}</span>
-                          {notification.request_reference && (
-                            <span className="mt-2 block font-mono text-[11px] uppercase tracking-wide text-charcoal/45">
-                              Request {notification.request_reference}
-                            </span>
-                          )}
-                        </span>
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="px-4 py-4 text-sm leading-6 text-charcoal/60">
-                {activeTab === "unread"
-                  ? "You have no unread notifications."
-                  : "No notifications yet. Updates about your supply requests will appear here."}
-              </p>
-            )}
+            <NotificationList mobile={false} />
           </div>
 
           <div className="border-t border-sand bg-white px-4 py-3">
@@ -287,7 +350,7 @@ export default function PortalUpdatesBell({ className }: { className?: string })
               <div className="min-w-0">
                 <p className="text-base font-semibold text-charcoal">Notifications</p>
                 <p className="mt-1 text-sm leading-5 text-charcoal/65">
-                  Updates from Midland Sleep about your supply requests.
+                  Updates and notices from Midland Sleep.
                 </p>
               </div>
               <button
@@ -319,53 +382,7 @@ export default function PortalUpdatesBell({ className }: { className?: string })
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto">
-              {loading ? (
-                <p className="px-5 py-4 text-sm leading-6 text-charcoal/60">Checking for notifications...</p>
-              ) : visibleNotifications.length > 0 ? (
-                <div className="divide-y divide-sand/70">
-                  {visibleNotifications.map((notification) => {
-                    const unread = !notification.read_at;
-                    return (
-                      <button
-                        key={notification.notification_id}
-                        type="button"
-                        onClick={() => void handleNotificationClick(notification)}
-                        className="block w-full px-5 py-4 text-left transition-colors hover:bg-sand-pale/70"
-                      >
-                        <span className="flex items-start gap-3">
-                          <span
-                            className={cn(
-                              "mt-2 h-2 w-2 shrink-0 rounded-full",
-                              unread ? "bg-[#0B5C6C]" : "bg-transparent"
-                            )}
-                            aria-hidden="true"
-                          />
-                          <span className="min-w-0 flex-1">
-                            <span className="flex flex-col gap-0.5 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
-                              <span className="text-sm font-semibold leading-6 text-[#0B2A3C]">{notification.title}</span>
-                              <time className="text-xs leading-5 text-charcoal/45 sm:shrink-0" dateTime={notification.created_at}>
-                                {formatUpdateDateTime(notification.created_at)}
-                              </time>
-                            </span>
-                            <span className="mt-1 block text-sm leading-5 text-charcoal/70">{notification.message}</span>
-                            {notification.request_reference && (
-                              <span className="mt-2 block break-all font-mono text-[11px] uppercase tracking-wide text-charcoal/45">
-                                Request {notification.request_reference}
-                              </span>
-                            )}
-                          </span>
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="px-5 py-4 text-sm leading-6 text-charcoal/60">
-                  {activeTab === "unread"
-                    ? "You have no unread notifications."
-                    : "No notifications yet. Updates about your supply requests will appear here."}
-                </p>
-              )}
+              <NotificationList mobile={true} />
             </div>
 
             <div className="shrink-0 border-t border-sand bg-white px-5 py-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">

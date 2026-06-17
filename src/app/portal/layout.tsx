@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import PortalSidebar from "@/components/layout/PortalSidebar";
 import AccountMenu from "@/components/portal/AccountMenu";
 import PortalUpdatesBell from "@/components/portal/PortalUpdatesBell";
+import { configureCognito, getIdToken } from "@/lib/aws/cognito";
 
 const BOTTOM_NAV_ITEMS = [
   { href: "/portal/dashboard",   label: "Dashboard",   icon: "home" },
@@ -70,6 +71,38 @@ const AWARENESS_TEXT =
 function TopBar() {
   const { patient } = useAuth();
   const pathname = usePathname();
+  const [topStripText, setTopStripText] = useState(AWARENESS_TEXT);
+
+  useEffect(() => {
+    if (!patient) return;
+    let cancelled = false;
+
+    async function loadTopStrip() {
+      try {
+        configureCognito();
+        const idToken = await getIdToken();
+        if (!idToken) return;
+        const res = await fetch("/api/patient/notices", {
+          headers: { Authorization: `Bearer ${idToken}` },
+        });
+        const data = await res.json().catch(() => ({})) as {
+          notices?: Array<{ title: string; message: string; placement: string }>;
+        };
+        if (!cancelled && res.ok) {
+          const topStrip = (data.notices ?? []).filter((n) => n.placement === "top_strip");
+          if (topStrip.length > 0) {
+            setTopStripText(`${topStrip[0].title} · ${topStrip[0].message}`);
+          }
+        }
+      } catch {
+        // keep default AWARENESS_TEXT
+      }
+    }
+
+    void loadTopStrip();
+    return () => { cancelled = true; };
+  }, [patient]);
+
   if (!patient) return null;
 
   const pageLabel = PAGE_LABELS[pathname] ?? "Portal";
@@ -87,10 +120,10 @@ function TopBar() {
           <span className="h-4 w-px shrink-0 bg-[#E6D3A3]" aria-hidden="true" />
           <div className="min-w-0 flex-1 overflow-hidden">
             <div className="portal-awareness-track flex w-max items-center gap-10 text-xs font-medium text-[#0B5C6C]">
-              <span className="portal-awareness-item">{AWARENESS_TEXT}</span>
-              <span className="portal-awareness-item" aria-hidden="true">{AWARENESS_TEXT}</span>
-              <span className="portal-awareness-item" aria-hidden="true">{AWARENESS_TEXT}</span>
-              <span className="portal-awareness-item" aria-hidden="true">{AWARENESS_TEXT}</span>
+              <span className="portal-awareness-item">{topStripText}</span>
+              <span className="portal-awareness-item" aria-hidden="true">{topStripText}</span>
+              <span className="portal-awareness-item" aria-hidden="true">{topStripText}</span>
+              <span className="portal-awareness-item" aria-hidden="true">{topStripText}</span>
             </div>
           </div>
         </div>
