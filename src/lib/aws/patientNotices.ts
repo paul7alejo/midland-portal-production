@@ -243,6 +243,38 @@ export async function listPatientNotices(): Promise<PatientNoticeRecord[]> {
   return items.sort((a, b) => b.updated_at.localeCompare(a.updated_at))
 }
 
+function safeParseDate(value: string | undefined, fallback: number): number {
+  if (!value) return fallback
+  const ms = Date.parse(value)
+  return isNaN(ms) ? fallback : ms
+}
+
+export async function findConflictingPublishedNotice(params: {
+  placement:       NoticePlacement
+  priority:        NoticePriority
+  excludeNoticeId: string
+  startsAt?:       string
+  expiresAt?:      string
+}): Promise<PatientNoticeRecord | null> {
+  const now = Date.now()
+  const candidateStart = safeParseDate(params.startsAt, now)
+  const candidateEnd   = safeParseDate(params.expiresAt, Number.POSITIVE_INFINITY)
+
+  const all = await listPatientNotices()
+  return (
+    all.find((n) => {
+      if (n.notice_id    !== params.excludeNoticeId) { /* continue */ } else return false
+      if (n.status        !== 'published')   return false
+      if (n.audience_type !== 'all_patients') return false
+      if (n.placement     !== params.placement) return false
+      if (n.priority      !== params.priority)  return false
+      const existingStart = safeParseDate(n.starts_at, now)
+      const existingEnd   = safeParseDate(n.expires_at, Number.POSITIVE_INFINITY)
+      return existingStart < candidateEnd && candidateStart < existingEnd
+    }) ?? null
+  )
+}
+
 export async function updatePatientNotice(params: {
   noticeId:      string
   title:         string

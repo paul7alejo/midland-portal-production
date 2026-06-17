@@ -2,7 +2,7 @@ import 'server-only'
 import { NextRequest, NextResponse } from 'next/server'
 import { getAdminUser, isAuthorizedAdmin } from '@/lib/security'
 import { writeAdminAuditEvent } from '@/lib/aws/audit'
-import { getPatientNotice, publishPatientNotice, sanitizePatientNotice } from '@/lib/aws/patientNotices'
+import { findConflictingPublishedNotice, getPatientNotice, publishPatientNotice, sanitizePatientNotice } from '@/lib/aws/patientNotices'
 
 type RouteCtx = { params: Promise<{ noticeId: string }> }
 
@@ -24,6 +24,26 @@ export async function POST(_req: NextRequest, ctx: RouteCtx) {
     }
     if (existing.status !== 'draft') {
       return NextResponse.json({ error: 'Only draft notices can be published' }, { status: 409 })
+    }
+
+    if (existing.audience_type === 'all_patients') {
+      const conflict = await findConflictingPublishedNotice({
+        placement:       existing.placement,
+        priority:        existing.priority,
+        excludeNoticeId: noticeId,
+        startsAt:        existing.starts_at,
+        expiresAt:       existing.expires_at,
+      })
+      if (conflict) {
+        const placementLabel: Record<string, string> = {
+          top_strip:         'top strip',
+          notification_bell: 'notification bell',
+          dashboard_card:    'dashboard card',
+        }
+        return NextResponse.json({
+          error: `An all-patient ${placementLabel[existing.placement] ?? existing.placement} ${existing.priority} notice already overlaps this schedule. Expire, archive, or reschedule the existing notice before publishing another.`,
+        }, { status: 409 })
+      }
     }
 
     const auditMsid = existing.audience_type === 'single_patient' && existing.patient_msid

@@ -6,6 +6,8 @@ type NoticeStatus       = "draft" | "published" | "expired" | "archived";
 type NoticeAudienceType = "all_patients" | "single_patient";
 type NoticePlacement    = "top_strip" | "notification_bell" | "dashboard_card";
 type NoticePriority     = "info" | "reminder" | "important";
+type AudienceTab        = NoticeAudienceType | "selected_patients";
+type SortBy             = "updated_newest" | "published_newest" | "priority";
 
 interface PatientNotice {
   notice_id:         string;
@@ -45,6 +47,12 @@ const PRIORITY_LABELS: Record<NoticePriority, string> = {
   important: "Important",
 };
 
+const PRIORITY_ORDER: Record<NoticePriority, number> = {
+  important: 3,
+  reminder:  2,
+  info:      1,
+};
+
 const MSID_RE = /^MS-\d+$/;
 
 // ── Pure helpers ──────────────────────────────────────────────────────────────
@@ -60,9 +68,12 @@ function formatDate(value: string | undefined): string {
   }).format(d);
 }
 
-function safeServiceError(err: unknown): string {
-  if (err instanceof Response) return "Server error";
+function safeServiceError(_err: unknown): string {
   return "Unexpected error — try again";
+}
+
+function cn(...classes: (string | false | undefined | null)[]): string {
+  return classes.filter(Boolean).join(" ");
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -162,14 +173,10 @@ function NoticePreview({
           <span className="text-sm mt-0.5">{priorityIcon[priority]}</span>
           <div className="space-y-0.5 min-w-0">
             {title && (
-              <p className="text-sm font-semibold text-gray-800 break-words">
-                {title}
-              </p>
+              <p className="text-sm font-semibold text-gray-800 break-words">{title}</p>
             )}
             {message && (
-              <p className="text-sm text-gray-600 break-words whitespace-pre-wrap">
-                {message}
-              </p>
+              <p className="text-sm text-gray-600 break-words whitespace-pre-wrap">{message}</p>
             )}
             <p className="text-xs text-gray-400 mt-1">
               {priorityLabel[priority]} · {PLACEMENT_LABELS[placement]} · Patient portal
@@ -177,9 +184,6 @@ function NoticePreview({
           </div>
         </div>
       </div>
-      <p className="text-xs text-gray-400">
-        This preview is illustrative only. Final appearance depends on patient portal UI (Phase 14C).
-      </p>
     </div>
   );
 }
@@ -202,14 +206,14 @@ function NoticeForm({
   onCancel,
 }: {
   mode:              FormMode;
-  formTitle:         string;        setFormTitle:         (v: string) => void;
-  formMessage:       string;        setFormMessage:       (v: string) => void;
-  formAudienceType:  NoticeAudienceType; setFormAudienceType: (v: NoticeAudienceType) => void;
-  formPatientMsid:   string;        setFormPatientMsid:   (v: string) => void;
-  formPlacement:     NoticePlacement;    setFormPlacement:    (v: NoticePlacement) => void;
-  formPriority:      NoticePriority;     setFormPriority:     (v: NoticePriority) => void;
-  formStartsAt:      string;        setFormStartsAt:      (v: string) => void;
-  formExpiresAt:     string;        setFormExpiresAt:     (v: string) => void;
+  formTitle:         string;             setFormTitle:         (v: string) => void;
+  formMessage:       string;             setFormMessage:       (v: string) => void;
+  formAudienceType:  NoticeAudienceType; setFormAudienceType:  (v: NoticeAudienceType) => void;
+  formPatientMsid:   string;             setFormPatientMsid:   (v: string) => void;
+  formPlacement:     NoticePlacement;    setFormPlacement:     (v: NoticePlacement) => void;
+  formPriority:      NoticePriority;     setFormPriority:      (v: NoticePriority) => void;
+  formStartsAt:      string;             setFormStartsAt:      (v: string) => void;
+  formExpiresAt:     string;             setFormExpiresAt:     (v: string) => void;
   saving:            boolean;
   formError:         string | null;
   onSave:            () => void;
@@ -398,13 +402,62 @@ function NoticeForm({
   );
 }
 
+// ── Filter bar ────────────────────────────────────────────────────────────────
+
+function FilterBar({
+  filterStatus,    setFilterStatus,
+  filterPlacement, setFilterPlacement,
+  filterPriority,  setFilterPriority,
+  sortBy,          setSortBy,
+}: {
+  filterStatus:    NoticeStatus | "all"; setFilterStatus:    (v: NoticeStatus | "all") => void;
+  filterPlacement: NoticePlacement | "all"; setFilterPlacement: (v: NoticePlacement | "all") => void;
+  filterPriority:  NoticePriority | "all"; setFilterPriority:  (v: NoticePriority | "all") => void;
+  sortBy:          SortBy;              setSortBy:          (v: SortBy) => void;
+}) {
+  const selectCls = "rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B5C6C]/30";
+  return (
+    <div className="flex flex-wrap gap-2 items-center">
+      <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as NoticeStatus | "all")} className={selectCls}>
+        <option value="all">All statuses</option>
+        <option value="draft">Draft</option>
+        <option value="published">Published</option>
+        <option value="expired">Expired</option>
+        <option value="archived">Archived</option>
+      </select>
+      <select value={filterPlacement} onChange={(e) => setFilterPlacement(e.target.value as NoticePlacement | "all")} className={selectCls}>
+        <option value="all">All placements</option>
+        <option value="top_strip">Top strip</option>
+        <option value="dashboard_card">Dashboard card</option>
+        <option value="notification_bell">Notification bell</option>
+      </select>
+      <select value={filterPriority} onChange={(e) => setFilterPriority(e.target.value as NoticePriority | "all")} className={selectCls}>
+        <option value="all">All priorities</option>
+        <option value="info">Info</option>
+        <option value="reminder">Reminder</option>
+        <option value="important">Important</option>
+      </select>
+      <select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortBy)} className={selectCls}>
+        <option value="updated_newest">Updated newest</option>
+        <option value="published_newest">Published newest</option>
+        <option value="priority">Priority</option>
+      </select>
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function AdminNoticesPage() {
-  const [notices,       setNotices]       = useState<PatientNotice[]>([]);
-  const [loadState,     setLoadState]     = useState<LoadState>("loading");
-  const [formMode,      setFormMode]      = useState<FormMode>(null);
-  const [editingId,     setEditingId]     = useState<string | null>(null);
+  const [notices,           setNotices]           = useState<PatientNotice[]>([]);
+  const [loadState,         setLoadState]         = useState<LoadState>("loading");
+  const [activeAudienceTab, setActiveAudienceTab] = useState<AudienceTab>("all_patients");
+  const [filterStatus,      setFilterStatus]      = useState<NoticeStatus | "all">("all");
+  const [filterPlacement,   setFilterPlacement]   = useState<NoticePlacement | "all">("all");
+  const [filterPriority,    setFilterPriority]    = useState<NoticePriority | "all">("all");
+  const [sortBy,            setSortBy]            = useState<SortBy>("updated_newest");
+  const [formMode,          setFormMode]          = useState<FormMode>(null);
+  const [editingId,         setEditingId]         = useState<string | null>(null);
   const [formTitle,         setFormTitle]         = useState("");
   const [formMessage,       setFormMessage]       = useState("");
   const [formAudienceType,  setFormAudienceType]  = useState<NoticeAudienceType>("all_patients");
@@ -413,12 +466,12 @@ export default function AdminNoticesPage() {
   const [formPriority,      setFormPriority]      = useState<NoticePriority>("info");
   const [formStartsAt,      setFormStartsAt]      = useState("");
   const [formExpiresAt,     setFormExpiresAt]     = useState("");
-  const [saving,        setSaving]        = useState(false);
-  const [formError,     setFormError]     = useState<string | null>(null);
-  const [actioningId,   setActioningId]   = useState<string | null>(null);
-  const [actionError,   setActionError]   = useState<string | null>(null);
+  const [saving,            setSaving]            = useState(false);
+  const [formError,         setFormError]         = useState<string | null>(null);
+  const [actioningId,       setActioningId]       = useState<string | null>(null);
+  const [actionError,       setActionError]       = useState<string | null>(null);
 
-  useEffect(() => { loadNotices(); }, []);
+  useEffect(() => { void loadNotices(); }, []);
 
   async function loadNotices() {
     setLoadState("loading");
@@ -434,10 +487,41 @@ export default function AdminNoticesPage() {
   }
 
   const stats = useMemo(() => ({
-    draft:    notices.filter((n) => n.status === "draft").length,
+    draft:     notices.filter((n) => n.status === "draft").length,
     published: notices.filter((n) => n.status === "published").length,
-    inactive: notices.filter((n) => n.status === "expired" || n.status === "archived").length,
+    inactive:  notices.filter((n) => n.status === "expired" || n.status === "archived").length,
   }), [notices]);
+
+  const tabCounts = useMemo(() => ({
+    all_patients:      notices.filter((n) => n.audience_type === "all_patients").length,
+    single_patient:    notices.filter((n) => n.audience_type === "single_patient").length,
+    selected_patients: 0,
+  }), [notices]);
+
+  const filteredNotices = useMemo(() => {
+    if (activeAudienceTab === "selected_patients") return [];
+    let result = notices.filter((n) => n.audience_type === activeAudienceTab);
+    if (filterStatus    !== "all") result = result.filter((n) => n.status    === filterStatus);
+    if (filterPlacement !== "all") result = result.filter((n) => n.placement === filterPlacement);
+    if (filterPriority  !== "all") result = result.filter((n) => n.priority  === filterPriority);
+    return [...result].sort((a, b) => {
+      if (sortBy === "published_newest") {
+        return (b.published_at ?? "").localeCompare(a.published_at ?? "");
+      }
+      if (sortBy === "priority") {
+        const diff = PRIORITY_ORDER[b.priority] - PRIORITY_ORDER[a.priority];
+        return diff !== 0 ? diff : b.updated_at.localeCompare(a.updated_at);
+      }
+      return b.updated_at.localeCompare(a.updated_at);
+    });
+  }, [notices, activeAudienceTab, filterStatus, filterPlacement, filterPriority, sortBy]);
+
+  function resetFilters() {
+    setFilterStatus("all");
+    setFilterPlacement("all");
+    setFilterPriority("all");
+    setSortBy("updated_newest");
+  }
 
   function resetForm() {
     setFormMode(null);
@@ -449,9 +533,20 @@ export default function AdminNoticesPage() {
     setFormError(null);
   }
 
+  function handleTabChange(tab: AudienceTab) {
+    setActiveAudienceTab(tab);
+    resetFilters();
+    resetForm();
+    setActionError(null);
+  }
+
   function openCreate() {
     resetForm();
     setFormMode("create");
+    if (activeAudienceTab === "single_patient") {
+      setFormAudienceType("single_patient");
+    }
+    // all_patients is already the reset default
   }
 
   function openEdit(n: PatientNotice) {
@@ -523,6 +618,14 @@ export default function AdminNoticesPage() {
     }
   }
 
+  const audienceTabs: { value: AudienceTab; label: string; comingSoon?: boolean }[] = [
+    { value: "all_patients",      label: "All patients" },
+    { value: "single_patient",    label: "Single patient" },
+    { value: "selected_patients", label: "Selected patients", comingSoon: true },
+  ];
+
+  const showCreateButton = formMode === null && loadState === "loaded" && activeAudienceTab !== "selected_patients";
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -536,7 +639,7 @@ export default function AdminNoticesPage() {
 
       {/* KPI cards */}
       {loadState === "loaded" && (
-        <div className="grid grid-cols-3 gap-3 sm:grid-cols-3 max-w-lg">
+        <div className="grid grid-cols-3 gap-3 max-w-lg">
           <KpiCard label="Draft"     value={stats.draft}     color="teal"    />
           <KpiCard label="Published" value={stats.published} color="emerald" />
           <KpiCard label="Inactive"  value={stats.inactive}  sub="expired + archived" color="gray" />
@@ -551,161 +654,217 @@ export default function AdminNoticesPage() {
         </div>
       )}
 
-      {/* Create / Edit form */}
-      {formMode !== null && (
-        <NoticeForm
-          mode={formMode}
-          formTitle={formTitle}               setFormTitle={setFormTitle}
-          formMessage={formMessage}           setFormMessage={setFormMessage}
-          formAudienceType={formAudienceType} setFormAudienceType={setFormAudienceType}
-          formPatientMsid={formPatientMsid}   setFormPatientMsid={setFormPatientMsid}
-          formPlacement={formPlacement}       setFormPlacement={setFormPlacement}
-          formPriority={formPriority}         setFormPriority={setFormPriority}
-          formStartsAt={formStartsAt}         setFormStartsAt={setFormStartsAt}
-          formExpiresAt={formExpiresAt}       setFormExpiresAt={setFormExpiresAt}
-          saving={saving}
-          formError={formError}
-          onSave={handleSave}
-          onCancel={resetForm}
-        />
-      )}
+      {/* Audience tabs */}
+      <div className="border-b border-gray-200">
+        <div className="flex gap-0">
+          {audienceTabs.map((tab) => (
+            <button
+              key={tab.value}
+              type="button"
+              onClick={() => !tab.comingSoon && handleTabChange(tab.value)}
+              disabled={tab.comingSoon}
+              className={cn(
+                "flex items-center gap-1.5 px-4 py-2.5 text-sm font-semibold -mb-px border-b-2 transition-colors whitespace-nowrap",
+                activeAudienceTab === tab.value
+                  ? "border-[#0B5C6C] text-[#0B5C6C]"
+                  : tab.comingSoon
+                  ? "border-transparent text-gray-300 cursor-not-allowed"
+                  : "border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300"
+              )}
+            >
+              {tab.label}
+              {tab.comingSoon ? (
+                <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] font-normal text-gray-400">
+                  Soon
+                </span>
+              ) : (
+                <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] font-normal text-gray-500 tabular-nums">
+                  {tabCounts[tab.value]}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
 
-      {/* Create button */}
-      {formMode === null && loadState === "loaded" && (
-        <button
-          type="button"
-          onClick={openCreate}
-          className="rounded-lg bg-[#0B5C6C] px-4 py-2 text-sm font-medium text-white hover:bg-[#073B4A] transition-colors"
-        >
-          + Create notice
-        </button>
-      )}
-
-      {/* Load states */}
-      {loadState === "loading" && (
-        <div className="py-16 text-center text-gray-400 text-sm">Loading notices…</div>
-      )}
-      {loadState === "error" && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-800">
-          Failed to load notices. Check your connection or verify PATIENT_NOTICES_TABLE_NAME is configured.
+      {/* Selected patients coming-soon state */}
+      {activeAudienceTab === "selected_patients" && (
+        <div className="rounded-xl border border-gray-200 bg-gray-50 px-5 py-10 text-center">
+          <p className="text-sm font-semibold text-gray-500">Selected patient notices — coming soon</p>
+          <p className="mt-1 text-xs text-gray-400">
+            Target notices at specific patient segments. Available in a future release.
+          </p>
         </div>
       )}
-      {loadState === "loaded" && notices.length === 0 && (
-        <div className="rounded-xl border border-gray-200 bg-gray-50 px-5 py-12 text-center text-sm text-gray-500">
-          No notices yet. Create a draft to get started.
-        </div>
-      )}
 
-      {/* Notices table */}
-      {loadState === "loaded" && notices.length > 0 && (
-        <div className="overflow-x-auto rounded-xl border border-gray-200 shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
-          <table className="min-w-full divide-y divide-gray-100 text-sm">
-            <thead className="bg-gray-50">
-              <tr>
-                {["Title", "Audience", "Placement", "Priority", "Status", "Updated", "Actions"].map((col) => (
-                  <th
-                    key={col}
-                    className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap"
-                  >
-                    {col}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 bg-white">
-              {notices.map((n) => {
-                const isBusy = actioningId === n.notice_id;
-                return (
-                  <tr key={n.notice_id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3 text-gray-800 font-medium max-w-xs">
-                      <p className="truncate">{n.title}</p>
-                      {n.patient_msid && (
-                        <p className="text-xs text-gray-400 font-mono mt-0.5">{n.patient_msid}</p>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-gray-600 text-xs">
-                      {n.audience_type === "all_patients" ? "All patients" : "Single patient"}
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <PlacementBadge placement={n.placement} />
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <PriorityBadge priority={n.priority} />
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <StatusBadge status={n.status} />
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-gray-500 text-xs">
-                      {formatDate(n.updated_at)}
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {n.status === "draft" && (
-                          <>
-                            <button
-                              type="button"
-                              disabled={isBusy || formMode === "edit"}
-                              onClick={() => openEdit(n)}
-                              className="text-xs font-medium text-[#0B5C6C] hover:underline disabled:opacity-40"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              type="button"
-                              disabled={isBusy}
-                              onClick={() => handleAction(n.notice_id, "publish")}
-                              className="text-xs font-medium text-emerald-700 hover:underline disabled:opacity-40"
-                            >
-                              {isBusy ? "…" : "Publish"}
-                            </button>
-                            <button
-                              type="button"
-                              disabled={isBusy}
-                              onClick={() => handleAction(n.notice_id, "archive")}
-                              className="text-xs font-medium text-gray-500 hover:underline disabled:opacity-40"
-                            >
-                              Archive
-                            </button>
-                          </>
-                        )}
-                        {n.status === "published" && (
-                          <>
-                            <button
-                              type="button"
-                              disabled={isBusy}
-                              onClick={() => handleAction(n.notice_id, "expire")}
-                              className="text-xs font-medium text-amber-700 hover:underline disabled:opacity-40"
-                            >
-                              {isBusy ? "…" : "Expire"}
-                            </button>
-                            <button
-                              type="button"
-                              disabled={isBusy}
-                              onClick={() => handleAction(n.notice_id, "archive")}
-                              className="text-xs font-medium text-gray-500 hover:underline disabled:opacity-40"
-                            >
-                              Archive
-                            </button>
-                          </>
-                        )}
-                        {(n.status === "expired" || n.status === "archived") && (
-                          <span className="text-xs text-gray-400">—</span>
-                        )}
-                      </div>
-                    </td>
+      {activeAudienceTab !== "selected_patients" && (
+        <>
+          {/* Filter bar */}
+          {loadState === "loaded" && (
+            <FilterBar
+              filterStatus={filterStatus}       setFilterStatus={setFilterStatus}
+              filterPlacement={filterPlacement} setFilterPlacement={setFilterPlacement}
+              filterPriority={filterPriority}   setFilterPriority={setFilterPriority}
+              sortBy={sortBy}                   setSortBy={setSortBy}
+            />
+          )}
+
+          {/* Create / Edit form */}
+          {formMode !== null && (
+            <NoticeForm
+              mode={formMode}
+              formTitle={formTitle}               setFormTitle={setFormTitle}
+              formMessage={formMessage}           setFormMessage={setFormMessage}
+              formAudienceType={formAudienceType} setFormAudienceType={setFormAudienceType}
+              formPatientMsid={formPatientMsid}   setFormPatientMsid={setFormPatientMsid}
+              formPlacement={formPlacement}       setFormPlacement={setFormPlacement}
+              formPriority={formPriority}         setFormPriority={setFormPriority}
+              formStartsAt={formStartsAt}         setFormStartsAt={setFormStartsAt}
+              formExpiresAt={formExpiresAt}       setFormExpiresAt={setFormExpiresAt}
+              saving={saving}
+              formError={formError}
+              onSave={handleSave}
+              onCancel={resetForm}
+            />
+          )}
+
+          {/* Create button */}
+          {showCreateButton && (
+            <button
+              type="button"
+              onClick={openCreate}
+              className="rounded-lg bg-[#0B5C6C] px-4 py-2 text-sm font-medium text-white hover:bg-[#073B4A] transition-colors"
+            >
+              + Create notice
+            </button>
+          )}
+
+          {/* Load states */}
+          {loadState === "loading" && (
+            <div className="py-16 text-center text-gray-400 text-sm">Loading notices…</div>
+          )}
+          {loadState === "error" && (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-800">
+              Failed to load notices. Check your connection or verify PATIENT_NOTICES_TABLE_NAME is configured.
+            </div>
+          )}
+          {loadState === "loaded" && filteredNotices.length === 0 && (
+            <div className="rounded-xl border border-gray-200 bg-gray-50 px-5 py-12 text-center text-sm text-gray-500">
+              {notices.filter((n) => n.audience_type === activeAudienceTab).length === 0
+                ? "No notices yet for this audience. Create a draft to get started."
+                : "No notices match the current filters."}
+            </div>
+          )}
+
+          {/* Notices table */}
+          {loadState === "loaded" && filteredNotices.length > 0 && (
+            <div className="overflow-x-auto rounded-xl border border-gray-200 shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
+              <table className="min-w-full divide-y divide-gray-100 text-sm">
+                <thead className="bg-gray-50">
+                  <tr>
+                    {["Title", "Placement", "Priority", "Status", "Updated", "Actions"].map((col) => (
+                      <th
+                        key={col}
+                        className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap"
+                      >
+                        {col}
+                      </th>
+                    ))}
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+                </thead>
+                <tbody className="divide-y divide-gray-100 bg-white">
+                  {filteredNotices.map((n) => {
+                    const isBusy = actioningId === n.notice_id;
+                    return (
+                      <tr key={n.notice_id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-4 py-3 text-gray-800 font-medium max-w-xs">
+                          <p className="truncate">{n.title}</p>
+                          {n.patient_msid && (
+                            <p className="text-xs text-gray-400 font-mono mt-0.5">{n.patient_msid}</p>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <PlacementBadge placement={n.placement} />
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <PriorityBadge priority={n.priority} />
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <StatusBadge status={n.status} />
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap text-gray-500 text-xs">
+                          {formatDate(n.updated_at)}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {n.status === "draft" && (
+                              <>
+                                <button
+                                  type="button"
+                                  disabled={isBusy || formMode === "edit"}
+                                  onClick={() => openEdit(n)}
+                                  className="text-xs font-medium text-[#0B5C6C] hover:underline disabled:opacity-40"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={isBusy}
+                                  onClick={() => void handleAction(n.notice_id, "publish")}
+                                  className="text-xs font-medium text-emerald-700 hover:underline disabled:opacity-40"
+                                >
+                                  {isBusy ? "…" : "Publish"}
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={isBusy}
+                                  onClick={() => void handleAction(n.notice_id, "archive")}
+                                  className="text-xs font-medium text-gray-500 hover:underline disabled:opacity-40"
+                                >
+                                  Archive
+                                </button>
+                              </>
+                            )}
+                            {n.status === "published" && (
+                              <>
+                                <button
+                                  type="button"
+                                  disabled={isBusy}
+                                  onClick={() => void handleAction(n.notice_id, "expire")}
+                                  className="text-xs font-medium text-amber-700 hover:underline disabled:opacity-40"
+                                >
+                                  {isBusy ? "…" : "Expire"}
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={isBusy}
+                                  onClick={() => void handleAction(n.notice_id, "archive")}
+                                  className="text-xs font-medium text-gray-500 hover:underline disabled:opacity-40"
+                                >
+                                  Archive
+                                </button>
+                              </>
+                            )}
+                            {(n.status === "expired" || n.status === "archived") && (
+                              <span className="text-xs text-gray-400">—</span>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
 
-      {loadState === "loaded" && notices.length > 0 && (
-        <p className="text-xs text-gray-400">
-          {notices.length} {notices.length === 1 ? "notice" : "notices"} total.
-          Patient portal display is managed in Phase 14C.
-        </p>
+          {loadState === "loaded" && notices.filter((n) => n.audience_type === activeAudienceTab).length > 0 && (
+            <p className="text-xs text-gray-400">
+              Showing {filteredNotices.length} of {notices.filter((n) => n.audience_type === activeAudienceTab).length}{" "}
+              {activeAudienceTab === "all_patients" ? "all-patient" : "single-patient"} notices.
+            </p>
+          )}
+        </>
       )}
     </div>
   );
