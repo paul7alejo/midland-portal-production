@@ -53,7 +53,14 @@ const PRIORITY_ORDER: Record<NoticePriority, number> = {
   info:      1,
 };
 
-const MSID_RE = /^MS-\d+$/;
+// Accepts "148534", "MS-148534", "ms-148534" → "MS-148534". Returns null if invalid.
+function normalizeMsid(raw: string): string | null {
+  const v = raw.trim();
+  if (/^\d+$/.test(v)) return `MS-${v}`;
+  const m = /^MS-(\d+)$/i.exec(v);
+  if (m) return `MS-${m[1]}`;
+  return null;
+}
 
 // ── Pure helpers ──────────────────────────────────────────────────────────────
 
@@ -225,7 +232,7 @@ function NoticeForm({
   const msidInvalid =
     formAudienceType === "single_patient" &&
     formPatientMsid.length > 0 &&
-    !MSID_RE.test(formPatientMsid);
+    normalizeMsid(formPatientMsid) === null;
 
   return (
     <div className="rounded-xl border border-[#0B5C6C]/30 bg-[#0B5C6C]/[0.03] p-5 space-y-5">
@@ -297,15 +304,17 @@ function NoticeForm({
               type="text"
               value={formPatientMsid}
               onChange={(e) => setFormPatientMsid(e.target.value.trim())}
-              placeholder="MS-1234"
+              placeholder="148534 or MS-148534"
               className={`w-full rounded-lg border px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 ${
                 msidInvalid
                   ? "border-red-300 focus:ring-red-300/30"
                   : "border-gray-200 focus:ring-[#0B5C6C]/30"
               }`}
             />
-            {msidInvalid && (
-              <p className="text-xs text-red-600">Must be MS-&lt;number&gt; — e.g. MS-1234</p>
+            {msidInvalid ? (
+              <p className="text-xs text-red-600">Enter a valid MSID, e.g. 148534 or MS-148534</p>
+            ) : (
+              <p className="text-xs text-gray-400">Enter MSID, e.g. 148534 or MS-148534</p>
             )}
           </div>
         )}
@@ -575,7 +584,11 @@ export default function AdminNoticesPage() {
         placement:     formPlacement,
         priority:      formPriority,
       };
-      if (formAudienceType === "single_patient") body.patient_msid = formPatientMsid.trim();
+      if (formAudienceType === "single_patient") {
+        const norm = normalizeMsid(formPatientMsid);
+        if (!norm) { setFormError("Enter a valid MSID, e.g. 148534 or MS-148534"); setSaving(false); return; }
+        body.patient_msid = norm;
+      }
       if (formStartsAt)  body.starts_at  = formStartsAt;
       if (formExpiresAt) body.expires_at = formExpiresAt;
 

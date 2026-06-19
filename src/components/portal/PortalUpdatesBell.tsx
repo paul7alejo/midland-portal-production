@@ -63,6 +63,9 @@ export default function PortalUpdatesBell({ className }: { className?: string })
     return filtered.slice(0, 10);
   }, [activeTab, notifications]);
 
+  // Attention count: request-status unread + active clinic notices (no read state yet)
+  const totalBadgeCount = unreadCount + bellNotices.length;
+
   useEffect(() => {
     let cancelled = false;
 
@@ -286,9 +289,9 @@ export default function PortalUpdatesBell({ className }: { className?: string })
         <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
           <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a2.25 2.25 0 01-5.714 0m9.607-3.474A7.475 7.475 0 0017.25 9V7.5a5.25 5.25 0 00-10.5 0V9a7.475 7.475 0 00-1.5 4.608l-.36 2.16A1.5 1.5 0 006.37 17.5h11.26a1.5 1.5 0 001.48-1.732l-.36-2.16z" />
         </svg>
-        {unreadCount > 0 && (
+        {totalBadgeCount > 0 && (
           <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-white bg-[#0B5C6C] px-1 text-[10px] font-bold leading-none text-white">
-            {getUnreadBadgeLabel(unreadCount)}
+            {getUnreadBadgeLabel(totalBadgeCount)}
           </span>
         )}
       </button>

@@ -14,9 +14,17 @@ import {
 const VALID_AUDIENCE:   Set<string> = new Set(['all_patients', 'single_patient'])
 const VALID_PLACEMENT:  Set<string> = new Set(['top_strip', 'notification_bell', 'dashboard_card'])
 const VALID_PRIORITY:   Set<string> = new Set(['info', 'reminder', 'important'])
-const MSID_RE = /^MS-\d+$/
 const TITLE_MAX   = 120
 const MESSAGE_MAX = 500
+
+// Accepts "148534", "MS-148534", "ms-148534" → "MS-148534". Returns null if invalid.
+function normalizeMsid(raw: string): string | null {
+  const v = raw.trim()
+  if (/^\d+$/.test(v)) return `MS-${v}`
+  const m = /^MS-(\d+)$/i.exec(v)
+  if (m) return `MS-${m[1]}`
+  return null
+}
 
 export async function GET() {
   const admin = await getAdminUser()
@@ -68,14 +76,20 @@ export async function POST(req: NextRequest) {
   if (!VALID_PLACEMENT.has(placement))     return NextResponse.json({ error: 'placement must be top_strip, notification_bell, or dashboard_card' }, { status: 400 })
   if (!VALID_PRIORITY.has(priority))       return NextResponse.json({ error: 'priority must be info, reminder, or important' }, { status: 400 })
 
+  let normalized_msid: string | undefined
   if (audience_type === 'single_patient') {
-    if (!patient_msid || !MSID_RE.test(patient_msid)) {
-      return NextResponse.json({ error: 'patient_msid is required and must match MS-<number> for single_patient audience' }, { status: 400 })
+    if (!patient_msid) {
+      return NextResponse.json({ error: 'patient_msid is required for single_patient audience' }, { status: 400 })
     }
+    const norm = normalizeMsid(patient_msid)
+    if (!norm) {
+      return NextResponse.json({ error: 'Enter a valid MSID, e.g. 148534 or MS-148534' }, { status: 400 })
+    }
+    normalized_msid = norm
   }
 
   // Audit-first — abort before any write if audit fails
-  const auditMsid = audience_type === 'single_patient' && patient_msid ? patient_msid : 'all-patients'
+  const auditMsid = audience_type === 'single_patient' && normalized_msid ? normalized_msid : 'all-patients'
   const auditResult = await writeAdminAuditEvent({
     action:      'PATIENT_NOTICE_CREATED',
     adminSub:    admin.sub,
@@ -92,7 +106,7 @@ export async function POST(req: NextRequest) {
       title,
       message,
       audience_type: audience_type as NoticeAudienceType,
-      ...(audience_type === 'single_patient' && patient_msid ? { patient_msid } : {}),
+      ...(audience_type === 'single_patient' && normalized_msid ? { patient_msid: normalized_msid } : {}),
       placement:  placement  as NoticePlacement,
       priority:   priority   as NoticePriority,
       ...(starts_at  ? { starts_at  } : {}),
