@@ -889,6 +889,12 @@ function OverviewTab({
     patient.machine.safetyCheckOverdue;
   const portalLinked = !patient.imported;
   const pendingReview = patient.funding.annualAllowance === 0 && patient.entitlement.length === 0;
+  const currentStage =
+    patient.imported
+      ? "Admin Review"
+      : patient.reviewStatus && patient.reviewStatus !== "—"
+        ? patient.reviewStatus
+        : "Active";
 
   return (
     <div className="space-y-6">
@@ -936,10 +942,10 @@ function OverviewTab({
         <dl className="grid gap-4 sm:grid-cols-3">
           <div className="rounded-lg border border-[#D7E8EA] bg-[#F3FAFA] p-4 sm:col-span-3">
             <dt className="text-xs font-medium uppercase tracking-wide text-gray-500">Current Stage</dt>
-            <dd className="mt-1 font-semibold text-[#0B2A3C]">{patient.imported ? "Admin Review" : "CPAP Titration - Month 2"}</dd>
+            <dd className="mt-1 font-semibold text-[#0B2A3C]">{currentStage}</dd>
           </div>
-          <FieldRow label="Assigned Clinic" value="Wellington Central Clinic" />
-          <FieldRow label="Lead Specialist" value="Dr. Sarah Jenkins" />
+          <FieldRow label="Assigned Clinic" value="Unassigned" />
+          <FieldRow label="Lead Specialist" value="—" />
           <FieldRow label="Segment" value={patient.segment} />
         </dl>
       </section>
