@@ -4,13 +4,22 @@ import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { PatientDrawer } from "@/components/admin/PatientDrawer";
 import { cn } from "@/lib/utils";
+import {
+  ChevronDown,
+  Download,
+  Filter,
+  LayoutGrid,
+  List,
+  MoreHorizontal,
+  Search,
+} from "lucide-react";
 
 type FundingType       = "ACC" | "Private" | "Health NZ";
 type PatientStatus     = "eligible" | "not_eligible" | "overdue" | "needs_outreach" | "safety_check_due" | "pending_review" | "reviewed";
 type RemainingRange    = "critical" | "mid" | "healthy";
 type NextEligibleRange = "now" | "30days" | "90days" | "later";
 type SortOption        =
-  | "lastOrder_newest" | "lastOrder_oldest"
+  | "dob_newest" | "dob_oldest"
   | "nextEligible_soonest"
   | "remaining_highest" | "remaining_lowest";
 
@@ -19,6 +28,7 @@ interface Patient {
   name: string;
   msid: string;
   phone: string;
+  dateOfBirth?: string;
   funding: FundingType;
   lastOrder: string;
   nextEligible: string;
@@ -57,47 +67,6 @@ interface PatientSummary {
   safety_check_required?: boolean;
   created_at?: string;
   created_by?: string;
-}
-
-type ReconciliationFilter = "all" | "linked" | "no_portal_account" | "likely_test_demo" | "needs_manual_review" | "archived";
-
-type ReconciliationPortalStatus =
-  | "linked"
-  | "no_portal_account"
-  | "portal_account_without_patient"
-  | "archived"
-  | "unknown";
-
-type ReconciliationPasswordStatus = "temp" | "changed" | "unknown";
-
-type ReconciliationCleanupHint =
-  | "likely_test_demo"
-  | "no_portal_account"
-  | "linked_portal_account"
-  | "needs_manual_review";
-
-interface ReconciliationSummary {
-  totalActivePatients: number;
-  totalActivePortalAccounts: number;
-  patientsWithLinkedPortalAccount: number;
-  patientsWithoutPortalAccount: number;
-  portalAccountsWithoutActivePatientRecord: number;
-  archivedPatientsExcludedFromActiveLists: number;
-}
-
-interface ReconciliationRow {
-  patientName: string;
-  msid: string;
-  source: string;
-  createdAt: string;
-  portalAccountStatus: ReconciliationPortalStatus;
-  passwordStatus: ReconciliationPasswordStatus;
-  cleanupHint: ReconciliationCleanupHint;
-}
-
-interface ReconciliationReport {
-  summary: ReconciliationSummary;
-  rows: ReconciliationRow[];
 }
 
 const PATIENTS: Patient[] = [
@@ -312,13 +281,13 @@ const STATUS_CONFIG: Record<PatientStatus, { label: string; classes: string }> =
 };
 
 const ACTION_CONFIG: Record<PatientStatus, { label: string; disabled: boolean }> = {
-  eligible:         { label: "View patient",   disabled: false },
-  not_eligible:     { label: "View patient",   disabled: false },
+  eligible:         { label: "View",           disabled: false },
+  not_eligible:     { label: "View",           disabled: false },
   overdue:          { label: "Open review",    disabled: false },
   needs_outreach:   { label: "Open review",    disabled: false },
   safety_check_due: { label: "Open review",    disabled: false },
   pending_review:   { label: "Open review",    disabled: false },
-  reviewed:         { label: "View patient",   disabled: false },
+  reviewed:         { label: "View",           disabled: false },
 };
 
 const MONTH_NUM: Record<string, number> = {
@@ -360,6 +329,31 @@ function formatNzDateTime(value?: string): string {
     hour12: true,
     timeZone: "Pacific/Auckland",
   }).format(date);
+}
+
+function formatNzDate(value?: string): string {
+  if (!value?.trim()) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("en-NZ", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "Pacific/Auckland",
+  }).format(date);
+}
+
+function calculateAge(value?: string): number | null {
+  if (!value?.trim() || value === "—") return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - date.getFullYear();
+  const birthdayPassed =
+    today.getMonth() > date.getMonth() ||
+    (today.getMonth() === date.getMonth() && today.getDate() >= date.getDate());
+  if (!birthdayPassed) age -= 1;
+  return age >= 0 ? age : null;
 }
 
 function formatNzPhone(value?: string): string {
@@ -417,6 +411,7 @@ function mapPatient(patient: PatientSummary): Patient {
     name: patient.name,
     msid: patient.portal_id,
     phone: formatNzPhone(patient.phone),
+    dateOfBirth: formatNzDate(patient.date_of_birth),
     funding: mapFunding(patient.funded_by),
     lastOrder: "—",
     nextEligible: "Review required",
@@ -436,20 +431,23 @@ function mapPatient(patient: PatientSummary): Patient {
   };
 }
 
-function SummaryCard({ label, value, accent, href, onClick, active }: {
-  label: string; value: number; accent?: string; href?: string;
+function SummaryCard({ label, value, accent, href, onClick, active, icon }: {
+  label: string; value: number; accent?: string; href?: string; icon?: React.ReactNode;
   onClick?: () => void; active?: boolean;
 }) {
   const baseCls = cn(
-    "rounded-xl p-5 flex flex-col gap-1 min-w-0 shadow-sm transition-all",
+    "rounded-xl p-4 flex flex-col gap-2 min-w-0 shadow-sm transition-all",
     active
-      ? "bg-white border-2 border-[#0B5C6C]/50 ring-2 ring-[#0B5C6C]/10 shadow-md"
-      : "bg-white border border-gray-200"
+      ? "bg-white border-2 border-[#0B5C6C] ring-2 ring-[#0B5C6C]/10 shadow-md"
+      : "bg-white/90 border border-[#E6D8C0]"
   );
   const inner = (
     <>
+      <span className="flex items-center justify-between gap-3">
+        <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-500">{label}</span>
+        {icon && <span className="text-[#0B5C6C]">{icon}</span>}
+      </span>
       <span className={`text-3xl font-bold tabular-nums ${accent ?? "text-navy"}`}>{value}</span>
-      <span className="text-sm font-semibold uppercase tracking-wide text-gray-600">{label}</span>
     </>
   );
   if (onClick) {
@@ -469,317 +467,13 @@ function SummaryCard({ label, value, accent, href, onClick, active }: {
   return <div className={baseCls}>{inner}</div>;
 }
 
-const RECONCILIATION_FILTERS: Array<{ value: ReconciliationFilter; label: string }> = [
-  { value: "all",                 label: "All" },
-  { value: "linked",              label: "Linked portal account" },
-  { value: "no_portal_account",   label: "No portal account" },
-  { value: "likely_test_demo",    label: "Likely test/demo" },
-  { value: "needs_manual_review", label: "Needs manual review" },
-  { value: "archived",            label: "Archived" },
-];
-
-const PORTAL_STATUS_LABELS: Record<ReconciliationPortalStatus, string> = {
-  linked:                         "Linked",
-  no_portal_account:              "No portal account",
-  portal_account_without_patient: "Portal only",
-  archived:                       "Archived",
-  unknown:                        "Unknown",
-};
-
-const CLEANUP_HINT_LABELS: Record<ReconciliationCleanupHint, string> = {
-  likely_test_demo:     "Likely test/demo",
-  no_portal_account:    "No portal account",
-  linked_portal_account:"Linked portal account",
-  needs_manual_review:  "Needs manual review",
-};
-
-function reconciliationStatusClass(status: ReconciliationPortalStatus): string {
-  if (status === "linked") return "bg-emerald-50 text-emerald-700 border-emerald-200";
-  if (status === "no_portal_account") return "bg-amber-50 text-amber-800 border-amber-200";
-  if (status === "portal_account_without_patient") return "bg-sky-50 text-sky-700 border-sky-200";
-  if (status === "archived") return "bg-gray-100 text-gray-600 border-gray-200";
-  return "bg-gray-50 text-gray-500 border-gray-200";
-}
-
-function cleanupHintClass(hint: ReconciliationCleanupHint): string {
-  if (hint === "likely_test_demo") return "bg-red-50 text-red-700 border-red-200";
-  if (hint === "no_portal_account") return "bg-amber-50 text-amber-800 border-amber-200";
-  if (hint === "linked_portal_account") return "bg-emerald-50 text-emerald-700 border-emerald-200";
-  return "bg-gray-50 text-gray-600 border-gray-200";
-}
-
-function matchesReconciliationFilter(row: ReconciliationRow, filter: ReconciliationFilter): boolean {
-  if (filter === "all") return true;
-  if (filter === "linked") return row.portalAccountStatus === "linked";
-  if (filter === "no_portal_account") return row.portalAccountStatus === "no_portal_account";
-  if (filter === "likely_test_demo") return row.cleanupHint === "likely_test_demo";
-  if (filter === "archived") return row.portalAccountStatus === "archived";
-  return row.cleanupHint === "needs_manual_review";
-}
-
-function hasValidReconciliationMsid(msid: string): boolean {
-  return /^MS-\d+$/.test(msid.trim());
-}
-
-function canArchiveReconciliationPatient(row: ReconciliationRow): boolean {
-  return row.portalAccountStatus === "no_portal_account" && hasValidReconciliationMsid(row.msid);
-}
-
-function ReconciliationPanel({
-  report,
-  loading,
-  error,
-  activeFilter,
-  onFilterChange,
-  onArchiveSuccess,
-}: {
-  report: ReconciliationReport | null;
-  loading: boolean;
-  error: string | null;
-  activeFilter: ReconciliationFilter;
-  onFilterChange: (filter: ReconciliationFilter) => void;
-  onArchiveSuccess: () => Promise<void>;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const [archiveMsid, setArchiveMsid] = useState<string | null>(null);
-  const [archiveConfirmation, setArchiveConfirmation] = useState("");
-  const [archiveReason, setArchiveReason] = useState("");
-  const [archiveSubmitting, setArchiveSubmitting] = useState(false);
-  const [archiveError, setArchiveError] = useState<string | null>(null);
-  const filteredRows = report?.rows.filter((row) => matchesReconciliationFilter(row, activeFilter)) ?? [];
-  const rows = filteredRows.slice(0, 12);
-  const summary = report?.summary;
-  const activeArchiveRow = archiveMsid ? rows.find((row) => row.msid === archiveMsid) : null;
-  const isAligned = summary?.patientsWithoutPortalAccount === 0 && summary.portalAccountsWithoutActivePatientRecord === 0;
-  const summaryItems = [
-    ["Active Patients", summary?.totalActivePatients],
-    ["Active Portal Accounts", summary?.totalActivePortalAccounts],
-    ["Linked", summary?.patientsWithLinkedPortalAccount],
-    ["No portal account", summary?.patientsWithoutPortalAccount],
-    ["Portal only", summary?.portalAccountsWithoutActivePatientRecord],
-    ["Archived excluded", summary?.archivedPatientsExcludedFromActiveLists],
-  ] as const;
-
-  function resetArchiveAction() {
-    setArchiveMsid(null);
-    setArchiveConfirmation("");
-    setArchiveReason("");
-    setArchiveError(null);
-  }
-
-  async function submitArchivePatient() {
-    if (!activeArchiveRow || archiveConfirmation !== "DELETE") return;
-    setArchiveSubmitting(true);
-    setArchiveError(null);
-    try {
-      const res = await fetch("/api/admin/reconciliation/patients-portal/archive-patient", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          msid: activeArchiveRow.msid,
-          confirmationToken: archiveConfirmation,
-          reason: archiveReason,
-        }),
-      });
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) throw new Error(data.error || "Patient archive failed");
-      resetArchiveAction();
-      await onArchiveSuccess();
-    } catch (err) {
-      setArchiveError(err instanceof Error ? err.message : "Patient archive failed");
-    } finally {
-      setArchiveSubmitting(false);
-    }
-  }
-
-  return (
-    <section className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-      <div className={cn("px-5 py-4", expanded && "border-b border-gray-200")}>
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-deep-teal">Admin cleanup</p>
-            <h2 className="mt-1 text-base font-semibold text-gray-800">Patients and Portal Accounts</h2>
-            <p className="mt-1 text-sm text-gray-500">
-              {isAligned
-                ? "Patient records and portal accounts are currently aligned."
-                : "Review patient and portal account alignment for cleanup."}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            {loading && (
-              <span className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-medium text-gray-500">
-                Loading
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={() => setExpanded((value) => !value)}
-              className="rounded-lg border border-[#0B5C6C] bg-white px-3 py-2 text-sm font-semibold text-[#0B5C6C] hover:bg-[#0B5C6C]/5"
-            >
-              {expanded ? "Hide cleanup details" : "Show cleanup details"}
-            </button>
-          </div>
-        </div>
-        <div className="mt-4 grid grid-cols-2 gap-3 text-sm md:grid-cols-3 xl:grid-cols-6">
-          {summaryItems.map(([label, value]) => (
-            <div key={label} className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
-              <p className="text-lg font-bold tabular-nums text-navy">{typeof value === "number" ? value : "—"}</p>
-              <p className="mt-0.5 text-xs font-medium uppercase tracking-wide text-gray-500">{label}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {expanded && error ? (
-        <div className="px-5 py-4 text-sm text-amber-800 bg-amber-50">
-          {error}
-        </div>
-      ) : expanded ? (
-        <>
-          <div className="space-y-4 px-5 py-4">
-            <div className="flex flex-wrap gap-2">
-              {RECONCILIATION_FILTERS.map((filter) => (
-                <button
-                  key={filter.value}
-                  type="button"
-                  onClick={() => onFilterChange(filter.value)}
-                  className={cn(
-                    "rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
-                    activeFilter === filter.value
-                      ? "border-[#0B5C6C] bg-[#0B5C6C] text-white"
-                      : "border-gray-200 bg-white text-gray-600 hover:border-[#0B5C6C]/40"
-                  )}
-                >
-                  {filter.label}
-                </button>
-              ))}
-            </div>
-
-            <div className="overflow-x-auto rounded-lg border border-gray-200">
-              <table className="w-full min-w-[980px] border-collapse text-sm">
-                <thead>
-                  <tr className="border-b border-gray-200 bg-gray-50">
-                    {["Patient", "MSID", "Source", "Created / archived", "Portal", "Password", "Cleanup hint", "Action"].map((heading) => (
-                      <th key={heading} className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                        {heading}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {rows.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-500">
-                        {loading ? "Loading reconciliation rows..." : "No rows match this filter."}
-                      </td>
-                    </tr>
-                  ) : (
-                    rows.map((row) => {
-                      const archiveAllowed = canArchiveReconciliationPatient(row);
-                      const isConfirming = archiveMsid === row.msid;
-                      return (
-                        <tr key={`${row.portalAccountStatus}-${row.msid}`} className="hover:bg-gray-50 align-top">
-                          <td className="px-3 py-3 font-medium text-gray-800">{row.patientName || "—"}</td>
-                          <td className="px-3 py-3 font-mono text-xs text-gray-700">{row.msid || "—"}</td>
-                          <td className="px-3 py-3 text-xs text-gray-600">{row.source || "—"}</td>
-                          <td className="px-3 py-3 text-xs text-gray-600">{formatNzDateTime(row.createdAt)}</td>
-                          <td className="px-3 py-3">
-                            <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${reconciliationStatusClass(row.portalAccountStatus)}`}>
-                              {PORTAL_STATUS_LABELS[row.portalAccountStatus]}
-                            </span>
-                          </td>
-                          <td className="px-3 py-3 text-xs text-gray-600">{humanizeLabel(row.passwordStatus)}</td>
-                          <td className="px-3 py-3">
-                            <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${cleanupHintClass(row.cleanupHint)}`}>
-                              {CLEANUP_HINT_LABELS[row.cleanupHint]}
-                            </span>
-                          </td>
-                          <td className="px-3 py-3">
-                            {archiveAllowed ? (
-                              isConfirming ? (
-                                <div className="w-64 space-y-2 rounded-lg border border-red-200 bg-red-50 p-3">
-                                  <p className="text-xs font-medium text-red-800">
-                                    This archives the patient record only. No portal account exists for this patient.
-                                  </p>
-                                  <input
-                                    type="text"
-                                    value={archiveConfirmation}
-                                    onChange={(event) => setArchiveConfirmation(event.target.value)}
-                                    placeholder="Type DELETE"
-                                    className="w-full rounded-md border border-red-200 bg-white px-2 py-1.5 text-xs text-gray-800 focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
-                                  />
-                                  <input
-                                    type="text"
-                                    value={archiveReason}
-                                    onChange={(event) => setArchiveReason(event.target.value)}
-                                    placeholder="Reason (optional)"
-                                    className="w-full rounded-md border border-red-200 bg-white px-2 py-1.5 text-xs text-gray-800 focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
-                                  />
-                                  {archiveError && (
-                                    <p className="text-xs text-red-700">{archiveError}</p>
-                                  )}
-                                  <div className="flex gap-2">
-                                    <button
-                                      type="button"
-                                      onClick={submitArchivePatient}
-                                      disabled={archiveConfirmation !== "DELETE" || archiveSubmitting}
-                                      className="rounded-md bg-red-700 px-2.5 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:bg-red-300"
-                                    >
-                                      {archiveSubmitting ? "Archiving..." : "Archive"}
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={resetArchiveAction}
-                                      disabled={archiveSubmitting}
-                                      className="rounded-md border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-700 disabled:opacity-60"
-                                    >
-                                      Cancel
-                                    </button>
-                                  </div>
-                                </div>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setArchiveMsid(row.msid);
-                                    setArchiveConfirmation("");
-                                    setArchiveReason("");
-                                    setArchiveError(null);
-                                  }}
-                                  className="rounded-md border border-red-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50"
-                                >
-                                  Archive patient
-                                </button>
-                              )
-                            ) : (
-                              <span className="text-xs text-gray-400">—</span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-            {filteredRows.length > rows.length && (
-              <p className="text-xs text-gray-500">Showing first {rows.length} of {filteredRows.length} matching reconciliation rows.</p>
-            )}
-          </div>
-        </>
-      ) : null}
-    </section>
-  );
-}
-
 function FundingBadge({ amount }: { amount: number }) {
   const cls =
     amount >= 200 ? "bg-green-50 text-[#0B5C6C] border border-green-200" :
     amount >= 100 ? "bg-amber-50 text-[#D97706] border border-amber-200" :
                    "bg-red-50 text-[#E05252] border border-red-200";
   return (
-    <span className={`inline-block text-sm font-medium px-2.5 py-1 rounded-full whitespace-nowrap ${cls}`}>
+    <span className={`inline-block text-xs font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${cls}`}>
       ${amount} left
     </span>
   );
@@ -797,7 +491,7 @@ function getOperationalCue(patient: Patient): string {
 }
 
 function getActionLabel(patient: Patient): string {
-  if (patient.status === "reviewed") return "View patient";
+  if (patient.status === "reviewed") return "View";
   if (
     patient.status === "pending_review" ||
     patient.status === "needs_outreach" ||
@@ -808,7 +502,31 @@ function getActionLabel(patient: Patient): string {
   ) {
     return "Open review";
   }
-  return "View patient";
+  return "View";
+}
+
+function PatientInitials({ name }: { name: string }) {
+  const initials = name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("") || "P";
+  return (
+    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#0B5C6C] text-xs font-bold text-white shadow-sm">
+      {initials}
+    </span>
+  );
+}
+
+function DobAgeCell({ value }: { value: string }) {
+  const age = calculateAge(value);
+  return (
+    <div className="space-y-0.5 whitespace-nowrap">
+      <p className="text-sm font-medium text-gray-800">{value || "—"}</p>
+      <p className="text-xs text-gray-500">{age === null ? "Age unknown" : `${age} years`}</p>
+    </div>
+  );
 }
 
 // ─── Filter option data ────────────────────────────────────────────────────────
@@ -843,8 +561,8 @@ const NEXT_ELIG_OPTIONS: { value: NextEligibleRange; label: string }[] = [
 ];
 
 const SORT_OPTIONS: { value: SortOption; label: string }[] = [
-  { value: "lastOrder_newest",     label: "Last order newest" },
-  { value: "lastOrder_oldest",     label: "Last order oldest" },
+  { value: "dob_newest",           label: "DOB newest" },
+  { value: "dob_oldest",           label: "DOB oldest" },
   { value: "nextEligible_soonest", label: "Next eligible soonest" },
   { value: "remaining_highest",    label: "Remaining funding highest" },
   { value: "remaining_lowest",     label: "Remaining funding lowest" },
@@ -1050,10 +768,6 @@ export default function AdminPatientsPage() {
   const [drawerOpen,       setDrawerOpen]       = useState(false);
   const [drawerMsid,       setDrawerMsid]       = useState<string | null>(null);
   const [drawerName,       setDrawerName]       = useState<string | undefined>(undefined);
-  const [reconciliationReport, setReconciliationReport] = useState<ReconciliationReport | null>(null);
-  const [reconciliationLoading, setReconciliationLoading] = useState(true);
-  const [reconciliationError, setReconciliationError] = useState<string | null>(null);
-  const [reconciliationFilter, setReconciliationFilter] = useState<ReconciliationFilter>("all");
 
   function toggleTableSort(key: string) {
     if (tableSortKey === key) {
@@ -1084,29 +798,6 @@ export default function AdminPatientsPage() {
     } finally {
       setImportLoading(false);
     }
-  }
-
-  async function loadReconciliation() {
-    setReconciliationLoading(true);
-    setReconciliationError(null);
-    try {
-      const res = await fetch("/api/admin/reconciliation/patients-portal", {
-        cache: "no-store",
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Unable to load reconciliation");
-      const data = (await res.json()) as ReconciliationReport;
-      setReconciliationReport(data);
-    } catch {
-      setReconciliationReport(null);
-      setReconciliationError("Patients and portal accounts reconciliation could not be loaded.");
-    } finally {
-      setReconciliationLoading(false);
-    }
-  }
-
-  async function refreshPatientsAndReconciliation() {
-    await Promise.all([loadPatients(), loadReconciliation()]);
   }
 
   function handleReviewStatusChange(changedMsid: string, reviewStatus: string) {
@@ -1163,36 +854,6 @@ export default function AdminPatientsPage() {
     }
 
     loadInitialPatients();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadInitialReconciliation() {
-      setReconciliationLoading(true);
-      setReconciliationError(null);
-      try {
-        const res = await fetch("/api/admin/reconciliation/patients-portal", {
-          cache: "no-store",
-          credentials: "include",
-        });
-        if (!res.ok) throw new Error("Unable to load reconciliation");
-        const data = (await res.json()) as ReconciliationReport;
-        if (!cancelled) setReconciliationReport(data);
-      } catch {
-        if (!cancelled) {
-          setReconciliationReport(null);
-          setReconciliationError("Patients and portal accounts reconciliation could not be loaded.");
-        }
-      } finally {
-        if (!cancelled) setReconciliationLoading(false);
-      }
-    }
-
-    loadInitialReconciliation();
     return () => {
       cancelled = true;
     };
@@ -1263,8 +924,8 @@ export default function AdminPatientsPage() {
     if (activeSortOption) {
       result.sort((a, b) => {
         switch (activeSortOption) {
-          case "lastOrder_newest":     return parseDateForSort(b.lastOrder)    - parseDateForSort(a.lastOrder);
-          case "lastOrder_oldest":     return parseDateForSort(a.lastOrder)    - parseDateForSort(b.lastOrder);
+          case "dob_newest":           return parseDateForSort(b.dateOfBirth ?? "") - parseDateForSort(a.dateOfBirth ?? "");
+          case "dob_oldest":           return parseDateForSort(a.dateOfBirth ?? "") - parseDateForSort(b.dateOfBirth ?? "");
           case "nextEligible_soonest": return parseDateForSort(a.nextEligible) - parseDateForSort(b.nextEligible);
           case "remaining_highest":    return b.remainingAmount - a.remainingAmount;
           case "remaining_lowest":     return a.remainingAmount - b.remainingAmount;
@@ -1276,7 +937,7 @@ export default function AdminPatientsPage() {
       result.sort((a, b) => {
         let cmp = 0;
         if (tableSortKey === "name")          cmp = a.name.localeCompare(b.name);
-        else if (tableSortKey === "lastOrder")    cmp = parseDateForSort(a.lastOrder)    - parseDateForSort(b.lastOrder);
+        else if (tableSortKey === "dob")          cmp = parseDateForSort(a.dateOfBirth ?? "") - parseDateForSort(b.dateOfBirth ?? "");
         else if (tableSortKey === "nextEligible") cmp = parseDateForSort(a.nextEligible) - parseDateForSort(b.nextEligible);
         else if (tableSortKey === "status")       cmp = a.status.localeCompare(b.status);
         return tableSortDir === "asc" ? cmp : -cmp;
@@ -1327,8 +988,8 @@ export default function AdminPatientsPage() {
     ...(activeSortOption ? [{
       key: "sort",
       label: `Sort: ${
-        activeSortOption === "lastOrder_newest"     ? "Newest first"     :
-        activeSortOption === "lastOrder_oldest"     ? "Oldest first"     :
+        activeSortOption === "dob_newest"           ? "DOB newest"       :
+        activeSortOption === "dob_oldest"           ? "DOB oldest"       :
         activeSortOption === "nextEligible_soonest" ? "Eligible soonest" :
         activeSortOption === "remaining_highest"    ? "Highest balance"  :
                                                       "Lowest balance"
@@ -1342,63 +1003,50 @@ export default function AdminPatientsPage() {
   const pagedPatients = displayedPatients.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const firstItem     = (currentPage - 1) * pageSize + 1;
   const lastItem      = Math.min(currentPage * pageSize, filteredCount);
+  const [openMenuMsid, setOpenMenuMsid] = useState<string | null>(null);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Header */}
       <div className="space-y-2">
-        <p className="text-sm font-semibold uppercase tracking-wide text-deep-teal">
+        <p className="text-xs font-bold uppercase tracking-[0.18em] text-deep-teal">
           Patient operations
         </p>
-        <h1 className="text-3xl font-bold text-navy">Patients</h1>
-        <p className="text-base leading-6 text-gray-600">
+        <h1 className="font-serif text-4xl font-bold text-navy">Patients</h1>
+        <p className="max-w-3xl text-sm leading-6 text-gray-600">
           Operational worklist for DynamoDB patient records, imported records, outreach cues, and safety-check visibility.
         </p>
       </div>
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-        <SummaryCard label="Total patients"      value={totalPatients}
+        <SummaryCard label="Total patients"      value={totalPatients} icon={<List className="h-4 w-4" />}
           onClick={() => setWorklistMode("all")}
           active={worklistMode === "all"} />
-        <SummaryCard label="Pending review"      value={pendingReview}   accent="text-sky-700"
+        <SummaryCard label="Pending review"      value={pendingReview}   accent="text-sky-700" icon={<Search className="h-4 w-4" />}
           onClick={() => setWorklistMode("pending_review")}
           active={worklistMode === "pending_review"} />
-        <SummaryCard label="Needs outreach"      value={needsOutreach}   accent="text-amber-700"
+        <SummaryCard label="Needs outreach"      value={needsOutreach}   accent="text-amber-700" icon={<Download className="h-4 w-4" />}
           onClick={() => setWorklistMode("needs_outreach")}
           active={worklistMode === "needs_outreach"} />
-        <SummaryCard label="Safety checks due"   value={safetyChecksDue} accent="text-amber-700"
+        <SummaryCard label="Safety checks due"   value={safetyChecksDue} accent="text-red-600" icon={<Filter className="h-4 w-4" />}
           onClick={() => setWorklistMode("safety_checks")}
           active={worklistMode === "safety_checks"} />
-        <SummaryCard label="Eligible now"        value={eligibleNow}     accent="text-emerald-700" href="/admin/patients?filter=eligible" />
+        <SummaryCard label="Eligible now"        value={eligibleNow}     accent="text-emerald-700" href="/admin/patients?filter=eligible" icon={<ChevronDown className="h-4 w-4" />} />
       </div>
-
-      <ReconciliationPanel
-        report={reconciliationReport}
-        loading={reconciliationLoading}
-        error={reconciliationError}
-        activeFilter={reconciliationFilter}
-        onFilterChange={setReconciliationFilter}
-        onArchiveSuccess={refreshPatientsAndReconciliation}
-      />
 
       {/* Search + Filter & Sort button */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px] max-w-sm">
-          <svg
-            className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none"
-            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 105 11a6 6 0 0012 0z" />
-          </svg>
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 pointer-events-none" />
           <input
             type="text"
             placeholder="Search by name or MSID…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg text-base
+            className="w-full pl-10 pr-10 py-2.5 border border-[#E0CBAA] rounded-lg text-sm
                        focus:outline-none focus:ring-2 focus:ring-[#0B5C6C] focus:border-transparent
-                       bg-white placeholder:text-gray-400"
+                       bg-white/95 placeholder:text-gray-400"
           />
           {search && (
             <button
@@ -1417,9 +1065,10 @@ export default function AdminPatientsPage() {
         <button
           type="button"
           onClick={() => setFilterPanelOpen(true)}
-          className="flex items-center gap-2 px-4 py-2.5 border border-gray-300 rounded-lg text-base font-medium
-                     bg-white text-gray-700 hover:border-[#0B5C6C] min-h-[44px] whitespace-nowrap transition-colors"
+          className="flex items-center gap-2 px-4 py-2.5 border border-[#E0CBAA] rounded-lg text-sm font-semibold
+                     bg-white text-gray-700 hover:border-[#0B5C6C] min-h-[42px] whitespace-nowrap transition-colors"
         >
+          <Filter className="h-4 w-4" />
           Filter &amp; Sort
           {activeFilterCount > 0 && (
             <span className="inline-flex items-center justify-center rounded-full bg-[#0B5C6C] text-white
@@ -1432,12 +1081,22 @@ export default function AdminPatientsPage() {
         <a
           href="/api/admin/patients?export=csv"
           download
-          className="flex items-center gap-2 px-4 py-2.5 border border-[#0B5C6C] rounded-lg text-base font-medium
-                     bg-white text-[#0B5C6C] hover:bg-[#0B5C6C]/5 min-h-[44px] whitespace-nowrap transition-colors"
+          className="flex items-center gap-2 px-4 py-2.5 border border-[#0B5C6C] rounded-lg text-sm font-semibold
+                     bg-white text-[#0B5C6C] hover:bg-[#0B5C6C]/5 min-h-[42px] whitespace-nowrap transition-colors"
           title="Export imported patient operational fields only"
         >
-          Export imported
+          <Download className="h-4 w-4" />
+          Export
         </a>
+
+        <div className="ml-auto flex rounded-lg border border-[#E0CBAA] bg-white p-1">
+          <button type="button" aria-label="List view" className="rounded-md bg-[#0B5C6C] p-2 text-white">
+            <List className="h-4 w-4" />
+          </button>
+          <button type="button" aria-label="Grid view" className="rounded-md p-2 text-gray-400 hover:text-[#0B5C6C]">
+            <LayoutGrid className="h-4 w-4" />
+          </button>
+        </div>
 
         {importLoading && (
           <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-sm text-gray-600">
@@ -1483,7 +1142,7 @@ export default function AdminPatientsPage() {
       )}
 
       {/* Table */}
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+      <div className="bg-white/95 border border-[#E6D8C0] rounded-xl overflow-visible shadow-sm">
         <div className="border-b border-gray-200 bg-white px-5 py-4">
           <h2 className="text-base font-semibold text-gray-800">
             {worklistMode === "needs_outreach" ? "Needs outreach worklist"
@@ -1504,7 +1163,7 @@ export default function AdminPatientsPage() {
           </p>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[860px] border-collapse">
+          <table className="w-full min-w-[1080px] border-collapse">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
                 <th
@@ -1517,16 +1176,16 @@ export default function AdminPatientsPage() {
                   </span>
                 </th>
                 <th className="text-left px-4 py-3 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">MSID</th>
-                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Phone</th>
                 <th
-                  className={`text-left px-4 py-3 text-sm font-semibold uppercase tracking-wide whitespace-nowrap cursor-pointer select-none ${tableSortKey === "lastOrder" ? "text-deep-teal" : "text-gray-600"}`}
-                  onClick={() => toggleTableSort("lastOrder")}
+                  className={`text-left px-4 py-3 text-sm font-semibold uppercase tracking-wide whitespace-nowrap cursor-pointer select-none ${tableSortKey === "dob" ? "text-deep-teal" : "text-gray-600"}`}
+                  onClick={() => toggleTableSort("dob")}
                 >
-                  Last Order{" "}
-                  <span className={tableSortKey === "lastOrder" ? "text-deep-teal" : "text-gray-300"}>
-                    {tableSortKey === "lastOrder" ? (tableSortDir === "asc" ? "↑" : "↓") : "↕"}
+                  DOB / Age{" "}
+                  <span className={tableSortKey === "dob" ? "text-deep-teal" : "text-gray-300"}>
+                    {tableSortKey === "dob" ? (tableSortDir === "asc" ? "↑" : "↓") : "↕"}
                   </span>
                 </th>
+                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Phone</th>
                 <th
                   className={`text-left px-4 py-3 text-sm font-semibold uppercase tracking-wide whitespace-nowrap cursor-pointer select-none ${tableSortKey === "nextEligible" ? "text-deep-teal" : "text-gray-600"}`}
                   onClick={() => toggleTableSort("nextEligible")}
@@ -1545,7 +1204,7 @@ export default function AdminPatientsPage() {
                     {tableSortKey === "status" ? (tableSortDir === "asc" ? "↑" : "↓") : "↕"}
                   </span>
                 </th>
-                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Remaining Funding</th>
+                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Funding / Entitlement</th>
                 <th className="text-left px-4 py-3 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">
                   Action
                 </th>
@@ -1570,47 +1229,40 @@ export default function AdminPatientsPage() {
                   const actionLabel = getActionLabel(patient);
                   const operationalCue = getOperationalCue(patient);
                   return (
-                    <tr key={patient.id} className="hover:bg-gray-50 transition-colors">
+                    <tr key={patient.id} className="hover:bg-[#F8F4EC] transition-colors">
                       <td className="px-4 py-4">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <button
-                            type="button"
-                            disabled={actionCfg.disabled}
-                            onClick={actionCfg.disabled ? undefined : () => openDrawer(patient.msid, patient.name)}
-                            className="bg-transparent border-0 p-0 text-left cursor-pointer text-base font-semibold text-navy hover:text-[#0B5C6C] hover:underline disabled:cursor-default disabled:hover:text-navy disabled:hover:no-underline"
-                          >
-                            {patient.name}
-                          </button>
-                          {patient.source === "admin_csv" && (
-                            <span className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-700">
-                              Imported
-                            </span>
-                          )}
-                          {patient.source === "dynamodb/manual" && (
-                            <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
-                              DynamoDB
-                            </span>
-                          )}
-                          {patient.needsOutreach && (
-                            <span className="inline-flex items-center rounded-full border border-orange-200 bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-700">
-                              Needs outreach
-                            </span>
-                          )}
-                          {patient.safetyCheckRequired && (
-                            <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
-                              Safety check
-                            </span>
-                          )}
+                        <div className="flex items-start gap-3">
+                          <PatientInitials name={patient.name} />
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <button
+                                type="button"
+                                disabled={actionCfg.disabled}
+                                onClick={actionCfg.disabled ? undefined : () => openDrawer(patient.msid, patient.name)}
+                                className="bg-transparent border-0 p-0 text-left cursor-pointer text-sm font-bold text-navy hover:text-[#0B5C6C] hover:underline disabled:cursor-default disabled:hover:text-navy disabled:hover:no-underline"
+                              >
+                                {patient.name}
+                              </button>
+                              {patient.source === "admin_csv" && (
+                                <span className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-sky-700">
+                                  Imported
+                                </span>
+                              )}
+                            </div>
+                            {patient.source === "admin_csv" && patient.importedAt && patient.importedAt !== "—" && (
+                              <span className="mt-1 block text-xs text-gray-500">Imported {patient.importedAt}</span>
+                            )}
+                            <span className="mt-1 block text-xs font-semibold text-[#0B5C6C]">{operationalCue}</span>
+                          </div>
                         </div>
-                        {patient.source === "admin_csv" && patient.importedAt && patient.importedAt !== "—" && (
-                          <span className="mt-1 block text-xs text-gray-500">Imported {patient.importedAt}</span>
-                        )}
-                        <span className="mt-1 block text-xs font-medium text-gray-600">{operationalCue}</span>
                       </td>
                       <td className="px-4 py-4">
                         <span className="whitespace-nowrap tabular-nums min-w-[80px] font-mono text-sm leading-5 text-gray-700">
                           {patient.msid}
                         </span>
+                      </td>
+                      <td className="px-4 py-4">
+                        <DobAgeCell value={patient.dateOfBirth ?? "—"} />
                       </td>
                       <td className="px-4 py-4">
                         {patient.phone === "—" ? (
@@ -1625,13 +1277,10 @@ export default function AdminPatientsPage() {
                         )}
                       </td>
                       <td className="px-4 py-4">
-                        <span className="text-sm text-gray-700 whitespace-nowrap">{patient.lastOrder}</span>
-                      </td>
-                      <td className="px-4 py-4">
                         <span className="text-sm text-gray-700 whitespace-nowrap">{patient.nextEligible}</span>
                       </td>
                       <td className="px-4 py-4">
-                        <span className={`inline-flex items-center text-sm font-medium px-3 py-1.5 rounded-full whitespace-nowrap ${statusCfg.classes}`}>
+                        <span className={`inline-flex items-center text-xs font-bold px-3 py-1.5 rounded-full whitespace-nowrap ${statusCfg.classes}`}>
                           {statusCfg.label}
                         </span>
                       </td>
@@ -1639,19 +1288,55 @@ export default function AdminPatientsPage() {
                         <FundingBadge amount={patient.remainingAmount} />
                       </td>
                       <td className="px-4 py-4">
-                        <div className="flex items-center gap-2 flex-wrap">
+                        <div className="relative flex items-center gap-2">
                           <button
                             type="button"
                             disabled={actionCfg.disabled}
                             onClick={actionCfg.disabled ? undefined : () => openDrawer(patient.msid, patient.name)}
                             className={
                               actionCfg.disabled
-                                ? "bg-gray-200 text-gray-500 cursor-not-allowed rounded-lg px-3 py-2 min-h-[40px] text-sm font-medium whitespace-nowrap"
-                                : "bg-[#0B5C6C] text-white text-sm font-medium rounded-lg px-3 py-2 min-h-[40px] hover:bg-[#0B5C6C]/90 transition-colors whitespace-nowrap"
+                                ? "bg-gray-200 text-gray-500 cursor-not-allowed rounded-md px-3 py-1.5 text-xs font-bold whitespace-nowrap"
+                                : "bg-[#0B5C6C] text-white text-xs font-bold rounded-md px-3 py-1.5 hover:bg-[#0B5C6C]/90 transition-colors whitespace-nowrap"
                             }
                           >
                             {actionLabel}
                           </button>
+                          <button
+                            type="button"
+                            aria-label={`More actions for ${patient.name}`}
+                            onClick={() => setOpenMenuMsid((value) => value === patient.msid ? null : patient.msid)}
+                            className="flex h-8 w-8 items-center justify-center rounded-md border border-[#E0CBAA] bg-white text-gray-500 hover:border-[#0B5C6C] hover:text-[#0B5C6C]"
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </button>
+                          {openMenuMsid === patient.msid && (
+                            <div className="absolute right-0 top-9 z-20 w-44 overflow-hidden rounded-lg border border-[#E0CBAA] bg-white py-1 text-sm shadow-xl">
+                              {["View record", "Edit details", "Add note"].map((item) => (
+                                <button
+                                  key={item}
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenMenuMsid(null);
+                                    openDrawer(patient.msid, patient.name);
+                                  }}
+                                  className="block w-full px-3 py-2 text-left text-gray-700 hover:bg-[#F8F4EC]"
+                                >
+                                  {item}
+                                </button>
+                              ))}
+                              <div className="my-1 border-t border-gray-100" />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenMenuMsid(null);
+                                  openDrawer(patient.msid, patient.name);
+                                }}
+                                className="block w-full px-3 py-2 text-left font-semibold text-red-600 hover:bg-red-50"
+                              >
+                                Archive patient
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </td>
                     </tr>

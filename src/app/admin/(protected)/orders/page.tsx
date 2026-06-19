@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { PatientDrawer } from "@/components/admin/PatientDrawer";
 import { cn } from "@/lib/utils";
 
@@ -1175,7 +1176,12 @@ function RequestReviewDrawer({
   onViewPatient,
   notifState,
 }: RequestReviewDrawerProps) {
+  const [mounted, setMounted] = useState(false);
   const [tab, setTab] = useState<ReviewTab>("request");
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -1226,7 +1232,7 @@ function RequestReviewDrawer({
     { key: "history", label: "History" },
   ];
 
-  return (
+  const drawer = (
     <>
       <div
         className={cn(
@@ -1241,7 +1247,7 @@ function RequestReviewDrawer({
         aria-modal="true"
         aria-label="Review Request"
         className={cn(
-          "fixed inset-y-0 right-0 z-50 w-full sm:w-[480px] bg-white shadow-2xl flex flex-col transition-transform duration-300",
+          "fixed top-0 right-0 bottom-0 z-50 h-screen w-full overflow-hidden sm:w-[480px] bg-white shadow-2xl flex flex-col transition-transform duration-300",
           isOpen ? "translate-x-0" : "translate-x-full"
         )}
       >
@@ -1649,6 +1655,9 @@ function RequestReviewDrawer({
       </div>
     </>
   );
+
+  if (!mounted) return null;
+  return createPortal(drawer, document.body);
 }
 
 // ─── Empty state ──────────────────────────────────────────────────────────────

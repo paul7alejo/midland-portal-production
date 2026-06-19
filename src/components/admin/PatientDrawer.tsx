@@ -2,9 +2,17 @@
 
 import { useState, useEffect, useRef } from "react";
 import type { ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
+import {
+  Archive,
+  Check,
+  Link as LinkIcon,
+  Monitor,
+  X,
+} from "lucide-react";
 
-type TabId = "work" | "record" | "notes" | "history";
+type TabId = "overview" | "identity" | "portal" | "equipment" | "entitlement" | "notes" | "history" | "safety";
 
 interface DrawerPatient {
   msid: string;
@@ -330,10 +338,14 @@ function makeImportedPatient(detail: ImportedPatientDetail): DrawerPatient {
 }
 
 const TABS: { id: TabId; label: string }[] = [
-  { id: "work",    label: "Work" },
-  { id: "record",  label: "Record" },
-  { id: "notes",   label: "Notes" },
-  { id: "history", label: "History" },
+  { id: "overview",    label: "Overview" },
+  { id: "identity",    label: "Identity" },
+  { id: "portal",      label: "Portal" },
+  { id: "equipment",   label: "Equipment" },
+  { id: "entitlement", label: "Entitlement" },
+  { id: "notes",       label: "Notes" },
+  { id: "history",     label: "History" },
+  { id: "safety",      label: "Safety" },
 ];
 
 const NHI_REASONS = [
@@ -348,6 +360,76 @@ function FieldRow({ label, value }: { label: string; value: ReactNode }) {
     <div className="min-w-0">
       <dt className="text-sm font-medium text-gray-500 uppercase tracking-wide">{label}</dt>
       <dd className="text-base leading-6 text-gray-800 mt-1 min-w-0 break-words">{value}</dd>
+    </div>
+  );
+}
+
+function calculateAgeFromDisplayDate(value?: string): number | null {
+  if (!value?.trim() || value === "—") return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - date.getFullYear();
+  const birthdayPassed =
+    today.getMonth() > date.getMonth() ||
+    (today.getMonth() === date.getMonth() && today.getDate() >= date.getDate());
+  if (!birthdayPassed) age -= 1;
+  return age >= 0 ? age : null;
+}
+
+function patientInitials(name?: string): string {
+  return (name ?? "Patient")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("") || "PT";
+}
+
+function parseAddress(address?: string) {
+  const parts = (address ?? "")
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  return {
+    line1: parts[0] ?? "",
+    line2: parts[1] ?? "",
+    suburb: parts[1] ?? "",
+    city: parts[2]?.replace(/\s*\d+$/, "") ?? "",
+    region: parts[2]?.replace(/\s*\d+$/, "") ?? "",
+    postalCode: parts[2]?.match(/\d{4}$/)?.[0] ?? "",
+    country: "New Zealand",
+  };
+}
+
+function ModalShell({
+  title,
+  subtitle,
+  onClose,
+  children,
+  footer,
+}: {
+  title: string;
+  subtitle?: string;
+  onClose: () => void;
+  children: ReactNode;
+  footer: ReactNode;
+}) {
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-[#061B27]/55 px-4 py-6 backdrop-blur-sm">
+      <div role="dialog" aria-modal="true" aria-label={title} className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl border border-[#E0CBAA] bg-[#FFFCF6] shadow-2xl">
+        <div className="flex items-start justify-between gap-6 border-b border-[#E0CBAA] px-8 py-6">
+          <div>
+            <h2 className="font-serif text-3xl font-bold text-[#0B2A3C]">{title}</h2>
+            {subtitle && <p className="mt-2 text-sm text-gray-500">{subtitle}</p>}
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close modal" className="flex h-10 w-10 items-center justify-center rounded-lg border border-[#E0CBAA] bg-white text-gray-500 hover:text-[#0B5C6C]">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-8 py-6">{children}</div>
+        <div className="flex items-center justify-between gap-4 border-t border-[#E0CBAA] bg-white px-8 py-4">{footer}</div>
+      </div>
     </div>
   );
 }
@@ -779,6 +861,280 @@ function WorkTab({
         />
       )}
     </div>
+  );
+}
+
+function OverviewTab({
+  patient,
+  reviewLoading,
+  reviewError,
+  onSetReviewStatus,
+  onEdit,
+  onAddInfo,
+  onArchive,
+}: {
+  patient: DrawerPatient;
+  reviewLoading: boolean;
+  reviewError: string | null;
+  onSetReviewStatus: (status: string) => void;
+  onEdit: () => void;
+  onAddInfo: () => void;
+  onArchive: () => void;
+}) {
+  const age = calculateAgeFromDisplayDate(patient.dob);
+  const showMarkReviewed =
+    patient.imported ||
+    patient.reviewStatus === "Pending review" ||
+    patient.safetyCheckRequired ||
+    patient.machine.safetyCheckOverdue;
+  const portalLinked = !patient.imported;
+  const pendingReview = patient.funding.annualAllowance === 0 && patient.entitlement.length === 0;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-3">
+          <button type="button" onClick={onEdit} className="rounded-lg border border-[#E0CBAA] bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:border-[#0B5C6C] hover:text-[#0B5C6C]">
+            Edit details
+          </button>
+          <button type="button" onClick={onAddInfo} className="rounded-lg border border-[#E0CBAA] bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:border-[#0B5C6C] hover:text-[#0B5C6C]">
+            Add information
+          </button>
+        </div>
+        {showMarkReviewed && (
+          <button
+            type="button"
+            disabled={reviewLoading}
+            onClick={() => onSetReviewStatus(patient.reviewStatus !== "Reviewed" ? "reviewed" : "pending_review")}
+            className="inline-flex items-center gap-2 rounded-lg bg-[#0B5C6C] px-4 py-2 text-sm font-semibold text-white hover:bg-[#0B4A57] disabled:opacity-60"
+          >
+            <Check className="h-4 w-4" />
+            {patient.reviewStatus !== "Reviewed" ? "Mark reviewed" : "Set pending"}
+          </button>
+        )}
+        {reviewError && <p className="w-full text-sm text-red-600">{reviewError}</p>}
+      </div>
+
+      <section className="space-y-4">
+        <h3 className="text-xs font-bold uppercase tracking-[0.18em] text-[#0B5C6C]">Patient core information</h3>
+        <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2">
+          <FieldRow label="Date of Birth" value={patient.dob} />
+          <FieldRow label="Age" value={age === null ? "Age unknown" : `${age} years`} />
+          <FieldRow label="Gender" value="—" />
+          <FieldRow label="Primary Phone" value={patient.phone} />
+          <FieldRow label="Email Address" value={patient.email} />
+          <FieldRow label="Portal Access" value={portalLinked ? "Linked" : "Not linked"} />
+          <div className="sm:col-span-2">
+            <FieldRow label="Physical Address" value={patient.address} />
+          </div>
+          <FieldRow label="MSID" value={<MonoValue value={patient.msid} />} />
+        </dl>
+      </section>
+
+      <section className="border-t border-[#E0CBAA] pt-5">
+        <h3 className="mb-4 text-xs font-bold uppercase tracking-[0.18em] text-[#0B5C6C]">Operational status</h3>
+        <dl className="grid gap-4 sm:grid-cols-3">
+          <div className="rounded-lg border border-[#D7E8EA] bg-[#F3FAFA] p-4 sm:col-span-3">
+            <dt className="text-xs font-medium uppercase tracking-wide text-gray-500">Current Stage</dt>
+            <dd className="mt-1 font-semibold text-[#0B2A3C]">{patient.imported ? "Admin Review" : "CPAP Titration - Month 2"}</dd>
+          </div>
+          <FieldRow label="Assigned Clinic" value="Wellington Central Clinic" />
+          <FieldRow label="Lead Specialist" value="Dr. Sarah Jenkins" />
+          <FieldRow label="Segment" value={patient.segment} />
+        </dl>
+      </section>
+
+      <section className="border-t border-[#E0CBAA] pt-5">
+        <h3 className="mb-4 text-xs font-bold uppercase tracking-[0.18em] text-[#0B5C6C]">Entitlement summary</h3>
+        <div className="rounded-lg bg-gradient-to-br from-[#082A3C] to-[#06344A] p-5 text-white shadow-sm">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs text-white/60">Current Balance</p>
+              <p className="mt-2 text-2xl font-bold">${patient.funding.remainingAmount} left</p>
+            </div>
+            {patient.funding.remainingAmount <= 0 && (
+              <span className="rounded-full bg-red-500/15 px-3 py-1 text-xs font-bold text-red-200">Exhausted</span>
+            )}
+          </div>
+          <dl className="mt-5 grid gap-4 border-t border-white/10 pt-4 sm:grid-cols-2">
+            <div>
+              <dt className="text-xs text-white/55">Plan Type</dt>
+              <dd className="mt-1 text-sm">{safeValue(patient.fundedBy ?? patient.machine.fundedBy)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-white/55">Entitlement Period</dt>
+              <dd className="mt-1 text-sm">{patient.funding.fundingPeriodStart} - {patient.funding.fundingPeriodEnd}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-white/55">Next Eligible Date</dt>
+              <dd className="mt-1 text-sm">{pendingReview ? "—" : patient.entitlement[0]?.nextEligible ?? "—"}</dd>
+            </div>
+          </dl>
+          <button type="button" className="mt-4 text-sm font-semibold text-emerald-200 hover:text-white">View details →</button>
+        </div>
+      </section>
+
+      <section className="border-t border-[#E0CBAA] pt-5">
+        <h3 className="mb-3 text-xs font-bold uppercase tracking-[0.18em] text-red-600">Danger Zone</h3>
+        <div className="flex items-center justify-between gap-4 rounded-lg border border-red-200 bg-red-50 px-4 py-4">
+          <div>
+            <p className="text-sm font-semibold text-gray-800">Archive this patient</p>
+            <p className="mt-1 text-xs text-gray-500">Remove from active worklists. Record is retained for audit.</p>
+          </div>
+          <button type="button" onClick={onArchive} className="inline-flex items-center gap-2 rounded-md bg-red-600 px-3 py-2 text-xs font-bold text-white hover:bg-red-700">
+            <Archive className="h-4 w-4" />
+            Archive
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function EditPatientDetailsModal({ patient, onClose }: { patient: DrawerPatient; onClose: () => void }) {
+  const address = parseAddress(patient.address);
+  const age = calculateAgeFromDisplayDate(patient.dob);
+  const inputCls = "w-full rounded-lg border border-[#E0CBAA] bg-white px-3 py-2.5 text-sm text-gray-800 focus:border-[#0B5C6C] focus:outline-none focus:ring-2 focus:ring-[#0B5C6C]/15 disabled:bg-gray-50 disabled:text-gray-500";
+  const labelCls = "mb-1.5 block text-sm font-semibold text-gray-600";
+  const sectionTitleCls = "text-xs font-bold uppercase tracking-[0.18em] text-[#0B5C6C]";
+
+  return (
+    <ModalShell
+      title="Edit Patient Details"
+      subtitle="Update patient record information."
+      onClose={onClose}
+      footer={
+        <>
+          <p className="text-xs text-gray-500">All changes are audit-logged with your administrator ID, timestamp, and before/after values.</p>
+          <div className="flex gap-3">
+            <button type="button" onClick={onClose} className="rounded-lg border border-[#E0CBAA] bg-white px-6 py-2.5 text-sm font-semibold text-gray-700 hover:border-[#0B5C6C]">Cancel</button>
+            <button type="button" disabled className="rounded-lg bg-[#0B5C6C] px-6 py-2.5 text-sm font-semibold text-white opacity-50">Save Changes</button>
+          </div>
+        </>
+      }
+    >
+      <div className="grid gap-8 lg:grid-cols-2">
+        <section className="space-y-4">
+          <h3 className={sectionTitleCls}>Contact Details</h3>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label><span className={labelCls}>Full Name *</span><input className={inputCls} defaultValue={patient.name} /></label>
+            <label><span className={labelCls}>Primary Phone</span><input className={inputCls} defaultValue={patient.phone} /></label>
+            <label><span className={labelCls}>Email Address</span><input className={inputCls} defaultValue={patient.email === "—" ? "" : patient.email} /></label>
+            <label><span className={labelCls}>Gender</span><select className={inputCls} defaultValue=""><option value="">Not specified</option><option>Female</option><option>Male</option><option>Another gender</option></select></label>
+          </div>
+        </section>
+
+        <section className="space-y-4">
+          <h3 className={sectionTitleCls}>Address</h3>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label><span className={labelCls}>Address Line 1</span><input className={inputCls} defaultValue={address.line1} /></label>
+            <label><span className={labelCls}>Address Line 2 / Apartment / Unit</span><input className={inputCls} defaultValue={address.line2} /></label>
+            <label><span className={labelCls}>Suburb</span><input className={inputCls} defaultValue={address.suburb} /></label>
+            <label><span className={labelCls}>City / Town</span><input className={inputCls} defaultValue={address.city} /></label>
+            <label><span className={labelCls}>Region</span><input className={inputCls} defaultValue={address.region} /></label>
+            <label><span className={labelCls}>Postal Code</span><input className={inputCls} defaultValue={address.postalCode} /></label>
+            <label className="sm:col-span-2"><span className={labelCls}>Country</span><select className={inputCls} defaultValue={address.country}><option>New Zealand</option></select></label>
+          </div>
+        </section>
+
+        <section className="space-y-4 border-t border-[#E0CBAA] pt-6 lg:border-t-0">
+          <h3 className={sectionTitleCls}>Identity</h3>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label><span className={labelCls}>Date of Birth</span><input className={inputCls} value={patient.dob} disabled readOnly /></label>
+            <label><span className={labelCls}>Age</span><input className={inputCls} value={age === null ? "Age unknown" : `${age} years`} disabled readOnly /></label>
+            <label><span className={labelCls}>NHI</span><input className={inputCls} value={patient.nhiMasked} disabled readOnly /></label>
+            <label><span className={labelCls}>MSID</span><input className={inputCls} value={patient.msid} disabled readOnly /></label>
+          </div>
+          <p className="text-xs text-gray-500">NHI is read-only. Managed through secure identity workflow.</p>
+          <p className="text-xs text-gray-500">System-assigned identifier. Cannot be edited.</p>
+        </section>
+
+        <section className="space-y-4 border-t border-[#E0CBAA] pt-6 lg:border-t-0">
+          <h3 className={sectionTitleCls}>Portal &amp; Equipment</h3>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="rounded-xl border border-[#D7E8EA] bg-white p-4">
+              <LinkIcon className="mb-3 h-6 w-6 text-emerald-600" />
+              <p className="text-xs text-gray-500">Portal Access</p>
+              <p className="font-serif text-xl font-bold text-[#0B2A3C]">{patient.imported ? "Not linked" : "Linked"}</p>
+              <p className="mt-2 text-xs text-gray-500">Managed from the Portal tab.</p>
+            </div>
+            <div className="rounded-xl border border-[#E0CBAA] bg-white p-4">
+              <Monitor className="mb-3 h-6 w-6 text-[#0B5C6C]" />
+              <p className="text-xs text-gray-500">Equipment</p>
+              <p className="font-serif text-xl font-bold text-[#0B2A3C]">{patient.mask ? "2 items assigned" : "1 item assigned"}</p>
+              <p className="mt-2 text-xs text-gray-500">Managed from the Equipment tab.</p>
+            </div>
+          </div>
+        </section>
+      </div>
+    </ModalShell>
+  );
+}
+
+function ArchivePatientModal({ patient, onClose }: { patient: DrawerPatient; onClose: () => void }) {
+  return (
+    <ModalShell
+      title="Archive patient record?"
+      subtitle="This will remove the patient from active worklists but retain the record for audit and history. This does not delete the patient."
+      onClose={onClose}
+      footer={
+        <>
+          <p className="text-xs text-gray-500">{patient.name} · {patient.msid}</p>
+          <div className="flex gap-3">
+            <button type="button" onClick={onClose} className="rounded-lg border border-[#E0CBAA] bg-white px-5 py-2.5 text-sm font-semibold text-gray-700">Cancel</button>
+            <button type="button" disabled className="rounded-lg bg-red-600 px-5 py-2.5 text-sm font-semibold text-white opacity-50">Archive patient</button>
+          </div>
+        </>
+      }
+    >
+      <label className="block">
+        <span className="mb-2 block text-sm font-semibold text-gray-700">Archive reason *</span>
+        <textarea rows={5} className="w-full rounded-lg border border-red-200 bg-white px-3 py-3 text-sm focus:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-100" placeholder="Describe why this patient should be archived..." />
+      </label>
+      <p className="mt-3 text-xs text-gray-500">UI only. No archive mutation is performed from this dialog.</p>
+    </ModalShell>
+  );
+}
+
+function AddInformationModal({ patient, onClose }: { patient: DrawerPatient; onClose: () => void }) {
+  const noteTypes = ["Contact Update", "Equipment Update", "Entitlement / Funding Note", "Admin Note", "Safety / Review Note", "Outreach Note"];
+  const [noteType, setNoteType] = useState(noteTypes[0]);
+  return (
+    <ModalShell
+      title="Add Information"
+      subtitle={`Add structured context for ${patient.name}.`}
+      onClose={onClose}
+      footer={
+        <>
+          <p className="text-xs text-gray-500">UI only. Save Note does not call a backend mutation here.</p>
+          <div className="flex gap-3">
+            <button type="button" onClick={onClose} className="rounded-lg border border-[#E0CBAA] bg-white px-5 py-2.5 text-sm font-semibold text-gray-700">Cancel</button>
+            <button type="button" disabled className="rounded-lg bg-[#0B5C6C] px-5 py-2.5 text-sm font-semibold text-white opacity-50">Save Note</button>
+          </div>
+        </>
+      }
+    >
+      <div className="space-y-5">
+        <label className="block">
+          <span className="mb-2 block text-sm font-semibold text-gray-700">Note type</span>
+          <select value={noteType} onChange={(event) => setNoteType(event.target.value)} className="w-full rounded-lg border border-[#E0CBAA] bg-white px-3 py-2.5 text-sm focus:border-[#0B5C6C] focus:outline-none focus:ring-2 focus:ring-[#0B5C6C]/15">
+            {noteTypes.map((type) => <option key={type}>{type}</option>)}
+          </select>
+        </label>
+        <div className="rounded-lg border border-[#D7E8EA] bg-[#F3FAFA] px-4 py-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[#0B5C6C]">Selected note type</p>
+          <p className="mt-1 text-sm font-semibold text-[#0B2A3C]">{noteType}</p>
+        </div>
+        <label className="block">
+          <span className="mb-2 block text-sm font-semibold text-gray-700">Note body</span>
+          <textarea rows={6} className="w-full rounded-lg border border-[#E0CBAA] bg-white px-3 py-3 text-sm focus:border-[#0B5C6C] focus:outline-none focus:ring-2 focus:ring-[#0B5C6C]/15" placeholder="Add staff-only context..." />
+        </label>
+        <label className="flex items-center gap-3 text-sm font-medium text-gray-700">
+          <input type="checkbox" className="h-4 w-4 rounded border-[#E0CBAA] accent-[#0B5C6C]" />
+          Follow-up required
+        </label>
+      </div>
+    </ModalShell>
   );
 }
 
@@ -1954,7 +2310,8 @@ function AccountTab({ msid }: { msid: string }) {
 }
 
 export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStatusChange, onOutreachChange, onSafetyChange }: PatientDrawerProps) {
-  const [activeTab, setActiveTab] = useState<TabId>("work");
+  const [mounted, setMounted] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [nhiVisible, setNhiVisible]   = useState(false);
   const [nhiReason, setNhiReason]     = useState("");
   const [noteText, setNoteText]       = useState("");
@@ -1979,6 +2336,7 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
   const [safetyError, setSafetyError]         = useState<string | null>(null);
   const [patientActivity, setPatientActivity]           = useState<PatientActivityEvent[]>([]);
   const [patientActivityState, setPatientActivityState] = useState<"idle" | "loading" | "loaded" | "error">("idle");
+  const [modal, setModal] = useState<"edit" | "archive" | "add-info" | null>(null);
   const nhiTimerRef              = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activityFetchedRef       = useRef(false);
 
@@ -1986,6 +2344,10 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
   const patient: DrawerPatient | null = msid
     ? importedPatient ?? (!importedLoading && demoData ? { ...demoData, name: patientName ?? demoData.name } : null)
     : null;
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -1997,7 +2359,8 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
     if (!isOpen) {
       setNhiVisible(false);
       setNhiReason("");
-      setActiveTab("work");
+      setActiveTab("overview");
+      setModal(null);
       setEditingNoteId(null);
       setEditText("");
       setDeletingNoteId(null);
@@ -2032,6 +2395,7 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
     setSafetyLoading(false);
     setPatientActivity([]);
     setPatientActivityState("idle");
+    setModal(null);
     activityFetchedRef.current = false;
   }, [msid]);
 
@@ -2069,7 +2433,7 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
   }, []);
 
   useEffect(() => {
-    if (!isOpen || !msid || (activeTab !== "work" && activeTab !== "history")) return;
+    if (!isOpen || !msid || (activeTab !== "overview" && activeTab !== "history")) return;
     if (activityFetchedRef.current) return;
     activityFetchedRef.current = true;
     let cancelled = false;
@@ -2395,7 +2759,7 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
     }
   }
 
-  return (
+  const drawer = (
     <>
       {/* Backdrop */}
       <div
@@ -2413,52 +2777,64 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
         aria-modal="true"
         aria-label={patient?.name ?? "Patient details"}
         className={cn(
-          "fixed inset-y-0 right-0 z-50 w-full sm:w-[940px] sm:max-w-[90vw] bg-white shadow-2xl flex flex-col transition-transform duration-300",
+          "fixed top-0 right-0 bottom-0 z-50 h-screen w-full overflow-hidden sm:w-[48vw] sm:min-w-[640px] sm:max-w-[780px] bg-[#FFFCF6] shadow-2xl flex flex-col transition-transform duration-300",
           isOpen ? "translate-x-0" : "translate-x-full"
         )}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-gray-200 shrink-0">
-          <div className="min-w-0 flex-1">
-            <h2 className="text-2xl font-semibold text-[#0B2A3C]">
-              {patient?.name ?? "Patient"}
-            </h2>
-            <div className="mt-1 flex flex-wrap items-center gap-2">
-              <p className="max-w-full break-all font-mono text-base text-[#0B5C6C]">
-                {patient?.msid}
-              </p>
+        <div className="flex items-start justify-between px-6 py-4 border-b border-[#E0CBAA] bg-white/80 shrink-0">
+          <div className="flex min-w-0 flex-1 items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#0B5C6C] text-xs font-bold text-white shadow-sm">
+              {patientInitials(patient?.name)}
+            </div>
+            <div className="min-w-0">
+              <h2 className="font-serif text-2xl font-bold text-[#0B2A3C]">
+                {patient?.name ?? "Patient"}
+              </h2>
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <p className="max-w-full break-all font-mono text-sm text-[#0B5C6C]">
+                  {patient?.msid}
+                </p>
+                <span className={cn(
+                  "inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-bold",
+                  patient?.imported
+                    ? "border-gray-200 bg-gray-50 text-gray-600"
+                    : "border-emerald-200 bg-emerald-50 text-emerald-700"
+                )}>
+                  <LinkIcon className="mr-1 h-3 w-3" />
+                  {patient?.imported ? "Portal not linked" : "Portal linked"}
+                </span>
               {patient?.imported && (
-                <span className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700">
+                <span className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-sky-700">
                   Imported
                 </span>
               )}
               {patient?.reviewStatus && patient.reviewStatus !== "—" && (
-                <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800">
+                <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-800">
                   {humanizeLabel(patient.reviewStatus)}
                 </span>
               )}
               {patient?.machine.safetyCheckOverdue && (
-                <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800">
+                <span className="inline-flex items-center rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-bold text-red-700">
                   Safety check cue
                 </span>
               )}
+              </div>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="p-2 rounded-lg hover:bg-gray-100 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center ml-4 shrink-0"
+            className="p-2 rounded-lg border border-[#E0CBAA] bg-white hover:bg-gray-50 transition-colors min-h-[40px] min-w-[40px] flex items-center justify-center ml-4 shrink-0"
           >
-            <svg className="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            <X className="h-5 w-5 text-gray-500" />
           </button>
         </div>
 
         {/* Tab bar */}
-        <div className="border-b border-gray-200 shrink-0 overflow-x-auto">
-          <nav className="flex min-w-max px-2" role="tablist" aria-label="Patient profile tabs">
+        <div className="border-b border-[#E0CBAA] bg-white/80 shrink-0 overflow-x-auto">
+          <nav className="flex min-w-max px-3" role="tablist" aria-label="Patient profile tabs">
             {TABS.map((tab) => (
               <button
                 key={tab.id}
@@ -2467,7 +2843,7 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
                 aria-selected={activeTab === tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  "px-4 py-3 text-base font-medium border-b-2 whitespace-nowrap transition-colors",
+                  "px-3 py-2.5 text-xs font-bold border-b-2 whitespace-nowrap transition-colors",
                   activeTab === tab.id
                     ? "border-[#0B5C6C] text-[#0B5C6C]"
                     : "border-transparent text-gray-500 hover:text-gray-700"
@@ -2480,7 +2856,7 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
         </div>
 
         {/* Tab content */}
-        <div className="flex-1 overflow-y-auto px-6 py-6">
+        <div className="flex-1 overflow-y-auto px-6 py-5">
           {importedLoading ? (
             <div className="rounded-xl border border-gray-200 bg-gray-50 px-5 py-4">
               <p className="text-base font-medium text-gray-700">Loading imported patient details...</p>
@@ -2493,7 +2869,18 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
             </div>
           ) : patient ? (
             <>
-              {activeTab === "work" && (
+              {activeTab === "overview" && (
+                <OverviewTab
+                  patient={patient}
+                  reviewLoading={reviewLoading}
+                  reviewError={reviewError}
+                  onSetReviewStatus={handleSetReviewStatus}
+                  onEdit={() => setModal("edit")}
+                  onAddInfo={() => setModal("add-info")}
+                  onArchive={() => setModal("archive")}
+                />
+              )}
+              {activeTab === "safety" && (
                 <WorkTab
                   patient={patient}
                   reviewLoading={reviewLoading}
@@ -2508,7 +2895,7 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
                   onSaveSafetyDetails={handleSaveSafetyDetails}
                 />
               )}
-              {activeTab === "record" && (
+              {activeTab === "identity" && (
                 <RecordTab
                   patient={patient}
                   nhiVisible={nhiVisible}
@@ -2517,6 +2904,9 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
                   onReveal={handleRevealNhi}
                 />
               )}
+              {activeTab === "portal" && <AccountTab msid={patient.msid} />}
+              {activeTab === "equipment" && <EquipmentTab patient={patient} />}
+              {activeTab === "entitlement" && <EntitlementTab patient={patient} />}
               {activeTab === "notes" && (
                 <NotesTab
                   noteText={noteText}
@@ -2554,6 +2944,18 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
           )}
         </div>
       </div>
+      {patient && modal === "edit" && (
+        <EditPatientDetailsModal patient={patient} onClose={() => setModal(null)} />
+      )}
+      {patient && modal === "archive" && (
+        <ArchivePatientModal patient={patient} onClose={() => setModal(null)} />
+      )}
+      {patient && modal === "add-info" && (
+        <AddInformationModal patient={patient} onClose={() => setModal(null)} />
+      )}
     </>
   );
+
+  if (!mounted) return null;
+  return createPortal(drawer, document.body);
 }

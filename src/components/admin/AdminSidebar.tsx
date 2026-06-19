@@ -120,11 +120,11 @@ export default function AdminSidebar({ collapsed, onToggle }: AdminSidebarProps)
         }
       }}
       className={`fixed left-0 top-0 z-30 h-screen bg-navy flex flex-col overflow-hidden transition-all duration-200 ${
-        collapsed ? "w-16 cursor-pointer" : "w-64"
+        collapsed ? "w-16 cursor-pointer" : "w-60"
       }`}
     >
       {/* Logo / brand */}
-      <div className="flex items-center border-b border-white/10 shrink-0 h-[72px]">
+      <div className="flex items-center border-b border-white/10 shrink-0 h-16">
         {collapsed ? (
           <div className="flex w-full items-center justify-center">
             <img
@@ -134,17 +134,17 @@ export default function AdminSidebar({ collapsed, onToggle }: AdminSidebarProps)
             />
           </div>
         ) : (
-          <div className="flex items-center gap-3 px-4 w-full">
+          <div className="flex items-center gap-3 px-3 w-full">
             <img
               src="/midland-logo.png"
               alt="Midland Sleep"
-              className="h-10 w-10 rounded-md shrink-0"
+              className="h-9 w-9 rounded-md shrink-0"
             />
             <div className="flex flex-col min-w-0 flex-1">
-              <span className="text-base font-semibold text-white whitespace-nowrap">
+              <span className="text-sm font-semibold text-white whitespace-nowrap">
                 Midland Sleep
               </span>
-              <span className="text-xs text-amber-400 font-medium whitespace-nowrap">
+              <span className="text-[10px] uppercase tracking-wide text-amber-400 font-bold whitespace-nowrap">
                 Admin console
               </span>
             </div>
@@ -153,7 +153,7 @@ export default function AdminSidebar({ collapsed, onToggle }: AdminSidebarProps)
               onClick={onToggle}
               title="Collapse sidebar"
               aria-label="Collapse sidebar"
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-white/60 transition-colors hover:bg-white/5 hover:text-white"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-white/75 transition-colors hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-white/30"
             >
               <PanelLeftClose className="h-4 w-4" />
             </button>
@@ -162,12 +162,12 @@ export default function AdminSidebar({ collapsed, onToggle }: AdminSidebarProps)
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto py-4 px-2">
-        <div className={collapsed ? "space-y-1" : "space-y-6"}>
+      <nav className="flex-1 overflow-hidden py-2.5 px-2">
+        <div className={collapsed ? "space-y-1" : "space-y-3"}>
           {navSections.map((section) => (
             <div key={section.label}>
               {!collapsed && (
-                <p className="px-2 pb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/45">
+                <p className="px-2 pb-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-white/55">
                   {section.label}
                 </p>
               )}
@@ -185,17 +185,17 @@ export default function AdminSidebar({ collapsed, onToggle }: AdminSidebarProps)
                       href={item.href}
                       title={collapsed ? item.label : undefined}
                       className={`
-                        flex items-center rounded-lg py-2.5 text-base font-medium transition-colors
+                        flex items-center rounded-lg py-1.5 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-200/30
                         ${collapsed ? "justify-center px-0" : "gap-3 px-3"}
                         ${
                           isActive
-                            ? "bg-deep-teal text-white shadow-sm"
-                            : "text-white/70 hover:text-white hover:bg-white/5"
+                            ? "bg-gradient-to-r from-[#0B8A9A] to-[#0B5C6C] text-white shadow-sm"
+                            : "text-white/80 hover:text-white hover:bg-white/10"
                         }
                       `}
                     >
                       <span className="relative shrink-0">
-                        <Icon className="h-5 w-5" />
+                        <Icon className={`h-4 w-4 ${isActive ? "text-white" : "text-white/75"}`} />
                         {collapsed && item.badge != null && item.badge > 0 && (
                           <span className="absolute -top-1 -right-1 text-[8px] font-bold leading-none px-1 py-px rounded-full bg-orange-500 text-white">
                             {item.badge > 9 ? "9+" : item.badge}
@@ -222,15 +222,20 @@ export default function AdminSidebar({ collapsed, onToggle }: AdminSidebarProps)
       </nav>
 
       {!collapsed && (
-        <div className="p-4 border-t border-white/10 shrink-0">
-          <div className="text-white/70 text-sm mb-2">
-            <p className="font-medium text-white text-base">Staff User</p>
-            <p className="text-xs">admin@midlandsleep.co.nz</p>
+        <div className="p-3 border-t border-white/10 shrink-0">
+          <div className="mb-2 flex items-center gap-2 text-white/80 text-xs">
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#0B8A9A] text-[11px] font-bold text-white">
+              SU
+            </span>
+            <div className="min-w-0">
+              <p className="font-semibold text-white text-sm">Staff User</p>
+              <p className="truncate text-[11px] text-white/70">admin@midlandsleep.co.nz</p>
+            </div>
           </div>
           <button
             type="button"
             onClick={handleLogout}
-            className="flex items-center gap-2 text-base text-white/70 transition-colors hover:text-white"
+            className="flex items-center gap-2 rounded-md text-sm text-white/80 transition-colors hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-white/30"
           >
             <LogOut className="h-4 w-4 shrink-0" />
             <span>Log out</span>
