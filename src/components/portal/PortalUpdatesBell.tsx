@@ -9,6 +9,36 @@ import { cn } from "@/lib/utils";
 type NotificationTab = "all" | "unread";
 const REQUEST_STATUS_DESTINATION = "/portal/dashboard#supply-request-status";
 
+const SEEN_KEY = "midland_seen_bell_notices";
+
+function getSeenIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(SEEN_KEY);
+    return new Set(raw ? JSON.parse(raw) as string[] : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function markSeen(ids: string[]): void {
+  try {
+    const current = getSeenIds();
+    for (const id of ids) current.add(id);
+    localStorage.setItem(SEEN_KEY, JSON.stringify([...current]));
+  } catch { /* fail gracefully */ }
+}
+
+const BELL_PRIORITY_PILL: Record<string, string> = {
+  important: "bg-red-100 text-red-700",
+  reminder:  "bg-amber-100 text-amber-700",
+  info:      "bg-[#D0EAE5] text-[#0B5C6C]",
+};
+const BELL_PRIORITY_LABEL: Record<string, string> = {
+  important: "Important",
+  reminder:  "Reminder",
+  info:      "Info",
+};
+
 interface PatientPortalNotification {
   notification_id: string;
   request_reference?: string;
@@ -54,6 +84,7 @@ export default function PortalUpdatesBell({ className }: { className?: string })
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [token, setToken] = useState<string | null>(null);
+  const [seenIds, setSeenIds] = useState<Set<string>>(() => getSeenIds());
   const popoverRef = useRef<HTMLDivElement>(null);
 
   const visibleNotifications = useMemo(() => {
@@ -63,8 +94,8 @@ export default function PortalUpdatesBell({ className }: { className?: string })
     return filtered.slice(0, 10);
   }, [activeTab, notifications]);
 
-  // Attention count: request-status unread + active clinic notices (no read state yet)
-  const totalBadgeCount = unreadCount + bellNotices.length;
+  const unseenClinicCount = bellNotices.filter((n) => !seenIds.has(n.noticeId)).length;
+  const totalBadgeCount = unreadCount + unseenClinicCount;
 
   useEffect(() => {
     let cancelled = false;
@@ -133,6 +164,12 @@ export default function PortalUpdatesBell({ className }: { className?: string })
     document.addEventListener("mousedown", handleOutside);
     return () => document.removeEventListener("mousedown", handleOutside);
   }, [open]);
+
+  useEffect(() => {
+    if (!open || bellNotices.length === 0) return;
+    markSeen(bellNotices.map((n) => n.noticeId));
+    setSeenIds(getSeenIds());
+  }, [open, bellNotices]);
 
   async function markRead(notificationId: string) {
     const target = notifications.find((notification) => notification.notification_id === notificationId);
@@ -257,6 +294,12 @@ export default function PortalUpdatesBell({ className }: { className?: string })
                       </time>
                     </span>
                     <span className="mt-1 block text-sm leading-5 text-charcoal/70">{notice.message}</span>
+                    <span className={cn(
+                      "mt-2 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+                      BELL_PRIORITY_PILL[notice.priority] ?? BELL_PRIORITY_PILL.info
+                    )}>
+                      {BELL_PRIORITY_LABEL[notice.priority] ?? "Info"}
+                    </span>{" "}
                     <span className="mt-2 inline-block rounded-full bg-[#EFF5F4] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#0B5C6C]">
                       Clinic notice
                     </span>

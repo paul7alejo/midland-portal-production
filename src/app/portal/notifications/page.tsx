@@ -8,6 +8,22 @@ import { cn } from "@/lib/utils";
 type NotificationTab = "all" | "unread";
 const REQUEST_STATUS_DESTINATION = "/portal/dashboard#supply-request-status";
 
+const NOTICE_PRIORITY_BG: Record<string, string> = {
+  important: "bg-red-50",
+  reminder:  "bg-amber-50",
+  info:      "bg-[#EFF5F4]",
+};
+const NOTICE_PRIORITY_PILL: Record<string, string> = {
+  important: "bg-red-100 text-red-700",
+  reminder:  "bg-amber-100 text-amber-700",
+  info:      "bg-[#D0EAE5] text-[#0B5C6C]",
+};
+const NOTICE_PRIORITY_LABEL: Record<string, string> = {
+  important: "Important",
+  reminder:  "Reminder",
+  info:      "Info",
+};
+
 interface PatientPortalNotification {
   notification_id: string;
   request_reference?: string;
@@ -286,7 +302,7 @@ export default function NotificationsPage() {
                     return (
                       <div
                         key={notice.noticeId}
-                        className="rounded-lg border border-sand bg-[#F5F3EE] p-4"
+                        className={cn("rounded-lg border border-sand p-4", NOTICE_PRIORITY_BG[notice.priority] ?? NOTICE_PRIORITY_BG.info)}
                       >
                         <span className="flex items-start gap-3">
                           <span className="mt-2 h-2.5 w-2.5 shrink-0 rounded-full bg-transparent" aria-hidden="true" />
@@ -298,6 +314,9 @@ export default function NotificationsPage() {
                               </time>
                             </span>
                             <span className="mt-1 block text-base leading-6 text-charcoal/75">{notice.message}</span>
+                            <span className={cn("mt-3 inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide", NOTICE_PRIORITY_PILL[notice.priority] ?? NOTICE_PRIORITY_PILL.info)}>
+                              {NOTICE_PRIORITY_LABEL[notice.priority] ?? "Info"}
+                            </span>{" "}
                             <span className="mt-3 inline-block rounded-full bg-[#EFF5F4] px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-[#0B5C6C]">
                               Clinic notice
                             </span>

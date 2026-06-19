@@ -295,16 +295,21 @@ interface DashboardNotice {
   expiresAt?: string;
 }
 
-const NOTICE_BORDER: Record<string, string> = {
-  important: "border-l-rose-400",
-  reminder:  "border-l-amber-400",
-  info:      "border-l-[#74C0A2]",
+const NOTICE_STYLES: Record<string, { border: string; bg: string; pill: string; label: string }> = {
+  important: { border: "border-l-red-400",    bg: "bg-red-50",     pill: "bg-red-100 text-red-700",     label: "Important" },
+  reminder:  { border: "border-l-amber-400",   bg: "bg-amber-50",   pill: "bg-amber-100 text-amber-700", label: "Reminder"  },
+  info:      { border: "border-l-[#74C0A2]",   bg: "bg-[#EFF5F4]", pill: "bg-[#D0EAE5] text-[#0B5C6C]", label: "Info"     },
 };
 
 function DashboardNoticeCard({ notice }: { notice: DashboardNotice }) {
-  const borderColor = NOTICE_BORDER[notice.priority] ?? NOTICE_BORDER.info;
+  const style = NOTICE_STYLES[notice.priority] ?? NOTICE_STYLES.info;
   return (
-    <div className={`rounded-xl border border-[#E6D3A3] bg-white p-4 shadow-sm border-l-4 ${borderColor} md:p-5`}>
+    <div className={`rounded-xl border border-l-4 p-4 shadow-sm ${style.border} ${style.bg} md:p-5`}>
+      <div className="mb-2">
+        <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${style.pill}`}>
+          {style.label}
+        </span>
+      </div>
       <p className="text-sm font-semibold leading-6 text-[#0B2A3C]">{notice.title}</p>
       <p className="mt-1 text-sm leading-6 text-charcoal/75">{notice.message}</p>
       {notice.expiresAt && (

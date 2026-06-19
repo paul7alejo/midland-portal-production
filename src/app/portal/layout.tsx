@@ -65,13 +65,10 @@ const PAGE_LABELS: Record<string, string> = {
   "/portal/notifications": "Notifications",
 };
 
-const AWARENESS_TEXT =
-  "Care note · Clean your mask cushion weekly · Support hours Monday–Friday, 8:30am–5pm";
-
 function TopBar() {
   const { patient } = useAuth();
   const pathname = usePathname();
-  const [topStripText, setTopStripText] = useState(AWARENESS_TEXT);
+  const [topStripText, setTopStripText] = useState<string | null>(null);
 
   useEffect(() => {
     if (!patient) return;
@@ -95,7 +92,7 @@ function TopBar() {
           }
         }
       } catch {
-        // keep default AWARENESS_TEXT
+        // leave topStripText as null — no strip shown
       }
     }
 
@@ -111,22 +108,26 @@ function TopBar() {
     <div className="sticky top-0 z-40 hidden h-[72px] items-center gap-4 border-b border-[#E6D3A3]/70 bg-white/95 px-4 shadow-[0_1px_0_rgba(230,211,163,0.28)] backdrop-blur md:px-8 lg:flex">
       <div className="flex min-w-0 flex-1 items-center gap-4 overflow-hidden">
         <span className="shrink-0 text-sm font-semibold text-[#0B2A3C]">{pageLabel}</span>
-        <span className="h-5 w-px shrink-0 bg-[#E6D3A3]" aria-hidden="true" />
-        <div className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden rounded-full border border-[#E6D3A3]/70 bg-[#FDFCF5] px-4 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
-          <span className="inline-flex shrink-0 items-center gap-2 font-mono text-[10px] uppercase tracking-[0.18em] text-[#0B5C6C]">
-            <span className="h-1.5 w-1.5 rounded-full bg-seafoam" aria-hidden="true" />
-            Updates
-          </span>
-          <span className="h-4 w-px shrink-0 bg-[#E6D3A3]" aria-hidden="true" />
-          <div className="min-w-0 flex-1 overflow-hidden">
-            <div className="portal-awareness-track flex w-max items-center gap-10 text-xs font-medium text-[#0B5C6C]">
-              <span className="portal-awareness-item">{topStripText}</span>
-              <span className="portal-awareness-item" aria-hidden="true">{topStripText}</span>
-              <span className="portal-awareness-item" aria-hidden="true">{topStripText}</span>
-              <span className="portal-awareness-item" aria-hidden="true">{topStripText}</span>
+        {topStripText !== null && (
+          <>
+            <span className="h-5 w-px shrink-0 bg-[#E6D3A3]" aria-hidden="true" />
+            <div className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden rounded-full border border-[#E6D3A3]/70 bg-[#FDFCF5] px-4 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
+              <span className="inline-flex shrink-0 items-center gap-2 font-mono text-[10px] uppercase tracking-[0.18em] text-[#0B5C6C]">
+                <span className="h-1.5 w-1.5 rounded-full bg-seafoam" aria-hidden="true" />
+                Updates
+              </span>
+              <span className="h-4 w-px shrink-0 bg-[#E6D3A3]" aria-hidden="true" />
+              <div className="min-w-0 flex-1 overflow-hidden">
+                <div className="portal-awareness-track flex w-max items-center gap-10 text-xs font-medium text-[#0B5C6C]">
+                  <span className="portal-awareness-item">{topStripText}</span>
+                  <span className="portal-awareness-item" aria-hidden="true">{topStripText}</span>
+                  <span className="portal-awareness-item" aria-hidden="true">{topStripText}</span>
+                  <span className="portal-awareness-item" aria-hidden="true">{topStripText}</span>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
+          </>
+        )}
       </div>
       <div className="flex shrink-0 items-center gap-3">
         <PortalUpdatesBell
