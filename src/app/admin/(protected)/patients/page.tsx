@@ -1187,15 +1187,6 @@ export default function AdminPatientsPage() {
                 </th>
                 <th className="text-left px-4 py-3 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Phone</th>
                 <th
-                  className={`text-left px-4 py-3 text-sm font-semibold uppercase tracking-wide whitespace-nowrap cursor-pointer select-none ${tableSortKey === "nextEligible" ? "text-deep-teal" : "text-gray-600"}`}
-                  onClick={() => toggleTableSort("nextEligible")}
-                >
-                  Next Eligible{" "}
-                  <span className={tableSortKey === "nextEligible" ? "text-deep-teal" : "text-gray-300"}>
-                    {tableSortKey === "nextEligible" ? (tableSortDir === "asc" ? "↑" : "↓") : "↕"}
-                  </span>
-                </th>
-                <th
                   className={`text-left px-4 py-3 text-sm font-semibold uppercase tracking-wide whitespace-nowrap cursor-pointer select-none ${tableSortKey === "status" ? "text-deep-teal" : "text-gray-600"}`}
                   onClick={() => toggleTableSort("status")}
                 >
@@ -1204,7 +1195,7 @@ export default function AdminPatientsPage() {
                     {tableSortKey === "status" ? (tableSortDir === "asc" ? "↑" : "↓") : "↕"}
                   </span>
                 </th>
-                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Funding / Entitlement</th>
+                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Entitlement</th>
                 <th className="text-left px-4 py-3 text-sm font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">
                   Action
                 </th>
@@ -1213,7 +1204,7 @@ export default function AdminPatientsPage() {
             <tbody className="divide-y divide-gray-100">
               {filteredCount === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-5 py-12 text-center text-base text-gray-500">
+                  <td colSpan={7} className="px-5 py-12 text-center text-base text-gray-500">
                     <span className="block font-medium text-gray-700">No patients found</span>
                     <span className="mt-1 block text-sm text-gray-500">
                       {search.trim()
@@ -1275,9 +1266,6 @@ export default function AdminPatientsPage() {
                             {patient.phone}
                           </a>
                         )}
-                      </td>
-                      <td className="px-4 py-4">
-                        <span className="text-sm text-gray-700 whitespace-nowrap">{patient.nextEligible}</span>
                       </td>
                       <td className="px-4 py-4">
                         <span className={`inline-flex items-center text-xs font-bold px-3 py-1.5 rounded-full whitespace-nowrap ${statusCfg.classes}`}>

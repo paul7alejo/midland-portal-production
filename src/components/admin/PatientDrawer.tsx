@@ -14,6 +14,16 @@ import {
 
 type TabId = "overview" | "identity" | "portal" | "equipment" | "entitlement" | "notes" | "history" | "safety";
 
+interface StructuredPatientAddress {
+  line1?: string;
+  line2?: string;
+  suburb?: string;
+  city?: string;
+  region?: string;
+  postal_code?: string;
+  country?: string;
+}
+
 interface DrawerPatient {
   msid: string;
   name: string;
@@ -21,6 +31,8 @@ interface DrawerPatient {
   phone: string;
   email: string;
   address: string;
+  addressStructured?: StructuredPatientAddress;
+  gender?: string;
   segment: string;
   registrationDate: string;
   machine: {
@@ -67,6 +79,8 @@ interface ImportedPatientDetail {
     email?: string;
     phone?: string;
     address?: string;
+    address_structured?: StructuredPatientAddress;
+    gender?: string;
     date_of_birth?: string;
     funded_by?: string;
     import_batch_id?: string;
@@ -130,6 +144,8 @@ interface PersistedNote {
   body: string;
   created_at: string;
   created_by_email: string | null;
+  note_type?: string;
+  follow_up_required?: boolean;
   is_owner: boolean;
   updated_at: string | null;
   is_edited: boolean;
@@ -289,6 +305,8 @@ function makeImportedPatient(detail: ImportedPatientDetail): DrawerPatient {
     phone: formatNzPhone(imported.phone),
     email: safeValue(imported.email),
     address: safeValue(imported.address),
+    addressStructured: imported.address_structured,
+    gender: imported.gender,
     segment: "Imported",
     registrationDate: formatNzDateTime(imported.created_at),
     machine: {
@@ -926,7 +944,7 @@ function OverviewTab({
         <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2">
           <FieldRow label="Date of Birth" value={patient.dob} />
           <FieldRow label="Age" value={age === null ? "Age unknown" : `${age} years`} />
-          <FieldRow label="Gender" value="—" />
+          <FieldRow label="Gender" value={safeValue(patient.gender)} />
           <FieldRow label="Primary Phone" value={patient.phone} />
           <FieldRow label="Email Address" value={patient.email} />
           <FieldRow label="Portal Access" value={portalLinked ? "Linked" : "Not linked"} />
@@ -997,12 +1015,61 @@ function OverviewTab({
   );
 }
 
-function EditPatientDetailsModal({ patient, onClose }: { patient: DrawerPatient; onClose: () => void }) {
-  const address = parseAddress(patient.address);
+interface EditPatientFormFields {
+  name: string;
+  phone: string;
+  email: string;
+  gender: string;
+  address: StructuredPatientAddress;
+}
+
+function buildInitialEditForm(patient: DrawerPatient): EditPatientFormFields {
+  const fallback = parseAddress(patient.address);
+  const structured = patient.addressStructured;
+  return {
+    name: patient.name === "—" ? "" : patient.name,
+    phone: patient.phone === "—" ? "" : patient.phone,
+    email: patient.email === "—" ? "" : patient.email,
+    gender: patient.gender ?? "",
+    address: {
+      line1: structured?.line1 ?? fallback.line1,
+      line2: structured?.line2 ?? fallback.line2,
+      suburb: structured?.suburb ?? fallback.suburb,
+      city: structured?.city ?? fallback.city,
+      region: structured?.region ?? fallback.region,
+      postal_code: structured?.postal_code ?? fallback.postalCode,
+      country: structured?.country ?? fallback.country,
+    },
+  };
+}
+
+function EditPatientDetailsModal({
+  patient,
+  onClose,
+  onSave,
+  saving,
+  saveError,
+}: {
+  patient: DrawerPatient;
+  onClose: () => void;
+  onSave: (fields: EditPatientFormFields) => void;
+  saving: boolean;
+  saveError: string | null;
+}) {
+  const [initial] = useState<EditPatientFormFields>(() => buildInitialEditForm(patient));
+  const [form, setForm] = useState<EditPatientFormFields>(initial);
   const age = calculateAgeFromDisplayDate(patient.dob);
+  const dirty = JSON.stringify(form) !== JSON.stringify(initial);
   const inputCls = "w-full rounded-lg border border-[#E0CBAA] bg-white px-3 py-2.5 text-sm text-gray-800 focus:border-[#0B5C6C] focus:outline-none focus:ring-2 focus:ring-[#0B5C6C]/15 disabled:bg-gray-50 disabled:text-gray-500";
   const labelCls = "mb-1.5 block text-sm font-semibold text-gray-600";
   const sectionTitleCls = "text-xs font-bold uppercase tracking-[0.18em] text-[#0B5C6C]";
+
+  function setField(key: keyof Omit<EditPatientFormFields, "address">, value: string) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }
+  function setAddressField(key: keyof StructuredPatientAddress, value: string) {
+    setForm((prev) => ({ ...prev, address: { ...prev.address, [key]: value } }));
+  }
 
   return (
     <ModalShell
@@ -1011,10 +1078,20 @@ function EditPatientDetailsModal({ patient, onClose }: { patient: DrawerPatient;
       onClose={onClose}
       footer={
         <>
-          <p className="text-xs text-gray-500">All changes are audit-logged with your administrator ID, timestamp, and before/after values.</p>
+          <div className="space-y-1">
+            <p className="text-xs text-gray-500">All changes are audit-logged with your administrator ID, timestamp, and before/after values.</p>
+            {saveError && <p className="text-xs font-semibold text-red-600">{saveError}</p>}
+          </div>
           <div className="flex gap-3">
-            <button type="button" onClick={onClose} className="rounded-lg border border-[#E0CBAA] bg-white px-6 py-2.5 text-sm font-semibold text-gray-700 hover:border-[#0B5C6C]">Cancel</button>
-            <button type="button" disabled className="rounded-lg bg-[#0B5C6C] px-6 py-2.5 text-sm font-semibold text-white opacity-50">Save Changes</button>
+            <button type="button" onClick={onClose} disabled={saving} className="rounded-lg border border-[#E0CBAA] bg-white px-6 py-2.5 text-sm font-semibold text-gray-700 hover:border-[#0B5C6C] disabled:opacity-50">Cancel</button>
+            <button
+              type="button"
+              disabled={!dirty || saving}
+              onClick={() => onSave(form)}
+              className="rounded-lg bg-[#0B5C6C] px-6 py-2.5 text-sm font-semibold text-white hover:bg-[#0B4A57] disabled:opacity-50"
+            >
+              {saving ? "Saving…" : "Save Changes"}
+            </button>
           </div>
         </>
       }
@@ -1023,23 +1100,34 @@ function EditPatientDetailsModal({ patient, onClose }: { patient: DrawerPatient;
         <section className="space-y-4">
           <h3 className={sectionTitleCls}>Contact Details</h3>
           <div className="grid gap-4 sm:grid-cols-2">
-            <label><span className={labelCls}>Full Name *</span><input className={inputCls} defaultValue={patient.name} /></label>
-            <label><span className={labelCls}>Primary Phone</span><input className={inputCls} defaultValue={patient.phone} /></label>
-            <label><span className={labelCls}>Email Address</span><input className={inputCls} defaultValue={patient.email === "—" ? "" : patient.email} /></label>
-            <label><span className={labelCls}>Gender</span><select className={inputCls} defaultValue=""><option value="">Not specified</option><option>Female</option><option>Male</option><option>Another gender</option></select></label>
+            <label><span className={labelCls}>Full Name *</span><input className={inputCls} value={form.name} onChange={(e) => setField("name", e.target.value)} /></label>
+            <label><span className={labelCls}>Primary Phone</span><input className={inputCls} value={form.phone} onChange={(e) => setField("phone", e.target.value)} /></label>
+            <label><span className={labelCls}>Email Address</span><input className={inputCls} value={form.email} onChange={(e) => setField("email", e.target.value)} /></label>
+            <label><span className={labelCls}>Gender</span>
+              <select className={inputCls} value={form.gender} onChange={(e) => setField("gender", e.target.value)}>
+                <option value="">Not specified</option>
+                <option>Female</option>
+                <option>Male</option>
+                <option>Another gender</option>
+              </select>
+            </label>
           </div>
         </section>
 
         <section className="space-y-4">
           <h3 className={sectionTitleCls}>Address</h3>
           <div className="grid gap-4 sm:grid-cols-2">
-            <label><span className={labelCls}>Address Line 1</span><input className={inputCls} defaultValue={address.line1} /></label>
-            <label><span className={labelCls}>Address Line 2 / Apartment / Unit</span><input className={inputCls} defaultValue={address.line2} /></label>
-            <label><span className={labelCls}>Suburb</span><input className={inputCls} defaultValue={address.suburb} /></label>
-            <label><span className={labelCls}>City / Town</span><input className={inputCls} defaultValue={address.city} /></label>
-            <label><span className={labelCls}>Region</span><input className={inputCls} defaultValue={address.region} /></label>
-            <label><span className={labelCls}>Postal Code</span><input className={inputCls} defaultValue={address.postalCode} /></label>
-            <label className="sm:col-span-2"><span className={labelCls}>Country</span><select className={inputCls} defaultValue={address.country}><option>New Zealand</option></select></label>
+            <label><span className={labelCls}>Address Line 1</span><input className={inputCls} value={form.address.line1 ?? ""} onChange={(e) => setAddressField("line1", e.target.value)} /></label>
+            <label><span className={labelCls}>Address Line 2 / Apartment / Unit</span><input className={inputCls} value={form.address.line2 ?? ""} onChange={(e) => setAddressField("line2", e.target.value)} /></label>
+            <label><span className={labelCls}>Suburb</span><input className={inputCls} value={form.address.suburb ?? ""} onChange={(e) => setAddressField("suburb", e.target.value)} /></label>
+            <label><span className={labelCls}>City / Town</span><input className={inputCls} value={form.address.city ?? ""} onChange={(e) => setAddressField("city", e.target.value)} /></label>
+            <label><span className={labelCls}>Region</span><input className={inputCls} value={form.address.region ?? ""} onChange={(e) => setAddressField("region", e.target.value)} /></label>
+            <label><span className={labelCls}>Postal Code</span><input className={inputCls} value={form.address.postal_code ?? ""} onChange={(e) => setAddressField("postal_code", e.target.value)} /></label>
+            <label className="sm:col-span-2"><span className={labelCls}>Country</span>
+              <select className={inputCls} value={form.address.country ?? "New Zealand"} onChange={(e) => setAddressField("country", e.target.value)}>
+                <option>New Zealand</option>
+              </select>
+            </label>
           </div>
         </section>
 
@@ -1077,11 +1165,23 @@ function EditPatientDetailsModal({ patient, onClose }: { patient: DrawerPatient;
   );
 }
 
+const ARCHIVE_REASONS = [
+  "Patient deceased",
+  "Patient relocated — no longer in region",
+  "Duplicate record",
+  "Patient request",
+  "No longer under care",
+  "Other",
+];
+
 function ArchivePatientModal({ patient, onClose }: { patient: DrawerPatient; onClose: () => void }) {
+  const [reason, setReason] = useState("");
+  const [details, setDetails] = useState("");
+
   return (
     <ModalShell
       title="Archive patient record?"
-      subtitle="This will remove the patient from active worklists but retain the record for audit and history. This does not delete the patient."
+      subtitle="This action removes the patient from active worklists. It does not delete the patient."
       onClose={onClose}
       footer={
         <>
@@ -1093,18 +1193,61 @@ function ArchivePatientModal({ patient, onClose }: { patient: DrawerPatient; onC
         </>
       }
     >
-      <label className="block">
+      <ul className="space-y-2 rounded-lg border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-900">
+        <li>• Record retained for audit and history</li>
+        <li>• Excluded from active worklists and reports</li>
+        <li>• Can be restored by an authorised admin</li>
+        <li>• This does not delete the patient</li>
+      </ul>
+
+      <label className="mt-5 block">
         <span className="mb-2 block text-sm font-semibold text-gray-700">Archive reason *</span>
-        <textarea rows={5} className="w-full rounded-lg border border-red-200 bg-white px-3 py-3 text-sm focus:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-100" placeholder="Describe why this patient should be archived..." />
+        <select
+          value={reason}
+          onChange={(event) => setReason(event.target.value)}
+          required
+          className="w-full rounded-lg border border-red-200 bg-white px-3 py-2.5 text-sm focus:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-100"
+        >
+          <option value="">Select a reason</option>
+          {ARCHIVE_REASONS.map((option) => <option key={option}>{option}</option>)}
+        </select>
       </label>
+
+      <label className="mt-4 block">
+        <span className="mb-2 block text-sm font-semibold text-gray-700">Additional details (optional)</span>
+        <textarea
+          rows={4}
+          value={details}
+          onChange={(event) => setDetails(event.target.value)}
+          className="w-full rounded-lg border border-red-200 bg-white px-3 py-3 text-sm focus:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-100"
+          placeholder="Add context for the audit record..."
+        />
+      </label>
+
       <p className="mt-3 text-xs text-gray-500">UI only. No archive mutation is performed from this dialog.</p>
     </ModalShell>
   );
 }
 
-function AddInformationModal({ patient, onClose }: { patient: DrawerPatient; onClose: () => void }) {
-  const noteTypes = ["Contact Update", "Equipment Update", "Entitlement / Funding Note", "Admin Note", "Safety / Review Note", "Outreach Note"];
-  const [noteType, setNoteType] = useState(noteTypes[0]);
+const ADD_INFO_NOTE_TYPES = ["Contact Update", "Equipment Update", "Entitlement / Funding Note", "Admin Note", "Safety / Review Note", "Outreach Note"];
+
+function AddInformationModal({
+  patient,
+  onClose,
+  onSave,
+  saving,
+  saveError,
+}: {
+  patient: DrawerPatient;
+  onClose: () => void;
+  onSave: (payload: { noteType: string; body: string; followUpRequired: boolean }) => void;
+  saving: boolean;
+  saveError: string | null;
+}) {
+  const [noteType, setNoteType] = useState(ADD_INFO_NOTE_TYPES[0]);
+  const [noteBody, setNoteBody] = useState("");
+  const [followUpRequired, setFollowUpRequired] = useState(false);
+
   return (
     <ModalShell
       title="Add Information"
@@ -1112,10 +1255,20 @@ function AddInformationModal({ patient, onClose }: { patient: DrawerPatient; onC
       onClose={onClose}
       footer={
         <>
-          <p className="text-xs text-gray-500">UI only. Save Note does not call a backend mutation here.</p>
+          <div className="space-y-1">
+            <p className="text-xs text-gray-500">This note is audit-logged and visible to other admin staff.</p>
+            {saveError && <p className="text-xs font-semibold text-red-600">{saveError}</p>}
+          </div>
           <div className="flex gap-3">
-            <button type="button" onClick={onClose} className="rounded-lg border border-[#E0CBAA] bg-white px-5 py-2.5 text-sm font-semibold text-gray-700">Cancel</button>
-            <button type="button" disabled className="rounded-lg bg-[#0B5C6C] px-5 py-2.5 text-sm font-semibold text-white opacity-50">Save Note</button>
+            <button type="button" onClick={onClose} disabled={saving} className="rounded-lg border border-[#E0CBAA] bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 disabled:opacity-50">Cancel</button>
+            <button
+              type="button"
+              disabled={!noteBody.trim() || saving}
+              onClick={() => onSave({ noteType, body: noteBody.trim(), followUpRequired })}
+              className="rounded-lg bg-[#0B5C6C] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#0B4A57] disabled:opacity-50"
+            >
+              {saving ? "Saving…" : "Save Note"}
+            </button>
           </div>
         </>
       }
@@ -1124,7 +1277,7 @@ function AddInformationModal({ patient, onClose }: { patient: DrawerPatient; onC
         <label className="block">
           <span className="mb-2 block text-sm font-semibold text-gray-700">Note type</span>
           <select value={noteType} onChange={(event) => setNoteType(event.target.value)} className="w-full rounded-lg border border-[#E0CBAA] bg-white px-3 py-2.5 text-sm focus:border-[#0B5C6C] focus:outline-none focus:ring-2 focus:ring-[#0B5C6C]/15">
-            {noteTypes.map((type) => <option key={type}>{type}</option>)}
+            {ADD_INFO_NOTE_TYPES.map((type) => <option key={type}>{type}</option>)}
           </select>
         </label>
         <div className="rounded-lg border border-[#D7E8EA] bg-[#F3FAFA] px-4 py-3">
@@ -1133,10 +1286,22 @@ function AddInformationModal({ patient, onClose }: { patient: DrawerPatient; onC
         </div>
         <label className="block">
           <span className="mb-2 block text-sm font-semibold text-gray-700">Note body</span>
-          <textarea rows={6} className="w-full rounded-lg border border-[#E0CBAA] bg-white px-3 py-3 text-sm focus:border-[#0B5C6C] focus:outline-none focus:ring-2 focus:ring-[#0B5C6C]/15" placeholder="Add staff-only context..." />
+          <textarea
+            rows={6}
+            value={noteBody}
+            onChange={(event) => setNoteBody(event.target.value)}
+            maxLength={1000}
+            className="w-full rounded-lg border border-[#E0CBAA] bg-white px-3 py-3 text-sm focus:border-[#0B5C6C] focus:outline-none focus:ring-2 focus:ring-[#0B5C6C]/15"
+            placeholder="Add staff-only context..."
+          />
         </label>
         <label className="flex items-center gap-3 text-sm font-medium text-gray-700">
-          <input type="checkbox" className="h-4 w-4 rounded border-[#E0CBAA] accent-[#0B5C6C]" />
+          <input
+            type="checkbox"
+            checked={followUpRequired}
+            onChange={(event) => setFollowUpRequired(event.target.checked)}
+            className="h-4 w-4 rounded border-[#E0CBAA] accent-[#0B5C6C]"
+          />
           Follow-up required
         </label>
       </div>
@@ -1339,9 +1504,9 @@ function HistoryTab({
       {patientActivityState === "loaded" && displaySlice.length > 0 && (
         <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
           <div className="overflow-x-auto">
-            <div className="min-w-[750px]">
+            <div className="min-w-[820px]">
               {/* Table header */}
-              <div className="grid grid-cols-[120px_110px_170px_1fr_140px_80px_20px] gap-x-3 px-4 py-2.5 bg-gray-50 border-b border-gray-200">
+              <div className="grid grid-cols-[100px_90px_150px_minmax(240px,1fr)_120px_70px_20px] gap-x-3 px-4 py-2.5 bg-gray-50 border-b border-gray-200">
                 {["When", "Area", "Activity", "Details", "By", "Result", ""].map((h) => (
                   <span key={h} className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</span>
                 ))}
@@ -1356,12 +1521,12 @@ function HistoryTab({
                       <button
                         type="button"
                         onClick={() => setExpandedIndex(isExpanded ? null : i)}
-                        className="w-full grid grid-cols-[120px_110px_170px_1fr_140px_80px_20px] gap-x-3 items-center px-4 py-3.5 text-left hover:bg-gray-50 transition-colors"
+                        className="w-full grid grid-cols-[100px_90px_150px_minmax(240px,1fr)_120px_70px_20px] gap-x-3 items-start px-4 py-3 text-left hover:bg-gray-50 transition-colors"
                       >
-                        <span className="text-xs text-gray-500 whitespace-nowrap">
+                        <span className="text-xs text-gray-500 whitespace-nowrap pt-0.5">
                           {formatNzDateTimeShort(event.timestamp)}
                         </span>
-                        <span>
+                        <span className="pt-0.5">
                           <span className={cn(
                             "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border whitespace-nowrap",
                             AREA_CHIP[area] ?? AREA_CHIP['Other']
@@ -1369,19 +1534,19 @@ function HistoryTab({
                             {area}
                           </span>
                         </span>
-                        <span className="text-sm font-medium text-gray-800 truncate">
+                        <span className="text-sm font-medium text-gray-800 truncate pt-0.5">
                           {event.label}
                         </span>
-                        <span className="text-xs text-gray-600 truncate">
+                        <span className="text-xs text-gray-600 whitespace-normal break-words leading-5">
                           {event.details ?? <span className="text-gray-400 italic">—</span>}
                         </span>
                         <span
-                          className="text-xs text-gray-500 truncate"
+                          className="text-xs text-gray-500 truncate pt-0.5"
                           title={event.adminEmail ?? undefined}
                         >
                           {event.adminEmail ?? "—"}
                         </span>
-                        <span>
+                        <span className="pt-0.5">
                           {event.result && (
                             <span className="inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200 whitespace-nowrap">
                               {event.result}
@@ -1389,7 +1554,7 @@ function HistoryTab({
                           )}
                         </span>
                         <svg
-                          className={cn("h-4 w-4 shrink-0 text-gray-400 transition-transform", isExpanded && "rotate-180")}
+                          className={cn("h-4 w-4 shrink-0 text-gray-400 transition-transform mt-1", isExpanded && "rotate-180")}
                           fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
                         >
                           <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
@@ -2032,6 +2197,20 @@ function NotesTab({
                 ) : (
                   /* ── Read / delete-confirm mode ── */
                   <>
+                    {(note.note_type || note.follow_up_required) && (
+                      <div className="flex flex-wrap items-center gap-2">
+                        {note.note_type && (
+                          <span className="inline-flex items-center rounded-full border border-[#D7E8EA] bg-[#F3FAFA] px-2.5 py-0.5 text-xs font-semibold text-[#0B5C6C]">
+                            {note.note_type}
+                          </span>
+                        )}
+                        {note.follow_up_required && (
+                          <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
+                            Follow-up required
+                          </span>
+                        )}
+                      </div>
+                    )}
                     <p className="text-base text-gray-800 whitespace-pre-wrap">{note.body}</p>
                     <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                       <p className="text-sm text-gray-500">
@@ -2340,6 +2519,10 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
   const [outreachError, setOutreachError]     = useState<string | null>(null);
   const [safetyLoading, setSafetyLoading]     = useState(false);
   const [safetyError, setSafetyError]         = useState<string | null>(null);
+  const [editSaving, setEditSaving]           = useState(false);
+  const [editSaveError, setEditSaveError]     = useState<string | null>(null);
+  const [addInfoSaving, setAddInfoSaving]     = useState(false);
+  const [addInfoSaveError, setAddInfoSaveError] = useState<string | null>(null);
   const [patientActivity, setPatientActivity]           = useState<PatientActivityEvent[]>([]);
   const [patientActivityState, setPatientActivityState] = useState<"idle" | "loading" | "loaded" | "error">("idle");
   const [modal, setModal] = useState<"edit" | "archive" | "add-info" | null>(null);
@@ -2378,6 +2561,10 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
       setOutreachLoading(false);
       setSafetyError(null);
       setSafetyLoading(false);
+      setEditSaving(false);
+      setEditSaveError(null);
+      setAddInfoSaving(false);
+      setAddInfoSaveError(null);
       if (nhiTimerRef.current) clearTimeout(nhiTimerRef.current);
     }
   }, [isOpen]);
@@ -2399,6 +2586,10 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
     setOutreachLoading(false);
     setSafetyError(null);
     setSafetyLoading(false);
+    setEditSaving(false);
+    setEditSaveError(null);
+    setAddInfoSaving(false);
+    setAddInfoSaveError(null);
     setPatientActivity([]);
     setPatientActivityState("idle");
     setModal(null);
@@ -2765,6 +2956,81 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
     }
   }
 
+  async function handleSaveDetails(fields: EditPatientFormFields) {
+    if (!patient || editSaving) return;
+    setEditSaving(true);
+    setEditSaveError(null);
+    try {
+      const res = await fetch("/api/admin/patients", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ msid: patient.msid, ...fields }),
+      });
+      if (!res.ok) {
+        let message = "Save failed";
+        try {
+          const err = (await res.json()) as Record<string, unknown>;
+          if (typeof err.error === "string") message = err.error;
+        } catch { /* non-JSON error body */ }
+        throw new Error(message);
+      }
+      const data = (await res.json()) as { patient?: { address?: string } };
+      setImportedPatient((prev) =>
+        prev ? {
+          ...prev,
+          name: fields.name,
+          phone: fields.phone,
+          email: fields.email,
+          gender: fields.gender,
+          address: data.patient?.address ?? prev.address,
+          addressStructured: fields.address,
+        } : prev
+      );
+      addOptimisticActivity("Patient details updated", "PATIENT_DETAILS_UPDATED");
+      setModal(null);
+    } catch (err) {
+      setEditSaveError(err instanceof Error ? err.message : "Save failed");
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
+  async function handleSaveAddInfo(payload: { noteType: string; body: string; followUpRequired: boolean }) {
+    if (!patient || addInfoSaving) return;
+    setAddInfoSaving(true);
+    setAddInfoSaveError(null);
+    try {
+      const res = await fetch("/api/admin/patients/notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          msid: patient.msid,
+          body: payload.body,
+          note_type: payload.noteType,
+          follow_up_required: payload.followUpRequired,
+        }),
+      });
+      if (!res.ok) {
+        let message = "Save failed";
+        try {
+          const err = (await res.json()) as Record<string, unknown>;
+          if (typeof err.error === "string") message = err.error;
+        } catch { /* non-JSON error body */ }
+        throw new Error(message);
+      }
+      const data = (await res.json()) as { note: PersistedNote };
+      setPersistedNotes((prev) => [data.note, ...prev]);
+      addOptimisticActivity("Note added", "NOTE_CREATED", payload.noteType);
+      setModal(null);
+    } catch (err) {
+      setAddInfoSaveError(err instanceof Error ? err.message : "Save failed");
+    } finally {
+      setAddInfoSaving(false);
+    }
+  }
+
   const drawer = (
     <>
       {/* Backdrop */}
@@ -2951,13 +3217,25 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
         </div>
       </div>
       {patient && modal === "edit" && (
-        <EditPatientDetailsModal patient={patient} onClose={() => setModal(null)} />
+        <EditPatientDetailsModal
+          patient={patient}
+          onClose={() => setModal(null)}
+          onSave={handleSaveDetails}
+          saving={editSaving}
+          saveError={editSaveError}
+        />
       )}
       {patient && modal === "archive" && (
         <ArchivePatientModal patient={patient} onClose={() => setModal(null)} />
       )}
       {patient && modal === "add-info" && (
-        <AddInformationModal patient={patient} onClose={() => setModal(null)} />
+        <AddInformationModal
+          patient={patient}
+          onClose={() => setModal(null)}
+          onSave={handleSaveAddInfo}
+          saving={addInfoSaving}
+          saveError={addInfoSaveError}
+        />
       )}
     </>
   );
