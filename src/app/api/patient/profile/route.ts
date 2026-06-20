@@ -1,8 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getVerifiedUser, safeLog, HttpError } from '@/lib/security';
 import { getPatientByMSID, updatePatientProfile, appendAuditLog } from '@/lib/aws/dynamodb';
+import type { PatientAddressStructured } from '@/lib/aws/dynamodb';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function cleanPart(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function parseLegacyAddress(address?: string): PatientAddressStructured | null {
+  const parts = (address ?? '').split(',').map((part) => part.trim()).filter(Boolean);
+  if (parts.length === 0) return null;
+  const regionPostcode = parts[3] ?? parts[2] ?? '';
+  const postcode = regionPostcode.match(/\b\d{4}\b/)?.[0] ?? '';
+  const region = regionPostcode.replace(/\b\d{4}\b/, '').trim();
+  return {
+    line1:       parts[0] ?? '',
+    line2:       '',
+    suburb:      parts[1] ?? '',
+    city:        parts[2] && parts[3] ? parts[2] : '',
+    region,
+    postal_code: postcode,
+    country:     parts[4] ?? 'New Zealand',
+  };
+}
+
+function canonicalAddress(patientAddress?: PatientAddressStructured, legacyAddress?: string): PatientAddressStructured | null {
+  const source = patientAddress ?? parseLegacyAddress(legacyAddress);
+  if (!source) return null;
+  const canonical = {
+    line1:       cleanPart(source.line1),
+    line2:       cleanPart(source.line2),
+    suburb:      cleanPart(source.suburb),
+    city:        cleanPart(source.city),
+    region:      cleanPart(source.region),
+    postal_code: cleanPart(source.postal_code),
+    country:     cleanPart(source.country) || 'New Zealand',
+  };
+  return Object.values(canonical).some(Boolean) ? canonical : null;
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,14 +47,19 @@ export async function GET(request: NextRequest) {
     const { msid, orgId } = user;
 
     const patient = await getPatientByMSID(msid, orgId);
-    if (!patient) return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
+    if (!patient) {
+      return NextResponse.json(
+        { error: 'Patient not found', diagnostic: 'patient_record_not_found' },
+        { status: 404 }
+      );
+    }
 
     return NextResponse.json({
       name: patient.name,
       email: patient.email,
       msid: patient.portal_id,
       org_id: patient.org_id,
-      address_structured: patient.address_structured ?? null,
+      address_structured: canonicalAddress(patient.address_structured, patient.address),
     });
   } catch (err) {
     if (err instanceof HttpError) {

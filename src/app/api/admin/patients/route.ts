@@ -54,13 +54,29 @@ function parseAddress(value: unknown): PatientAddressStructured | undefined {
 }
 
 function formatAddress(address: PatientAddressStructured): string {
-  return [
-    address.line1,
-    address.line2,
-    address.suburb,
-    [address.city, address.region, address.postal_code].filter(Boolean).join(' '),
-    address.country,
-  ].filter(Boolean).join(', ');
+  const clean = (value?: string) => value?.trim() ?? '';
+  const same = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: 'accent' }) === 0;
+  const segments: string[] = [];
+  const pushUnique = (value: string) => {
+    if (!value) return;
+    if (segments.length > 0 && same(segments[segments.length - 1], value)) return;
+    segments.push(value);
+  };
+  const line1 = clean(address.line1);
+  const line2 = clean(address.line2);
+  const suburb = clean(address.suburb);
+  const city = clean(address.city);
+  const region = clean(address.region);
+  const postalCode = clean(address.postal_code);
+  const country = clean(address.country);
+
+  pushUnique(line1);
+  pushUnique(line2);
+  pushUnique(suburb);
+  if (!suburb || !city || !same(suburb, city)) pushUnique(city);
+  pushUnique([region, postalCode].filter(Boolean).join(' '));
+  pushUnique(country);
+  return segments.join(', ');
 }
 
 function patientPatchValue(patient: PatientRecord, key: string): unknown {

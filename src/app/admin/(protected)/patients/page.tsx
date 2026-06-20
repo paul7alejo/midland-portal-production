@@ -556,7 +556,14 @@ function CleanupCard({
   );
 }
 
-function FundingBadge({ amount }: { amount: number }) {
+function FundingBadge({ amount, pendingReview }: { amount: number; pendingReview?: boolean }) {
+  if (pendingReview) {
+    return (
+      <span className="inline-block rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700 whitespace-nowrap">
+        Not yet calculated
+      </span>
+    );
+  }
   const cls =
     amount >= 200 ? "bg-green-50 text-[#0B5C6C] border border-green-200" :
     amount >= 100 ? "bg-amber-50 text-[#D97706] border border-amber-200" :
@@ -1429,7 +1436,7 @@ export default function AdminPatientsPage() {
                         </span>
                       </td>
                       <td className={`px-4 ${cellPad}`}>
-                        <FundingBadge amount={patient.remainingAmount} />
+                        <FundingBadge amount={patient.remainingAmount} pendingReview={patient.annualAllowance === 0} />
                       </td>
                       <td className={`px-4 ${cellPad}`}>
                         <div className="relative flex items-center gap-2">

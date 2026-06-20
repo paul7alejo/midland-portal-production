@@ -434,16 +434,31 @@ function formatStructuredAddress(structured: StructuredPatientAddress | undefine
   const hasStructured = structured && [structured.line1, structured.line2, structured.suburb, structured.city, structured.region, structured.postal_code].some((v) => v?.trim());
   if (!hasStructured || !structured) return safeValue(fallback);
 
-  const lines: string[] = [];
-  if (structured.line1?.trim()) lines.push(structured.line1.trim());
-  if (structured.line2?.trim()) lines.push(structured.line2.trim());
-  const cityLine = [structured.suburb, structured.city, structured.region, structured.postal_code]
-    .map((v) => v?.trim())
-    .filter(Boolean)
-    .join(" ");
-  if (cityLine) lines.push(cityLine);
-  if (structured.country?.trim()) lines.push(structured.country.trim());
-  return lines.join(", ");
+  const clean = (value?: string) => value?.trim() ?? "";
+  const same = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: "accent" }) === 0;
+  const segments: string[] = [];
+  const pushUnique = (value: string) => {
+    if (!value) return;
+    if (segments.length > 0 && same(segments[segments.length - 1], value)) return;
+    segments.push(value);
+  };
+
+  const line1 = clean(structured.line1);
+  const line2 = clean(structured.line2);
+  const suburb = clean(structured.suburb);
+  const city = clean(structured.city);
+  const region = clean(structured.region);
+  const postalCode = clean(structured.postal_code);
+  const country = clean(structured.country);
+
+  pushUnique(line1);
+  pushUnique(line2);
+  pushUnique(suburb);
+  if (!suburb || !city || !same(suburb, city)) pushUnique(city);
+  pushUnique([region, postalCode].filter(Boolean).join(" "));
+  pushUnique(country);
+
+  return segments.join(", ");
 }
 
 function ModalShell({
@@ -931,7 +946,6 @@ function OverviewTab({
     patient.reviewStatus === "Pending review" ||
     patient.safetyCheckRequired ||
     patient.machine.safetyCheckOverdue;
-  const portalLinked = !patient.imported;
   const pendingReview = patient.funding.annualAllowance === 0 && patient.entitlement.length === 0;
   const currentStage =
     patient.imported
@@ -973,7 +987,7 @@ function OverviewTab({
           <FieldRow label="Gender" value={safeValue(patient.gender)} />
           <FieldRow label="Primary Phone" value={patient.phone} />
           <FieldRow label="Email Address" value={patient.email} />
-          <FieldRow label="Portal Access" value={portalLinked ? "Linked" : "Not linked"} />
+          <FieldRow label="Portal Access" value={patient.imported ? "Check Portal tab" : "Linked"} />
           <div className="sm:col-span-2">
             <FieldRow label="Physical Address" value={formatStructuredAddress(patient.addressStructured, patient.address)} />
           </div>
@@ -999,10 +1013,14 @@ function OverviewTab({
         <div className="rounded-lg bg-gradient-to-br from-[#082A3C] to-[#06344A] p-5 text-white shadow-sm">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-xs text-white/60">Current Balance</p>
-              <p className="mt-2 text-2xl font-bold">${patient.funding.remainingAmount} left</p>
+              <p className="text-xs text-white/60">{pendingReview ? "Annual Allowance" : "Current Balance"}</p>
+              <p className="mt-2 text-2xl font-bold">
+                {pendingReview ? "$250 concept" : `$${patient.funding.remainingAmount} left`}
+              </p>
             </div>
-            {patient.funding.remainingAmount <= 0 && (
+            {pendingReview ? (
+              <span className="rounded-full bg-amber-400/15 px-3 py-1 text-xs font-bold text-amber-100">Review required</span>
+            ) : patient.funding.remainingAmount <= 0 && (
               <span className="rounded-full bg-red-500/15 px-3 py-1 text-xs font-bold text-red-200">Exhausted</span>
             )}
           </div>
@@ -1013,11 +1031,11 @@ function OverviewTab({
             </div>
             <div>
               <dt className="text-xs text-white/55">Entitlement Period</dt>
-              <dd className="mt-1 text-sm">{patient.funding.fundingPeriodStart} - {patient.funding.fundingPeriodEnd}</dd>
+              <dd className="mt-1 text-sm">{pendingReview ? "Not yet tracked" : `${patient.funding.fundingPeriodStart} - ${patient.funding.fundingPeriodEnd}`}</dd>
             </div>
             <div>
               <dt className="text-xs text-white/55">Next Eligible Date</dt>
-              <dd className="mt-1 text-sm">{pendingReview ? "—" : patient.entitlement[0]?.nextEligible ?? "—"}</dd>
+              <dd className="mt-1 text-sm">{pendingReview ? "Not yet calculated" : patient.entitlement[0]?.nextEligible ?? "—"}</dd>
             </div>
           </dl>
           <button type="button" className="mt-4 text-sm font-semibold text-emerald-200 hover:text-white">View details →</button>
@@ -3218,7 +3236,7 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
                     : "border-emerald-200 bg-emerald-50 text-emerald-700"
                 )}>
                   <LinkIcon className="mr-1 h-3 w-3" />
-                  {patient?.imported ? "Portal not linked" : "Portal linked"}
+                  {patient?.imported ? "Portal status pending" : "Portal linked"}
                 </span>
               {patient?.imported && (
                 <span className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-sky-700">

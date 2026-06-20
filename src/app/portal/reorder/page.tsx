@@ -487,6 +487,25 @@ export default function ReorderPage() {
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
   const addressStorageKey = getDeliveryAddressStorageKey(patient?.userId);
 
+  function mapStructuredAddress(address?: {
+    line1?: string; line2?: string; suburb?: string;
+    city?: string; region?: string; postal_code?: string; country?: string;
+  } | null): DeliveryAddress | null {
+    if (!address) return null;
+    const line2Parts = [address.line2, address.suburb]
+      .map((part) => part?.trim())
+      .filter((part, index, parts): part is string => Boolean(part) && parts.indexOf(part) === index);
+    const mapped = normalizeDeliveryAddress({
+      line1:    address.line1,
+      line2:    line2Parts.join(", "),
+      city:     address.city || address.suburb,
+      region:   address.region,
+      postcode: address.postal_code,
+      country:  address.country,
+    });
+    return hasCompleteDeliveryAddress(mapped) ? mapped : null;
+  }
+
   const handleDrawerConfirm = (optionId: string) => {
     if (drawerCategory) {
       setSelectedItems((prev) =>
@@ -520,7 +539,6 @@ export default function ReorderPage() {
   // address. Read-only into the editable override form — never auto-submitted.
   useEffect(() => {
     if (!patient?.userId) return;
-    if (readSavedDeliveryAddress(addressStorageKey)) return;
     let cancelled = false;
 
     async function loadRecordAddress() {
@@ -537,18 +555,12 @@ export default function ReorderPage() {
             city?: string; region?: string; postal_code?: string; country?: string;
           } | null;
         };
-        if (cancelled || !data.address_structured || addressEditedRef.current) return;
-        const a = data.address_structured;
-        const mapped = normalizeDeliveryAddress({
-          line1: a.line1,
-          line2: [a.line2, a.suburb].filter(Boolean).join(", "),
-          city: a.city,
-          region: a.region,
-          postcode: a.postal_code,
-          country: a.country,
-        });
-        if (hasCompleteDeliveryAddress(mapped)) {
+        if (cancelled || addressEditedRef.current) return;
+        const mapped = mapStructuredAddress(data.address_structured);
+        if (mapped) {
+          setSavedAddress(mapped);
           setOverrideAddress(mapped);
+          setUseSavedAddress(true);
           setPrefilledFromRecord(true);
         }
       } catch {

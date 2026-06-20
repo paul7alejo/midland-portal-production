@@ -20,6 +20,15 @@ interface ProfileData {
   email: string;
   msid: string;
   org_id: string;
+  address_structured?: {
+    line1?: string;
+    line2?: string;
+    suburb?: string;
+    city?: string;
+    region?: string;
+    postal_code?: string;
+    country?: string;
+  } | null;
 }
 
 type NhiState =
@@ -39,6 +48,24 @@ export default function ProfilePage() {
   );
   const [addressMessage, setAddressMessage] = useState<string | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const addressEditedRef = useRef(false);
+  const adminAddressLoadedRef = useRef(false);
+
+  function mapStructuredAddress(address: ProfileData["address_structured"]): DeliveryAddress | null {
+    if (!address) return null;
+    const line2Parts = [address.line2, address.suburb]
+      .map((part) => part?.trim())
+      .filter((part, index, parts): part is string => Boolean(part) && parts.indexOf(part) === index);
+    const mapped = normalizeDeliveryAddress({
+      line1:    address.line1,
+      line2:    line2Parts.join(", "),
+      city:     address.city || address.suburb,
+      region:   address.region,
+      postcode: address.postal_code,
+      country:  address.country,
+    });
+    return hasCompleteDeliveryAddress(mapped) ? mapped : null;
+  }
 
   useEffect(() => {
     const load = async () => {
@@ -48,7 +75,15 @@ export default function ProfilePage() {
       const res = await fetch("/api/patient/profile", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (res.ok) setProfile(await res.json());
+      if (res.ok) {
+        const data = await res.json() as ProfileData;
+        setProfile(data);
+        const adminAddress = mapStructuredAddress(data.address_structured);
+        if (adminAddress && !addressEditedRef.current) {
+          adminAddressLoadedRef.current = true;
+          setDeliveryAddress(adminAddress);
+        }
+      }
       setProfileLoading(false);
     };
     load();
@@ -63,6 +98,7 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!patient?.userId) return;
+    if (adminAddressLoadedRef.current || addressEditedRef.current) return;
     const savedAddress = readSavedDeliveryAddress(addressStorageKey);
     if (savedAddress) setDeliveryAddress(savedAddress);
   }, [addressStorageKey, patient?.userId]);
@@ -78,6 +114,7 @@ export default function ProfilePage() {
     field: keyof DeliveryAddress,
     value: string
   ) => {
+    addressEditedRef.current = true;
     setDeliveryAddress((prev) => ({ ...prev, [field]: value }));
     setAddressMessage(null);
   };
