@@ -6,9 +6,11 @@ import { PatientDrawer } from "@/components/admin/PatientDrawer";
 import { cn } from "@/lib/utils";
 import {
   ChevronDown,
+  ChevronUp,
   Download,
   Filter,
   LayoutGrid,
+  Link2,
   List,
   MoreHorizontal,
   Search,
@@ -46,6 +48,15 @@ interface Patient {
   needsOutreach?: boolean;
   safetyCheckRequired?: boolean;
   importedAt?: string;
+}
+
+interface ReconciliationSummary {
+  totalActivePatients: number;
+  totalActivePortalAccounts: number;
+  patientsWithLinkedPortalAccount: number;
+  patientsWithoutPortalAccount: number;
+  portalAccountsWithoutActivePatientRecord: number;
+  archivedPatientsExcludedFromActiveLists: number;
 }
 
 interface PatientSummary {
@@ -467,6 +478,75 @@ function SummaryCard({ label, value, accent, href, onClick, active, icon }: {
   return <div className={baseCls}>{inner}</div>;
 }
 
+function CleanupCard({
+  summary,
+  loading,
+  expanded,
+  onToggle,
+}: {
+  summary: ReconciliationSummary | null;
+  loading: boolean;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const needsAttention =
+    !!summary &&
+    (summary.patientsWithoutPortalAccount > 0 ||
+      summary.portalAccountsWithoutActivePatientRecord > 0);
+
+  const stats = summary
+    ? [
+        { label: "Active Patients", value: summary.totalActivePatients },
+        { label: "Active Portals", value: summary.totalActivePortalAccounts },
+        { label: "Linked", value: summary.patientsWithLinkedPortalAccount },
+        { label: "No Portal Account", value: summary.patientsWithoutPortalAccount },
+        { label: "Portal Only", value: summary.portalAccountsWithoutActivePatientRecord },
+        { label: "Archived Excluded", value: summary.archivedPatientsExcludedFromActiveLists },
+      ]
+    : [];
+
+  return (
+    <div className="rounded-xl border border-[#E6D8C0] bg-[#FAF8F2] border-l-[3px] border-l-[#74C0A2] px-5 py-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[#74C0A2]/10">
+            <Link2 className="h-4 w-4 text-[#0B8A5E]" />
+          </span>
+          <div>
+            <p className="text-sm font-semibold text-gray-800">Patients and Portal Accounts</p>
+            <p className="mt-0.5 text-xs text-gray-500">
+              {loading
+                ? "Checking patient and portal account alignment..."
+                : needsAttention
+                  ? "Some patient records and portal accounts need review."
+                  : "Patient records and portal accounts are currently aligned."}
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onToggle}
+          disabled={loading || !summary}
+          className="flex items-center gap-1.5 rounded-lg border border-[#E0CBAA] bg-white px-3.5 py-1.5 text-xs font-semibold text-gray-700 hover:border-[#0B5C6C] disabled:opacity-50"
+        >
+          {expanded ? "Hide details" : "Show cleanup details"}
+          {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+        </button>
+      </div>
+      {expanded && summary && (
+        <div className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-lg bg-[#E6D8C0]/40 sm:grid-cols-3 lg:grid-cols-6">
+          {stats.map((stat) => (
+            <div key={stat.label} className="bg-white px-3 py-3.5 text-center">
+              <p className="text-xl font-bold text-navy">{stat.value}</p>
+              <p className="mt-1 text-[10px] font-medium uppercase tracking-wide text-gray-500">{stat.label}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function FundingBadge({ amount }: { amount: number }) {
   const cls =
     amount >= 200 ? "bg-green-50 text-[#0B5C6C] border border-green-200" :
@@ -768,6 +848,9 @@ export default function AdminPatientsPage() {
   const [drawerOpen,       setDrawerOpen]       = useState(false);
   const [drawerMsid,       setDrawerMsid]       = useState<string | null>(null);
   const [drawerName,       setDrawerName]       = useState<string | undefined>(undefined);
+  const [reconciliation,        setReconciliation]        = useState<ReconciliationSummary | null>(null);
+  const [reconciliationLoading, setReconciliationLoading] = useState(true);
+  const [cleanupExpanded,       setCleanupExpanded]       = useState(false);
 
   function toggleTableSort(key: string) {
     if (tableSortKey === key) {
@@ -854,6 +937,29 @@ export default function AdminPatientsPage() {
     }
 
     loadInitialPatients();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadReconciliation() {
+      setReconciliationLoading(true);
+      try {
+        const res = await fetch("/api/admin/reconciliation/patients-portal", { cache: "no-store" });
+        if (!res.ok) throw new Error("Unable to load reconciliation summary");
+        const data = (await res.json()) as { summary?: ReconciliationSummary };
+        if (!cancelled) setReconciliation(data.summary ?? null);
+      } catch {
+        if (!cancelled) setReconciliation(null);
+      } finally {
+        if (!cancelled) setReconciliationLoading(false);
+      }
+    }
+
+    loadReconciliation();
     return () => {
       cancelled = true;
     };
@@ -1034,6 +1140,13 @@ export default function AdminPatientsPage() {
           active={worklistMode === "safety_checks"} />
         <SummaryCard label="Eligible now"        value={eligibleNow}     accent="text-emerald-700" href="/admin/patients?filter=eligible" icon={<ChevronDown className="h-4 w-4" />} />
       </div>
+
+      <CleanupCard
+        summary={reconciliation}
+        loading={reconciliationLoading}
+        expanded={cleanupExpanded}
+        onToggle={() => setCleanupExpanded((value) => !value)}
+      />
 
       {/* Search + Filter & Sort button */}
       <div className="flex flex-wrap items-center gap-3">

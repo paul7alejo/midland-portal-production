@@ -6,9 +6,17 @@ import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import {
   Archive,
+  AlertTriangle,
   Check,
+  ChevronLeft,
+  ClipboardList,
+  DollarSign,
   Link as LinkIcon,
+  Mail,
   Monitor,
+  Phone,
+  RefreshCw,
+  ShieldAlert,
   X,
 } from "lucide-react";
 
@@ -1043,6 +1051,24 @@ function buildInitialEditForm(patient: DrawerPatient): EditPatientFormFields {
   };
 }
 
+const NZ_REGIONS = [
+  "Auckland", "Bay of Plenty", "Canterbury", "Gisborne", "Hawke's Bay",
+  "Manawatū-Whanganui", "Marlborough", "Nelson", "Northland", "Otago",
+  "Southland", "Taranaki", "Tasman", "Waikato", "Wellington", "West Coast",
+];
+
+type EditFieldErrors = Partial<Record<"name" | "phone" | "email", string>>;
+
+function validateEditField(field: "name" | "phone" | "email", value: string): string {
+  if (field === "name" && !value.trim()) return "Name is required";
+  if (field === "phone" && value) {
+    const clean = value.replace(/[\s\-()]/g, "");
+    if (!/^(\+?64|0)\d{7,10}$/.test(clean)) return "Enter a valid NZ phone number";
+  }
+  if (field === "email" && value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return "Enter a valid email address";
+  return "";
+}
+
 function EditPatientDetailsModal({
   patient,
   onClose,
@@ -1058,17 +1084,50 @@ function EditPatientDetailsModal({
 }) {
   const [initial] = useState<EditPatientFormFields>(() => buildInitialEditForm(patient));
   const [form, setForm] = useState<EditPatientFormFields>(initial);
+  const [touched, setTouched] = useState<Partial<Record<"name" | "phone" | "email", boolean>>>({});
+  const [errors, setErrors] = useState<EditFieldErrors>({});
+  const [confirmStep, setConfirmStep] = useState(false);
   const age = calculateAgeFromDisplayDate(patient.dob);
   const dirty = JSON.stringify(form) !== JSON.stringify(initial);
+  const hasErrors = Object.values(errors).some(Boolean);
   const inputCls = "w-full rounded-lg border border-[#E0CBAA] bg-white px-3 py-2.5 text-sm text-gray-800 focus:border-[#0B5C6C] focus:outline-none focus:ring-2 focus:ring-[#0B5C6C]/15 disabled:bg-gray-50 disabled:text-gray-500";
+  const errorInputCls = "w-full rounded-lg border border-red-400 bg-white px-3 py-2.5 text-sm text-gray-800 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-100";
   const labelCls = "mb-1.5 block text-sm font-semibold text-gray-600";
   const sectionTitleCls = "text-xs font-bold uppercase tracking-[0.18em] text-[#0B5C6C]";
+  const cellCls = "space-y-4 p-1";
 
-  function setField(key: keyof Omit<EditPatientFormFields, "address">, value: string) {
+  function setField(key: "name" | "phone" | "email", value: string) {
     setForm((prev) => ({ ...prev, [key]: value }));
+    setConfirmStep(false);
+    if (touched[key]) setErrors((prev) => ({ ...prev, [key]: validateEditField(key, value) }));
+  }
+  function setGender(value: string) {
+    setForm((prev) => ({ ...prev, gender: value }));
+    setConfirmStep(false);
   }
   function setAddressField(key: keyof StructuredPatientAddress, value: string) {
     setForm((prev) => ({ ...prev, address: { ...prev.address, [key]: value } }));
+    setConfirmStep(false);
+  }
+  function handleBlur(key: "name" | "phone" | "email") {
+    setTouched((prev) => ({ ...prev, [key]: true }));
+    setErrors((prev) => ({ ...prev, [key]: validateEditField(key, form[key]) }));
+  }
+
+  function handleSaveClick() {
+    const nextErrors: EditFieldErrors = {
+      name: validateEditField("name", form.name),
+      phone: validateEditField("phone", form.phone),
+      email: validateEditField("email", form.email),
+    };
+    setErrors(nextErrors);
+    setTouched({ name: true, phone: true, email: true });
+    if (Object.values(nextErrors).some(Boolean)) return;
+    if (!confirmStep) {
+      setConfirmStep(true);
+      return;
+    }
+    onSave(form);
   }
 
   return (
@@ -1086,25 +1145,54 @@ function EditPatientDetailsModal({
             <button type="button" onClick={onClose} disabled={saving} className="rounded-lg border border-[#E0CBAA] bg-white px-6 py-2.5 text-sm font-semibold text-gray-700 hover:border-[#0B5C6C] disabled:opacity-50">Cancel</button>
             <button
               type="button"
-              disabled={!dirty || saving}
-              onClick={() => onSave(form)}
+              disabled={!dirty || hasErrors || saving}
+              onClick={handleSaveClick}
               className="rounded-lg bg-[#0B5C6C] px-6 py-2.5 text-sm font-semibold text-white hover:bg-[#0B4A57] disabled:opacity-50"
             >
-              {saving ? "Saving…" : "Save Changes"}
+              {saving ? "Saving…" : confirmStep ? "Confirm & Save" : "Save Changes"}
             </button>
           </div>
         </>
       }
     >
-      <div className="grid gap-8 lg:grid-cols-2">
-        <section className="space-y-4">
+      <div className="grid overflow-hidden rounded-lg border border-[#E0CBAA] lg:grid-cols-2">
+        <section className={cn(cellCls, "border-b border-[#E0CBAA] lg:border-r")}>
           <h3 className={sectionTitleCls}>Contact Details</h3>
           <div className="grid gap-4 sm:grid-cols-2">
-            <label><span className={labelCls}>Full Name *</span><input className={inputCls} value={form.name} onChange={(e) => setField("name", e.target.value)} /></label>
-            <label><span className={labelCls}>Primary Phone</span><input className={inputCls} value={form.phone} onChange={(e) => setField("phone", e.target.value)} /></label>
-            <label><span className={labelCls}>Email Address</span><input className={inputCls} value={form.email} onChange={(e) => setField("email", e.target.value)} /></label>
+            <label>
+              <span className={labelCls}>Full Name *</span>
+              <input
+                className={touched.name && errors.name ? errorInputCls : inputCls}
+                value={form.name}
+                onChange={(e) => setField("name", e.target.value)}
+                onBlur={() => handleBlur("name")}
+              />
+              {touched.name && errors.name && <span className="mt-1 block text-xs font-semibold text-red-600">{errors.name}</span>}
+            </label>
+            <label>
+              <span className={labelCls}>Primary Phone</span>
+              <input
+                className={touched.phone && errors.phone ? errorInputCls : inputCls}
+                value={form.phone}
+                onChange={(e) => setField("phone", e.target.value)}
+                onBlur={() => handleBlur("phone")}
+                placeholder="021 000 0000"
+              />
+              {touched.phone && errors.phone && <span className="mt-1 block text-xs font-semibold text-red-600">{errors.phone}</span>}
+            </label>
+            <label>
+              <span className={labelCls}>Email Address</span>
+              <input
+                className={touched.email && errors.email ? errorInputCls : inputCls}
+                value={form.email}
+                onChange={(e) => setField("email", e.target.value)}
+                onBlur={() => handleBlur("email")}
+                placeholder="name@example.com"
+              />
+              {touched.email && errors.email && <span className="mt-1 block text-xs font-semibold text-red-600">{errors.email}</span>}
+            </label>
             <label><span className={labelCls}>Gender</span>
-              <select className={inputCls} value={form.gender} onChange={(e) => setField("gender", e.target.value)}>
+              <select className={inputCls} value={form.gender} onChange={(e) => setGender(e.target.value)}>
                 <option value="">Not specified</option>
                 <option>Female</option>
                 <option>Male</option>
@@ -1114,24 +1202,32 @@ function EditPatientDetailsModal({
           </div>
         </section>
 
-        <section className="space-y-4">
+        <section className={cn(cellCls, "border-b border-[#E0CBAA]")}>
           <h3 className={sectionTitleCls}>Address</h3>
           <div className="grid gap-4 sm:grid-cols-2">
-            <label><span className={labelCls}>Address Line 1</span><input className={inputCls} value={form.address.line1 ?? ""} onChange={(e) => setAddressField("line1", e.target.value)} /></label>
-            <label><span className={labelCls}>Address Line 2 / Apartment / Unit</span><input className={inputCls} value={form.address.line2 ?? ""} onChange={(e) => setAddressField("line2", e.target.value)} /></label>
+            <label className="sm:col-span-2"><span className={labelCls}>Address Line 1</span><input className={inputCls} value={form.address.line1 ?? ""} onChange={(e) => setAddressField("line1", e.target.value)} placeholder="Street address" /></label>
+            <label className="sm:col-span-2"><span className={labelCls}>Address Line 2 / Apartment / Unit</span><input className={inputCls} value={form.address.line2 ?? ""} onChange={(e) => setAddressField("line2", e.target.value)} placeholder="Optional" /></label>
             <label><span className={labelCls}>Suburb</span><input className={inputCls} value={form.address.suburb ?? ""} onChange={(e) => setAddressField("suburb", e.target.value)} /></label>
             <label><span className={labelCls}>City / Town</span><input className={inputCls} value={form.address.city ?? ""} onChange={(e) => setAddressField("city", e.target.value)} /></label>
-            <label><span className={labelCls}>Region</span><input className={inputCls} value={form.address.region ?? ""} onChange={(e) => setAddressField("region", e.target.value)} /></label>
-            <label><span className={labelCls}>Postal Code</span><input className={inputCls} value={form.address.postal_code ?? ""} onChange={(e) => setAddressField("postal_code", e.target.value)} /></label>
+            <label><span className={labelCls}>Region</span>
+              <select className={inputCls} value={form.address.region ?? ""} onChange={(e) => setAddressField("region", e.target.value)}>
+                <option value="">Select region...</option>
+                {NZ_REGIONS.map((region) => <option key={region}>{region}</option>)}
+              </select>
+            </label>
+            <label><span className={labelCls}>Postal Code</span><input className={inputCls} value={form.address.postal_code ?? ""} onChange={(e) => setAddressField("postal_code", e.target.value)} placeholder="0000" maxLength={4} /></label>
             <label className="sm:col-span-2"><span className={labelCls}>Country</span>
               <select className={inputCls} value={form.address.country ?? "New Zealand"} onChange={(e) => setAddressField("country", e.target.value)}>
                 <option>New Zealand</option>
+                <option>Australia</option>
+                <option>United Kingdom</option>
+                <option>Other</option>
               </select>
             </label>
           </div>
         </section>
 
-        <section className="space-y-4 border-t border-[#E0CBAA] pt-6 lg:border-t-0">
+        <section className={cn(cellCls, "border-[#E0CBAA] lg:border-r")}>
           <h3 className={sectionTitleCls}>Identity</h3>
           <div className="grid gap-4 sm:grid-cols-2">
             <label><span className={labelCls}>Date of Birth</span><input className={inputCls} value={patient.dob} disabled readOnly /></label>
@@ -1143,7 +1239,7 @@ function EditPatientDetailsModal({
           <p className="text-xs text-gray-500">System-assigned identifier. Cannot be edited.</p>
         </section>
 
-        <section className="space-y-4 border-t border-[#E0CBAA] pt-6 lg:border-t-0">
+        <section className={cellCls}>
           <h3 className={sectionTitleCls}>Portal &amp; Equipment</h3>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="rounded-xl border border-[#D7E8EA] bg-white p-4">
@@ -1161,6 +1257,16 @@ function EditPatientDetailsModal({
           </div>
         </section>
       </div>
+
+      {confirmStep && (
+        <div className="mt-4 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+          <div>
+            <p className="text-sm font-semibold text-amber-900">Confirm changes</p>
+            <p className="mt-0.5 text-xs leading-5 text-amber-800">These changes will be recorded in the audit trail with before/after values.</p>
+          </div>
+        </div>
+      )}
     </ModalShell>
   );
 }
@@ -1177,27 +1283,57 @@ const ARCHIVE_REASONS = [
 function ArchivePatientModal({ patient, onClose }: { patient: DrawerPatient; onClose: () => void }) {
   const [reason, setReason] = useState("");
   const [details, setDetails] = useState("");
+  const [archiving, setArchiving] = useState(false);
+
+  function handleArchiveClick() {
+    if (!reason || archiving) return;
+    setArchiving(true);
+    setTimeout(() => {
+      setArchiving(false);
+      onClose();
+    }, 700);
+  }
 
   return (
     <ModalShell
       title="Archive patient record?"
-      subtitle="This action removes the patient from active worklists. It does not delete the patient."
       onClose={onClose}
       footer={
         <>
-          <p className="text-xs text-gray-500">{patient.name} · {patient.msid}</p>
+          <p className="text-xs text-gray-500">This action will be logged in the audit trail under your administrator ID.</p>
           <div className="flex gap-3">
-            <button type="button" onClick={onClose} className="rounded-lg border border-[#E0CBAA] bg-white px-5 py-2.5 text-sm font-semibold text-gray-700">Cancel</button>
-            <button type="button" disabled className="rounded-lg bg-red-600 px-5 py-2.5 text-sm font-semibold text-white opacity-50">Archive patient</button>
+            <button type="button" onClick={onClose} disabled={archiving} className="rounded-lg border border-[#E0CBAA] bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 disabled:opacity-50">Cancel</button>
+            <button
+              type="button"
+              disabled={!reason || archiving}
+              onClick={handleArchiveClick}
+              className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+            >
+              <Archive className="h-4 w-4" />
+              {archiving ? "Archiving…" : "Archive patient"}
+            </button>
           </div>
         </>
       }
     >
-      <ul className="space-y-2 rounded-lg border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-900">
-        <li>• Record retained for audit and history</li>
-        <li>• Excluded from active worklists and reports</li>
-        <li>• Can be restored by an authorised admin</li>
-        <li>• This does not delete the patient</li>
+      <div className="flex items-center gap-3 rounded-lg border border-[#E0CBAA] bg-[#FDFCF5] px-4 py-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#0B5C6C] text-xs font-bold text-white">
+          {patientInitials(patient.name)}
+        </span>
+        <div>
+          <p className="text-sm font-semibold text-gray-800">{patient.name}</p>
+          <p className="font-mono text-xs text-gray-500">{patient.msid}</p>
+        </div>
+      </div>
+
+      <p className="mt-4 text-sm leading-6 text-gray-600">
+        This will remove the patient from active worklists but retain the record for audit and history. This does not delete the patient.
+      </p>
+
+      <ul className="mt-4 space-y-2 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-900">
+        <li className="flex items-center gap-2"><Check className="h-3.5 w-3.5 shrink-0 text-emerald-600" /> Record retained for audit and history</li>
+        <li className="flex items-center gap-2"><Check className="h-3.5 w-3.5 shrink-0 text-emerald-600" /> Excluded from active worklists and reports</li>
+        <li className="flex items-center gap-2"><RefreshCw className="h-3.5 w-3.5 shrink-0 text-[#0B5C6C]" /> Can be restored by an authorised admin</li>
       </ul>
 
       <label className="mt-5 block">
@@ -1208,28 +1344,37 @@ function ArchivePatientModal({ patient, onClose }: { patient: DrawerPatient; onC
           required
           className="w-full rounded-lg border border-red-200 bg-white px-3 py-2.5 text-sm focus:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-100"
         >
-          <option value="">Select a reason</option>
+          <option value="">Select a reason...</option>
           {ARCHIVE_REASONS.map((option) => <option key={option}>{option}</option>)}
         </select>
       </label>
 
-      <label className="mt-4 block">
-        <span className="mb-2 block text-sm font-semibold text-gray-700">Additional details (optional)</span>
-        <textarea
-          rows={4}
-          value={details}
-          onChange={(event) => setDetails(event.target.value)}
-          className="w-full rounded-lg border border-red-200 bg-white px-3 py-3 text-sm focus:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-100"
-          placeholder="Add context for the audit record..."
-        />
-      </label>
+      {reason === "Other" && (
+        <label className="mt-4 block">
+          <span className="mb-2 block text-sm font-semibold text-gray-700">Additional details</span>
+          <textarea
+            rows={3}
+            value={details}
+            onChange={(event) => setDetails(event.target.value)}
+            className="w-full rounded-lg border border-red-200 bg-white px-3 py-3 text-sm focus:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-100"
+            placeholder="Provide context..."
+          />
+        </label>
+      )}
 
-      <p className="mt-3 text-xs text-gray-500">UI only. No archive mutation is performed from this dialog.</p>
+      <p className="mt-4 text-xs text-gray-500">UI only. No archive mutation is performed from this dialog.</p>
     </ModalShell>
   );
 }
 
-const ADD_INFO_NOTE_TYPES = ["Contact Update", "Equipment Update", "Entitlement / Funding Note", "Admin Note", "Safety / Review Note", "Outreach Note"];
+const ADD_INFO_TYPES = [
+  { label: "Contact Update",             icon: Phone,         desc: "Update or add contact details" },
+  { label: "Equipment Update",           icon: Monitor,       desc: "Note equipment changes or issues" },
+  { label: "Entitlement / Funding Note", icon: DollarSign,    desc: "Record entitlement information" },
+  { label: "Admin Note",                 icon: ClipboardList, desc: "General administrative note" },
+  { label: "Safety / Review Note",       icon: ShieldAlert,   desc: "Flag safety concerns" },
+  { label: "Outreach Note",              icon: Mail,          desc: "Record outreach contact or attempt" },
+] as const;
 
 function AddInformationModal({
   patient,
@@ -1244,14 +1389,25 @@ function AddInformationModal({
   saving: boolean;
   saveError: string | null;
 }) {
-  const [noteType, setNoteType] = useState(ADD_INFO_NOTE_TYPES[0]);
+  const [step, setStep] = useState<"select" | "entry">("select");
+  const [noteType, setNoteType] = useState<string | null>(null);
   const [noteBody, setNoteBody] = useState("");
   const [followUpRequired, setFollowUpRequired] = useState(false);
+  const selected = ADD_INFO_TYPES.find((type) => type.label === noteType);
+
+  function chooseType(label: string) {
+    setNoteType(label);
+    setStep("entry");
+  }
+  function backToTypes() {
+    setStep("select");
+    setNoteType(null);
+  }
 
   return (
     <ModalShell
-      title="Add Information"
-      subtitle={`Add structured context for ${patient.name}.`}
+      title={step === "select" ? "Add Information" : selected?.label ?? "Add Information"}
+      subtitle={step === "select" ? `Add a structured note to ${patient.name}'s record.` : `For ${patient.name}`}
       onClose={onClose}
       footer={
         <>
@@ -1260,51 +1416,88 @@ function AddInformationModal({
             {saveError && <p className="text-xs font-semibold text-red-600">{saveError}</p>}
           </div>
           <div className="flex gap-3">
-            <button type="button" onClick={onClose} disabled={saving} className="rounded-lg border border-[#E0CBAA] bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 disabled:opacity-50">Cancel</button>
-            <button
-              type="button"
-              disabled={!noteBody.trim() || saving}
-              onClick={() => onSave({ noteType, body: noteBody.trim(), followUpRequired })}
-              className="rounded-lg bg-[#0B5C6C] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#0B4A57] disabled:opacity-50"
-            >
-              {saving ? "Saving…" : "Save Note"}
+            <button type="button" onClick={step === "entry" ? backToTypes : onClose} disabled={saving} className="rounded-lg border border-[#E0CBAA] bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 disabled:opacity-50">
+              {step === "entry" ? "Back" : "Cancel"}
             </button>
+            {step === "entry" && (
+              <button
+                type="button"
+                disabled={!noteBody.trim() || saving}
+                onClick={() => onSave({ noteType: noteType ?? "Admin Note", body: noteBody.trim(), followUpRequired })}
+                className="rounded-lg bg-[#0B5C6C] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#0B4A57] disabled:opacity-50"
+              >
+                {saving ? "Saving…" : "Save Note"}
+              </button>
+            )}
           </div>
         </>
       }
     >
-      <div className="space-y-5">
-        <label className="block">
-          <span className="mb-2 block text-sm font-semibold text-gray-700">Note type</span>
-          <select value={noteType} onChange={(event) => setNoteType(event.target.value)} className="w-full rounded-lg border border-[#E0CBAA] bg-white px-3 py-2.5 text-sm focus:border-[#0B5C6C] focus:outline-none focus:ring-2 focus:ring-[#0B5C6C]/15">
-            {ADD_INFO_NOTE_TYPES.map((type) => <option key={type}>{type}</option>)}
-          </select>
-        </label>
-        <div className="rounded-lg border border-[#D7E8EA] bg-[#F3FAFA] px-4 py-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-[#0B5C6C]">Selected note type</p>
-          <p className="mt-1 text-sm font-semibold text-[#0B2A3C]">{noteType}</p>
+      {step === "select" && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {ADD_INFO_TYPES.map((type) => {
+            const Icon = type.icon;
+            return (
+              <button
+                key={type.label}
+                type="button"
+                onClick={() => chooseType(type.label)}
+                className="flex items-start gap-3 rounded-lg border border-[#E0CBAA] bg-white p-3.5 text-left transition-colors hover:border-[#0B5C6C]"
+              >
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#0B5C6C]/10">
+                  <Icon className="h-4 w-4 text-[#0B5C6C]" />
+                </span>
+                <span>
+                  <span className="block text-sm font-semibold text-gray-800">{type.label}</span>
+                  <span className="mt-0.5 block text-xs text-gray-500">{type.desc}</span>
+                </span>
+              </button>
+            );
+          })}
         </div>
-        <label className="block">
-          <span className="mb-2 block text-sm font-semibold text-gray-700">Note body</span>
-          <textarea
-            rows={6}
-            value={noteBody}
-            onChange={(event) => setNoteBody(event.target.value)}
-            maxLength={1000}
-            className="w-full rounded-lg border border-[#E0CBAA] bg-white px-3 py-3 text-sm focus:border-[#0B5C6C] focus:outline-none focus:ring-2 focus:ring-[#0B5C6C]/15"
-            placeholder="Add staff-only context..."
-          />
-        </label>
-        <label className="flex items-center gap-3 text-sm font-medium text-gray-700">
-          <input
-            type="checkbox"
-            checked={followUpRequired}
-            onChange={(event) => setFollowUpRequired(event.target.checked)}
-            className="h-4 w-4 rounded border-[#E0CBAA] accent-[#0B5C6C]"
-          />
-          Follow-up required
-        </label>
-      </div>
+      )}
+
+      {step === "entry" && selected && (
+        <div className="space-y-5">
+          <button type="button" onClick={backToTypes} className="flex items-center gap-1 text-sm font-semibold text-[#0B5C6C] hover:underline">
+            <ChevronLeft className="h-3.5 w-3.5" /> Change note type
+          </button>
+
+          <div className="flex items-center gap-3 rounded-lg border border-[#D7E8EA] bg-[#F3FAFA] px-4 py-3">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#0B5C6C]/10">
+              <selected.icon className="h-4 w-4 text-[#0B5C6C]" />
+            </span>
+            <div>
+              <p className="text-sm font-semibold text-[#0B2A3C]">{selected.label}</p>
+              <p className="text-xs text-gray-500">{selected.desc}</p>
+            </div>
+          </div>
+
+          <label className="block">
+            <span className="mb-2 block text-sm font-semibold text-gray-700">Note details</span>
+            <textarea
+              rows={6}
+              value={noteBody}
+              onChange={(event) => setNoteBody(event.target.value)}
+              maxLength={1000}
+              className="w-full rounded-lg border border-[#E0CBAA] bg-white px-3 py-3 text-sm focus:border-[#0B5C6C] focus:outline-none focus:ring-2 focus:ring-[#0B5C6C]/15"
+              placeholder="Enter details..."
+            />
+          </label>
+
+          <label className="flex items-center gap-3 text-sm font-medium text-gray-700">
+            <input
+              type="checkbox"
+              checked={followUpRequired}
+              onChange={(event) => setFollowUpRequired(event.target.checked)}
+              className="h-4 w-4 rounded border-[#E0CBAA] accent-[#0B5C6C]"
+            />
+            Follow-up required
+          </label>
+
+          <p className="text-xs text-gray-500">All notes are timestamped and attributed to your administrator account.</p>
+        </div>
+      )}
     </ModalShell>
   );
 }
@@ -1322,21 +1515,42 @@ function RecordTab({
   setNhiReason: (v: string) => void;
   onReveal: () => void;
 }) {
+  const age = calculateAgeFromDisplayDate(patient.dob);
+
   return (
     <div className="space-y-8">
-      <section className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-        <h3 className="mb-4 text-sm font-semibold text-gray-600 uppercase tracking-wide">Patient details</h3>
-        <dl className="grid gap-5 sm:grid-cols-2">
-          <div className="sm:col-span-2">
-            <dt className="text-sm font-medium text-gray-500 uppercase tracking-wide">MSID</dt>
-            <dd className="mt-1 max-w-full break-all font-mono text-base text-[#0B5C6C]">{patient.msid}</dd>
-          </div>
-          <FieldRow label="Date of birth" value={patient.dob} />
-          <FieldRow label="Phone" value={patient.phone} />
+      <section className="space-y-4">
+        <h3 className="text-xs font-bold uppercase tracking-[0.18em] text-[#0B5C6C]">Identity</h3>
+        <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2">
+          <FieldRow label="Full Name" value={patient.name} />
+          <FieldRow label="MSID" value={<MonoValue value={patient.msid} />} />
+          <FieldRow label="Date of Birth" value={patient.dob} />
+          <FieldRow label="Age" value={age === null ? "Age unknown" : `${age} years`} />
+          <FieldRow label="Gender" value={safeValue(patient.gender)} />
+        </dl>
+        <NhiTab
+          patient={patient}
+          nhiVisible={nhiVisible}
+          nhiReason={nhiReason}
+          setNhiReason={setNhiReason}
+          onReveal={onReveal}
+        />
+      </section>
+
+      <section className="space-y-4 border-t border-[#E0CBAA] pt-6">
+        <h3 className="text-xs font-bold uppercase tracking-[0.18em] text-[#0B5C6C]">Contact Details</h3>
+        <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2">
+          <FieldRow label="Primary Phone" value={patient.phone} />
           <FieldRow label="Email" value={patient.email} />
           <div className="sm:col-span-2">
-            <FieldRow label="Address" value={patient.address} />
+            <FieldRow label="Physical Address" value={patient.address} />
           </div>
+        </dl>
+      </section>
+
+      <section className="space-y-4 border-t border-[#E0CBAA] pt-6">
+        <h3 className="text-xs font-bold uppercase tracking-[0.18em] text-[#0B5C6C]">Record Details</h3>
+        <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2">
           <FieldRow
             label="Segment"
             value={
@@ -1356,34 +1570,23 @@ function RecordTab({
         </dl>
       </section>
 
-      <section>
-        <h3 className="mb-4 text-sm font-semibold text-gray-600 uppercase tracking-wide">Equipment</h3>
+      <section className="border-t border-[#E0CBAA] pt-6">
+        <h3 className="mb-4 text-xs font-bold uppercase tracking-[0.18em] text-[#0B5C6C]">Equipment</h3>
         <EquipmentTab patient={patient} />
       </section>
 
-      <section>
-        <h3 className="mb-4 text-sm font-semibold text-gray-600 uppercase tracking-wide">Entitlement &amp; funding</h3>
+      <section className="border-t border-[#E0CBAA] pt-6">
+        <h3 className="mb-4 text-xs font-bold uppercase tracking-[0.18em] text-[#0B5C6C]">Entitlement &amp; funding</h3>
         <EntitlementTab patient={patient} />
       </section>
 
-      <section>
-        <h3 className="mb-4 text-sm font-semibold text-gray-600 uppercase tracking-wide">Orders</h3>
+      <section className="border-t border-[#E0CBAA] pt-6">
+        <h3 className="mb-4 text-xs font-bold uppercase tracking-[0.18em] text-[#0B5C6C]">Orders</h3>
         <OrdersTab patient={patient} />
       </section>
 
-      <section>
-        <h3 className="mb-4 text-sm font-semibold text-gray-600 uppercase tracking-wide">NHI</h3>
-        <NhiTab
-          patient={patient}
-          nhiVisible={nhiVisible}
-          nhiReason={nhiReason}
-          setNhiReason={setNhiReason}
-          onReveal={onReveal}
-        />
-      </section>
-
-      <section>
-        <h3 className="mb-4 text-sm font-semibold text-gray-600 uppercase tracking-wide">Portal account</h3>
+      <section className="border-t border-[#E0CBAA] pt-6">
+        <h3 className="mb-4 text-xs font-bold uppercase tracking-[0.18em] text-[#0B5C6C]">Portal account</h3>
         <AccountTab msid={patient.msid} />
       </section>
     </div>
