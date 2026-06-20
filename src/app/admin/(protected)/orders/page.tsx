@@ -13,8 +13,8 @@ type OrderSortOpt  = "newest" | "oldest" | "name_az" | "status";
 type RequestCategory = "Mask" | "Headgear" | "Filters" | "Tubing" | "Cleaning supplies" | "Support request";
 type ReportWindow    = "7d" | "30d" | "90d" | "all";
 type ReportSource    = "patient_portal" | "support_request" | "admin_created" | "other";
-type ReviewTab       = "request" | "funding" | "patient" | "history";
-type KpiActiveFilter = "requestsThisMonth" | "newRequests" | "needsFundingReview" | "deliveredThisMonth" | "declinedThisMonth";
+type ReviewTab       = "request" | "funding" | "patient" | "communication" | "history";
+type KpiActiveFilter = "newRequests" | "needsStaffReview" | "needsFundingReview" | "needsFollowUp" | "deliveredThisMonth";
 type RowsPerPage     = 20 | 50 | 100;
 
 interface Order {
@@ -380,6 +380,62 @@ function getSourceKey(source: string | undefined): ReportSource {
 
 function getSourceLabel(source: string | undefined): string {
   return REPORT_SOURCE_LABEL[getSourceKey(source)];
+}
+
+function portalAccountLabel(status: Order["portalAccountStatus"]): string {
+  if (status === "linked") return "Linked";
+  if (status === "no_account") return "No portal account";
+  return "Unknown";
+}
+
+// Statuses where staff action is genuinely outstanding — drives the row
+// action button label ("Open review" vs "View") and table left-border cue.
+function orderNeedsAction(order: Order): boolean {
+  return (
+    order.status === "New" ||
+    order.status === "Reviewing" ||
+    order.status === "Needs Follow-Up" ||
+    Boolean(order.needsFundingReview)
+  );
+}
+
+function attentionReason(order: Order, hasNotif: boolean): string {
+  if (order.status === "New") return "New request awaiting staff review";
+  if (order.needsFundingReview) return "Funding check required before approval";
+  if (order.status === "Needs Follow-Up") return order.reviewReason || "Follow-up required";
+  if (order.status === "Reviewing") return "Under review — needs decision";
+  if (hasNotif) return "Patient communication queued";
+  return "Needs attention";
+}
+
+function attentionNextAction(order: Order): string {
+  if (order.status === "New") return "Open review";
+  if (order.needsFundingReview) return "Complete funding check";
+  if (order.status === "Needs Follow-Up") return "Contact patient";
+  if (order.status === "Reviewing") return "Complete review";
+  return "View";
+}
+
+// Communication cell label — derived only from data the notification queue
+// already produces. "Sent" is intentionally not used: the current queue
+// model never marks a record as actually sent, only queued or superseded.
+function commCellLabel(order: Order, notifState: OrderNotifState | null | undefined): string {
+  const triggersComms = order.status === "Approved" || order.status === "Sent" || order.status === "Declined" || order.status === "Needs Follow-Up";
+  if (!triggersComms) return "Not required";
+  if (notifState === undefined) return "—";
+  if (notifState === null) return "No communication queued";
+  if (notifState.ok) {
+    return (notifState.supersededCount ?? 0) > 0 ? "Previous communication superseded" : "Communication queued";
+  }
+  return "—";
+}
+
+// "Mask cushion, Headgear, Filters" -> "Mask cushion, Headgear +1 more"
+// Freeform descriptions (no commas) are left untouched.
+function formatItemsDisplay(itemsStr: string): string {
+  const parts = itemsStr.split(",").map((p) => p.trim()).filter(Boolean);
+  if (parts.length <= 2) return itemsStr;
+  return `${parts.slice(0, 2).join(", ")} +${parts.length - 2} more`;
 }
 
 const STATUS_TABS: { key: StatusTab; label: string }[] = [
@@ -1013,6 +1069,110 @@ const TRIGGER_STATUS_DISPLAY: Record<string, string> = {
   needs_followup: "Needs Follow-Up",
 };
 
+// ─── Overview charts — derived only from already-loaded real request data ────
+
+const BREAKDOWN_STATUSES: { label: OrderStatus; color: string }[] = [
+  { label: "New",              color: "bg-amber-400" },
+  { label: "Reviewing",        color: "bg-blue-400" },
+  { label: "Approved",         color: "bg-emerald-500" },
+  { label: "Sent",             color: "bg-purple-500" },
+  { label: "Delivered",        color: "bg-teal-500" },
+  { label: "Declined",         color: "bg-red-400" },
+  { label: "Needs Follow-Up",  color: "bg-orange-400" },
+];
+
+function StatusBreakdownCard({ kpiCounts }: { kpiCounts: Record<string, number> }) {
+  const total = BREAKDOWN_STATUSES.reduce((sum, r) => sum + (kpiCounts[r.label] ?? 0), 0);
+  const maxCount = Math.max(1, ...BREAKDOWN_STATUSES.map((r) => kpiCounts[r.label] ?? 0));
+  return (
+    <div className="bg-white rounded-xl border border-sand px-5 py-4 shadow-sm">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold text-navy">Status breakdown</h3>
+        <span className="text-xs text-gray-400">{total} total requests</span>
+      </div>
+      {total === 0 ? (
+        <p className="text-sm text-gray-400 py-4">No real requests loaded yet.</p>
+      ) : (
+        <div className="space-y-2">
+          {BREAKDOWN_STATUSES.map((r) => {
+            const count = kpiCounts[r.label] ?? 0;
+            return (
+              <div key={r.label} className="grid grid-cols-[110px_1fr_24px] items-center gap-2">
+                <span className="text-xs text-gray-600 text-right truncate">{r.label}</span>
+                <div className="h-2.5 rounded-full bg-[#F0EAD8] overflow-hidden">
+                  <div className={cn("h-full rounded-full", r.color)} style={{ width: `${(count / maxCount) * 100}%` }} />
+                </div>
+                <span className="text-xs font-semibold text-gray-700 text-right">{count}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface WeeklyTrendBucket {
+  label: string;
+  count: number;
+}
+
+// Buckets real (non-demo, non-admin-local) requests into the last 6
+// consecutive 7-day windows ending today, using only the already-loaded
+// `date` field. No historical data is invented.
+function buildWeeklyTrend(orders: Order[]): WeeklyTrendBucket[] {
+  const real = orders.filter((o) => !isAdminRow(o));
+  const dated = real.map((o) => parseToDate(o.date)).filter((d): d is Date => d !== null);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const buckets: WeeklyTrendBucket[] = [];
+  for (let i = 5; i >= 0; i--) {
+    const end = new Date(today);
+    end.setDate(end.getDate() - i * 7);
+    const start = new Date(end);
+    start.setDate(start.getDate() - 6);
+    const count = dated.filter((d) => d >= start && d <= end).length;
+    buckets.push({ label: formatChartDate(end, false), count });
+  }
+  return buckets;
+}
+
+function RequestTrendCard({ orders }: { orders: Order[] }) {
+  const buckets = useMemo(() => buildWeeklyTrend(orders), [orders]);
+  const realCount = orders.filter((o) => !isAdminRow(o)).length;
+  const weeksWithData = buckets.filter((b) => b.count > 0).length;
+  const hasEnoughData = realCount >= 5 && weeksWithData >= 2;
+
+  return (
+    <div className="bg-white rounded-xl border border-sand px-5 py-4 shadow-sm">
+      <h3 className="text-sm font-semibold text-navy mb-3">Request volume — last 6 weeks</h3>
+      {!hasEnoughData ? (
+        <div className="flex min-h-[140px] items-center justify-center">
+          <p className="max-w-xs text-center text-sm text-gray-400">
+            Trend data will become more useful as requests accumulate.
+          </p>
+        </div>
+      ) : (
+        <div className="flex items-end gap-2 h-32">
+          {buckets.map((b) => {
+            const maxCount = Math.max(1, ...buckets.map((x) => x.count));
+            return (
+              <div key={b.label} className="flex-1 flex flex-col items-center gap-1.5">
+                <div
+                  className="w-full rounded-t bg-[#0B5C6C]/80 min-h-[3px]"
+                  style={{ height: `${Math.max(4, (b.count / maxCount) * 100)}%` }}
+                />
+                <span className="text-[10px] text-gray-400 whitespace-nowrap">{b.label}</span>
+                <span className="text-xs font-semibold text-gray-700">{b.count}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // notifState meanings:
 //   undefined  = not yet loaded (fetch in progress)
 //   null       = loaded, no queued notification
@@ -1229,6 +1389,7 @@ function RequestReviewDrawer({
     { key: "request", label: "Request" },
     { key: "funding", label: "Funding" },
     { key: "patient", label: "Patient" },
+    { key: "communication", label: "Communication" },
     { key: "history", label: "History" },
   ];
 
@@ -1413,7 +1574,13 @@ function RequestReviewDrawer({
                 )}
               </dl>
 
-              <NotificationSection notifState={notifState} orderStatus={order.status} />
+              {order.adminNote && (
+                <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5">Internal admin note</p>
+                  <p className="text-sm text-gray-800 leading-5 whitespace-pre-wrap">{order.adminNote}</p>
+                  <p className="mt-2 text-[10px] text-gray-400">Internal only — not visible to the patient.</p>
+                </div>
+              )}
             </div>
           ) : tab === "funding" ? (
             <div className="space-y-5">
@@ -1539,20 +1706,48 @@ function RequestReviewDrawer({
             </div>
           ) : tab === "patient" ? (
             <div className="space-y-5">
-              <dl className="space-y-4">
-                <div>
-                  <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Name</dt>
-                  <dd className="mt-1 text-base font-semibold text-navy">{order.patient}</dd>
+              <div className="rounded-xl border border-sand bg-[#FDFCF5] px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Patient summary</p>
+                <div className="mt-3 flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#0B5C6C] text-xs font-bold text-white">
+                    {order.patient.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase() || "PT"}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-base font-semibold text-navy">{order.patient}</p>
+                    <p className="font-mono text-sm text-gray-500">{order.msid}</p>
+                  </div>
                 </div>
-                <div>
-                  <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Midland Sleep ID</dt>
-                  <dd className="mt-1 font-mono text-sm text-gray-700">{order.msid}</dd>
+              </div>
+
+              <dl className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-lg border border-gray-200 bg-white px-4 py-3">
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Portal access</dt>
+                  <dd className="mt-2">
+                    <span className={cn(
+                      "inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold",
+                      order.portalAccountStatus === "linked"
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                        : order.portalAccountStatus === "no_account"
+                          ? "border-gray-200 bg-gray-50 text-gray-600"
+                          : "border-amber-200 bg-amber-50 text-amber-700"
+                    )}>
+                      {portalAccountLabel(order.portalAccountStatus)}
+                    </span>
+                  </dd>
                 </div>
-                <div>
-                  <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Source</dt>
+                <div className="rounded-lg border border-gray-200 bg-white px-4 py-3">
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Request source</dt>
                   <dd className="mt-1"><SourceBadge source={order.source} /></dd>
                 </div>
               </dl>
+
+              <div className="rounded-lg border border-gray-200 bg-white px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Default delivery address</p>
+                <p className="mt-2 text-sm leading-6 text-gray-500">
+                  Delivery address is not included in this request record. Open the patient record to verify address details before fulfilment.
+                </p>
+              </div>
+
               <p className="text-sm leading-6 text-gray-500">
                 Device record, mask record, and full patient history are available in the patient profile.
               </p>
@@ -1566,6 +1761,10 @@ function RequestReviewDrawer({
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                 </svg>
               </button>
+            </div>
+          ) : tab === "communication" ? (
+            <div className="space-y-5">
+              <NotificationSection notifState={notifState} orderStatus={order.status} />
             </div>
           ) : (
             <div className="space-y-5">
@@ -1764,6 +1963,7 @@ function CreateTestRequestPanel({
 
 export default function AdminOrdersPage() {
   const [orders,              setOrders]              = useState<Order[]>([]);
+  const [search,              setSearch]              = useState("");
   const [ordersLoading,       setOrdersLoading]       = useState(true);
   const [statusTab,           setStatusTab]           = useState<StatusTab>("all");
   const [selected,            setSelected]            = useState<Set<string>>(new Set());
@@ -1924,11 +2124,8 @@ export default function AdminOrdersPage() {
       return d !== null && d.getFullYear() === cy && d.getMonth() === cm;
     }
     return {
-      requestsThisMonth:  real.filter((o) => inCurrentMonth(o.date)).length,
-      newRequests:        real.filter((o) => o.status === "New").length,
-      needsFundingReview: real.filter((o) => Boolean(o.needsFundingReview)).length,
+      needsStaffReview:   real.filter((o) => o.status === "New" || o.status === "Reviewing").length,
       deliveredThisMonth: real.filter((o) => o.status === "Delivered" && inCurrentMonth(o.date)).length,
-      declinedThisMonth:  real.filter((o) => o.status === "Declined"  && inCurrentMonth(o.date)).length,
     };
   }, [orders]);
 
@@ -1994,6 +2191,8 @@ const reviewOrder = useMemo(
       : REPORT_SOURCE_OPTIONS.filter((source) => reportSourceFilters.has(source)).map((source) => REPORT_SOURCE_LABEL[source]).join("; ") || "None";
 
   function clearAllFilters() {
+    setSearch("");
+    setStatusTab("all");
     setStatusFilters(new Set());
     setTypeFilters(new Set());
     setDateRange(null);
@@ -2017,6 +2216,7 @@ const reviewOrder = useMemo(
       setKpiActiveFilter(filter);
       setStatusTab("all");
       setStatusFilters(new Set());
+      setMainTab("requests");
     }
   }
 
@@ -2040,16 +2240,16 @@ const reviewOrder = useMemo(
         const d = parseToDate(s);
         return d !== null && d.getFullYear() === cy && d.getMonth() === cm;
       };
-      if (kpiActiveFilter === "requestsThisMonth") {
-        result = result.filter((o) => inCurrentMonth(o.date));
-      } else if (kpiActiveFilter === "newRequests") {
+      if (kpiActiveFilter === "newRequests") {
         result = result.filter((o) => o.status === "New");
+      } else if (kpiActiveFilter === "needsStaffReview") {
+        result = result.filter((o) => o.status === "New" || o.status === "Reviewing");
       } else if (kpiActiveFilter === "needsFundingReview") {
         result = result.filter((o) => Boolean(o.needsFundingReview));
+      } else if (kpiActiveFilter === "needsFollowUp") {
+        result = result.filter((o) => o.status === "Needs Follow-Up");
       } else if (kpiActiveFilter === "deliveredThisMonth") {
         result = result.filter((o) => o.status === "Delivered" && inCurrentMonth(o.date));
-      } else if (kpiActiveFilter === "declinedThisMonth") {
-        result = result.filter((o) => o.status === "Declined" && inCurrentMonth(o.date));
       }
     } else if (statusTab === "Needs Funding Review") {
       result = result.filter((o) => o.needsFundingReview);
@@ -2097,6 +2297,16 @@ const reviewOrder = useMemo(
       result = result.filter((o) => notifStates.get(o.id)?.ok === true);
     }
 
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      result = result.filter(
+        (o) =>
+          o.requestId.toLowerCase().includes(q) ||
+          o.patient.toLowerCase().includes(q) ||
+          o.msid.toLowerCase().includes(q)
+      );
+    }
+
     if (sortOpt) {
       result.sort((a, b) => {
         if (sortOpt === "newest")  return parseDateForSort(b.date) - parseDateForSort(a.date);
@@ -2116,16 +2326,16 @@ const reviewOrder = useMemo(
     }
 
     return result;
-  }, [orders, statusTab, statusFilters, typeFilters, dateRange, customDateFrom, customDateTo, sortOpt, showAdminRows, kpiActiveFilter, notifQueuedFilter, notifStates]);
+  }, [orders, statusTab, statusFilters, typeFilters, dateRange, customDateFrom, customDateTo, sortOpt, showAdminRows, kpiActiveFilter, notifQueuedFilter, notifStates, search]);
 
   const activeFilterCount = statusFilters.size + typeFilters.size + (dateRange ? 1 : 0) + (sortOpt ? 1 : 0) + (kpiActiveFilter ? 1 : 0) + (notifQueuedFilter ? 1 : 0);
 
   const kpiChipLabel: Record<KpiActiveFilter, string> = {
-    requestsThisMonth:  "This month",
     newRequests:        "New requests",
+    needsStaffReview:   "Needs staff review",
     needsFundingReview: "Funding check required",
+    needsFollowUp:      "Needs follow-up",
     deliveredThisMonth: "Delivered · this month",
-    declinedThisMonth:  "Declined · this month",
   };
   const customDateFromValue = parseInputDate(customDateFrom);
   const customDateToValue = parseInputDate(customDateTo);
@@ -2169,6 +2379,11 @@ const reviewOrder = useMemo(
       key: "sort",
       label: `Sort: ${sortOpt === "newest" ? "Newest" : sortOpt === "oldest" ? "Oldest" : sortOpt === "name_az" ? "Name A–Z" : "Status"}`,
       onRemove: () => setSortOpt(null),
+    }] : []),
+    ...(notifQueuedFilter ? [{
+      key: "communication",
+      label: "Communication queued",
+      onRemove: () => setNotifQueuedFilter(false),
     }] : []),
   ];
 
@@ -2437,42 +2652,6 @@ const reviewOrder = useMemo(
         </div>
       )}
 
-      {/* Operational KPI cards */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-        {(
-          [
-            { key: "requestsThisMonth"  as KpiActiveFilter, label: "Requests this month",   count: opKpiStats.requestsThisMonth,  dot: "bg-gray-400",       countCls: "text-gray-900",   sub: null },
-            { key: "newRequests"        as KpiActiveFilter, label: "New requests",           count: opKpiStats.newRequests,        dot: "bg-[#0B5C6C]",      countCls: "text-[#0B5C6C]",  sub: null },
-            { key: "needsFundingReview" as KpiActiveFilter, label: "Funding check required", count: opKpiStats.needsFundingReview, dot: "bg-amber-400",      countCls: opKpiStats.needsFundingReview > 0 ? "text-amber-700" : "text-gray-900", sub: opKpiStats.needsFundingReview > 0 ? "Requires staff check" : null },
-            { key: "deliveredThisMonth" as KpiActiveFilter, label: "Delivered requests",     count: opKpiStats.deliveredThisMonth, dot: "bg-emerald-500",    countCls: "text-emerald-700", sub: "Created this month" },
-            { key: "declinedThisMonth"  as KpiActiveFilter, label: "Declined requests",      count: opKpiStats.declinedThisMonth,  dot: "bg-rose-400",       countCls: opKpiStats.declinedThisMonth > 0 ? "text-rose-700" : "text-gray-900", sub: "Created this month" },
-          ] as const
-        ).map(({ key, label, count, dot, countCls, sub }) => {
-          const isActive = kpiActiveFilter === key;
-          return (
-            <button
-              key={key}
-              type="button"
-              onClick={() => handleKpiCardClick(key)}
-              className={cn(
-                "bg-white rounded-xl px-5 py-4 text-left transition-all shadow-sm min-h-[126px]",
-                isActive
-                  ? "border-2 border-[#0B5C6C] ring-1 ring-[#0B5C6C]/20"
-                  : "border border-sand hover:border-[#0B5C6C]/40 hover:shadow-md"
-              )}
-            >
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide flex items-center gap-1.5">
-                <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", dot)} />
-                {label}
-                {isActive && <span className="ml-auto text-[10px] font-semibold text-[#0B5C6C] bg-[#0B5C6C]/10 px-1.5 py-0.5 rounded">Active</span>}
-              </p>
-              <p className={cn("text-3xl font-bold mt-1.5", countCls)}>{count}</p>
-              {sub && <p className="text-[10px] text-gray-400 mt-1">{sub}</p>}
-            </button>
-          );
-        })}
-      </div>
-
       {/* Overview / Requests tab switcher */}
       <div className="rounded-xl border border-sand bg-white p-1 shadow-sm">
         <div className="flex gap-1">
@@ -2497,42 +2676,46 @@ const reviewOrder = useMemo(
       {/* Overview tab */}
       {mainTab === "overview" && (
         <div className="space-y-5">
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+          {/* Consolidated KPI row — exactly 6 non-overlapping cards, no duplicates */}
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
             {([
-              { label: "Needs staff review",    count: kpiCounts["New"],                 dot: "bg-amber-400",   countCls: kpiCounts["New"] > 0 ? "text-amber-700" : "text-gray-900",     sub: "Status: New" },
-              { label: "Needs follow-up",        count: kpiCounts["Needs Follow-Up"],     dot: "bg-orange-400",  countCls: kpiCounts["Needs Follow-Up"] > 0 ? "text-orange-700" : "text-gray-900", sub: "Awaiting staff action" },
-              { label: "Funding check required", count: kpiCounts["Needs Funding Review"], dot: "bg-amber-400",  countCls: kpiCounts["Needs Funding Review"] > 0 ? "text-amber-700" : "text-gray-900", sub: "Flagged for review" },
-              {
-                label: "Communication queued",
-                count: orders.filter((o) => !isAdminRow(o) && notifStates.get(o.id)?.ok === true).length,
-                dot: "bg-[#74C0A2]",
-                countCls: "text-[#0B5C6C]",
-                sub: "Patient message pending",
-              },
-              { label: "Sent / on the way",      count: kpiCounts["Sent"],               dot: "bg-purple-400",  countCls: "text-purple-700", sub: null },
-              { label: "Delivered",              count: kpiCounts["Delivered"],           dot: "bg-emerald-500", countCls: "text-emerald-700", sub: null },
-            ] as const).map(({ label, count, dot, countCls, sub }) => {
-              const isCommunicationQueued = label === "Communication queued";
-              const CardTag = isCommunicationQueued ? "button" : "div";
+              { key: "newRequests"        as KpiActiveFilter, label: "New requests",           count: kpiCounts["New"],                  dot: "bg-[#0B5C6C]",   countCls: "text-[#0B5C6C]",  sub: "Not yet opened" },
+              { key: "needsStaffReview"   as KpiActiveFilter, label: "Needs staff review",      count: opKpiStats.needsStaffReview,        dot: "bg-amber-400",   countCls: opKpiStats.needsStaffReview > 0 ? "text-amber-700" : "text-gray-900", sub: "New + Reviewing" },
+              { key: "needsFundingReview" as KpiActiveFilter, label: "Funding check required",  count: kpiCounts["Needs Funding Review"], dot: "bg-amber-400",   countCls: kpiCounts["Needs Funding Review"] > 0 ? "text-amber-700" : "text-gray-900", sub: "Flagged for review" },
+              { key: "needsFollowUp"      as KpiActiveFilter, label: "Needs follow-up",          count: kpiCounts["Needs Follow-Up"],      dot: "bg-orange-400",  countCls: kpiCounts["Needs Follow-Up"] > 0 ? "text-orange-700" : "text-gray-900", sub: "Awaiting staff action" },
+              { key: "communicationQueued" as const,           label: "Communication queued",    count: orders.filter((o) => !isAdminRow(o) && notifStates.get(o.id)?.ok === true).length, dot: "bg-[#74C0A2]", countCls: "text-[#0B5C6C]", sub: "Patient message pending" },
+              { key: "deliveredThisMonth" as KpiActiveFilter, label: "Delivered this month",     count: opKpiStats.deliveredThisMonth,      dot: "bg-emerald-500", countCls: "text-emerald-700", sub: "Created this month" },
+            ] as const).map(({ key, label, count, dot, countCls, sub }) => {
+              const isCommunicationQueued = key === "communicationQueued";
+              const isActive = !isCommunicationQueued && kpiActiveFilter === key;
               return (
-                <CardTag
-                  key={label}
-                  type={isCommunicationQueued ? "button" : undefined}
-                  onClick={isCommunicationQueued ? handleCommunicationQueuedOverviewClick : undefined}
+                <button
+                  key={key}
+                  type="button"
+                  onClick={isCommunicationQueued ? handleCommunicationQueuedOverviewClick : () => handleKpiCardClick(key as KpiActiveFilter)}
                   className={cn(
-                    "bg-white rounded-xl border border-sand px-5 py-4 shadow-sm text-left",
-                    isCommunicationQueued && "transition-colors hover:border-[#0B5C6C]/40 hover:bg-[#EFF5F4]"
+                    "bg-white rounded-xl px-5 py-4 text-left transition-all shadow-sm min-h-[110px]",
+                    isActive
+                      ? "border-2 border-[#0B5C6C] ring-1 ring-[#0B5C6C]/20"
+                      : "border border-sand hover:border-[#0B5C6C]/40 hover:shadow-md"
                   )}
                 >
                   <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide flex items-center gap-1.5">
                     <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", dot)} />
                     {label}
+                    {isActive && <span className="ml-auto text-[10px] font-semibold text-[#0B5C6C] bg-[#0B5C6C]/10 px-1.5 py-0.5 rounded">Active</span>}
                   </p>
                   <p className={cn("text-3xl font-bold mt-1.5", countCls)}>{count}</p>
                   {sub && <p className="text-[10px] text-gray-400 mt-1">{sub}</p>}
-                </CardTag>
+                </button>
               );
             })}
+          </div>
+
+          {/* Charts — derived only from already-loaded real request data */}
+          <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
+            <RequestTrendCard orders={orders} />
+            <StatusBreakdownCard kpiCounts={kpiCounts} />
           </div>
 
           <div className="bg-white border border-sand rounded-xl overflow-hidden shadow-sm">
@@ -2552,28 +2735,52 @@ const reviewOrder = useMemo(
             {attentionOrders.length === 0 ? (
               <p className="px-5 py-6 text-sm text-gray-500">No requests currently need attention.</p>
             ) : (
-              <div className="divide-y divide-sand/60">
-                {attentionOrders.map((order) => (
-                  <div key={order.id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-[#F5F3EE] transition-colors">
-                    <button
-                      type="button"
-                      onClick={() => handleReviewRequest(order)}
-                      className="font-mono text-sm font-semibold text-[#0B5C6C] hover:underline whitespace-nowrap text-left"
-                    >
-                      {order.requestId}
-                    </button>
-                    <span className="text-sm font-medium text-navy flex-1 min-w-0 truncate">{order.patient}</span>
-                    {notifStates.get(order.id)?.ok === true ? (
-                      <span className="inline-flex items-center text-xs font-semibold px-2.5 py-0.5 rounded-full whitespace-nowrap border border-[#74C0A2]/40 bg-[#74C0A2]/20 text-[#0B5C6C]">
-                        Patient communication queued
-                      </span>
-                    ) : (
-                      <span className={cn("inline-flex items-center text-xs font-semibold px-2.5 py-0.5 rounded-full whitespace-nowrap", STATUS_BADGE[order.status])}>{order.status}</span>
-                    )}
-                    <span className="text-xs text-gray-400 whitespace-nowrap">{order.date}</span>
-                  </div>
-                ))}
-              </div>
+              <>
+                <div className="hidden lg:grid grid-cols-[130px_150px_1fr_170px_90px_120px] gap-3 px-5 py-2 bg-[#FAF8F2] border-b border-sand/60 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                  <span>Request</span>
+                  <span>Patient</span>
+                  <span>Reason</span>
+                  <span>Status / Comm.</span>
+                  <span>Created</span>
+                  <span>Next action</span>
+                </div>
+                <div className="divide-y divide-sand/60">
+                  {attentionOrders.map((order) => {
+                    const hasNotif = notifStates.get(order.id)?.ok === true;
+                    return (
+                      <div
+                        key={order.id}
+                        className="flex flex-col gap-2 px-5 py-3.5 hover:bg-[#F5F3EE] transition-colors lg:grid lg:grid-cols-[130px_150px_1fr_170px_90px_120px] lg:items-center lg:gap-3"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => handleReviewRequest(order)}
+                          className="font-mono text-sm font-semibold text-[#0B5C6C] hover:underline whitespace-nowrap text-left"
+                        >
+                          {order.requestId}
+                        </button>
+                        <span className="text-sm font-medium text-navy truncate">{order.patient}</span>
+                        <span className="text-xs text-gray-600 leading-5">{attentionReason(order, hasNotif)}</span>
+                        {hasNotif ? (
+                          <span className="inline-flex w-fit items-center text-xs font-semibold px-2.5 py-0.5 rounded-full whitespace-nowrap border border-[#74C0A2]/40 bg-[#74C0A2]/20 text-[#0B5C6C]">
+                            Patient communication queued
+                          </span>
+                        ) : (
+                          <span className={cn("inline-flex w-fit items-center text-xs font-semibold px-2.5 py-0.5 rounded-full whitespace-nowrap", STATUS_BADGE[order.status])}>{order.status}</span>
+                        )}
+                        <span className="text-xs text-gray-400 whitespace-nowrap">{order.date}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleReviewRequest(order)}
+                          className="w-fit text-xs font-semibold px-3 py-1.5 rounded-lg bg-[#0B5C6C] text-white hover:bg-[#0B5C6C]/90 transition-colors whitespace-nowrap"
+                        >
+                          {attentionNextAction(order)}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -2618,8 +2825,34 @@ const reviewOrder = useMemo(
         </div>
       </div>
 
-      {/* Toolbar: filter/sort + admin toggle + active filter chips */}
+      {/* Toolbar: search + filter/sort + funding/communication shortcuts + active filter chips */}
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-sand bg-white px-4 py-3 shadow-sm">
+        <div className="relative flex-1 min-w-[200px] max-w-sm">
+          <svg className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
+          </svg>
+          <input
+            type="text"
+            placeholder="Search by request ID, patient, or MSID..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-10 pr-9 py-2 border border-sand rounded-lg text-sm
+                       focus:outline-none focus:ring-2 focus:ring-[#0B5C6C] focus:border-transparent
+                       bg-white placeholder:text-gray-400"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              aria-label="Clear search"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
         <button
           type="button"
           onClick={() => setFilterOpen(true)}
@@ -2631,6 +2864,30 @@ const reviewOrder = useMemo(
               {activeFilterCount}
             </span>
           )}
+        </button>
+        <button
+          type="button"
+          onClick={() => handleStatusTab(statusTab === "Needs Funding Review" ? "all" : "Needs Funding Review")}
+          className={cn(
+            "text-sm font-medium px-3 py-1.5 rounded-lg border transition-colors",
+            statusTab === "Needs Funding Review"
+              ? "border-amber-300 bg-amber-50 text-amber-700"
+              : "border-sand bg-white text-gray-600 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700"
+          )}
+        >
+          Funding check
+        </button>
+        <button
+          type="button"
+          onClick={() => setNotifQueuedFilter((v) => !v)}
+          className={cn(
+            "text-sm font-medium px-3 py-1.5 rounded-lg border transition-colors",
+            notifQueuedFilter
+              ? "border-[#74C0A2]/50 bg-[#74C0A2]/15 text-[#0B5C6C]"
+              : "border-sand bg-white text-gray-600 hover:border-[#74C0A2]/50 hover:bg-[#EFF5F4] hover:text-[#0B5C6C]"
+          )}
+        >
+          Communication queued
         </button>
         <button
           type="button"
@@ -2708,13 +2965,14 @@ const reviewOrder = useMemo(
           <div className="overflow-x-auto lg:overflow-x-visible">
             <table className="w-full min-w-[900px] lg:min-w-0 table-fixed border-collapse">
               <colgroup>
-                <col className="w-[36px]" />
+                <col className="w-[32px]" />
+                <col className="w-[16%]" />
+                <col className="w-[16%]" />
                 <col className="w-[18%]" />
-                <col className="w-[18%]" />
-                <col className="w-[21%]" />
-                <col className="w-[12%]" />
+                <col className="w-[10%]" />
+                <col className="w-[11%]" />
                 <col className="w-[13%]" />
-                <col className="w-[8%]" />
+                <col className="w-[7%]" />
                 <col className="w-[10%]" />
               </colgroup>
               <thead>
@@ -2728,7 +2986,7 @@ const reviewOrder = useMemo(
                       aria-label="Select all"
                     />
                   </th>
-                  {["REF", "PATIENT", "ITEMS", "FUNDING", "STATUS", "CREATED", "ACTION"].map((col) => (
+                  {["REQUEST ID", "PATIENT", "ITEMS", "FUNDING", "STATUS", "COMMUNICATION", "CREATED", "ACTION"].map((col) => (
                     <th
                       key={col}
                       className="text-left px-2.5 py-2.5 text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap"
@@ -2775,7 +3033,7 @@ const reviewOrder = useMemo(
                           >
                             {order.requestId}
                           </button>
-                          <div className="font-mono text-[11px] text-gray-400 break-all">{order.msid}</div>
+                          <SourceBadge source={order.source} />
                           {order.needsFundingReview && (
                             <span className="inline-flex w-fit items-center text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
                               Funding check
@@ -2787,23 +3045,13 @@ const reviewOrder = useMemo(
                             </span>
                           )}
                         </div>
-                        {hasNotif && (
-                          <div className="mt-1 flex flex-col gap-0.5">
-                            <span className="inline-flex w-fit max-w-full items-center gap-1 rounded-full border border-[#74C0A2]/40 bg-[#74C0A2]/20 px-2 py-0.5 text-[11px] font-semibold text-[#0B5C6C]">
-                              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#0B5C6C]/50" />
-                              <span className="leading-4">Patient communication queued</span>
-                            </span>
-                            {(notifStates.get(order.id)?.supersededCount ?? 0) > 0 && (
-                              <span className="inline-flex w-fit max-w-full items-center rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
-                                Previous communication superseded
-                              </span>
-                            )}
-                          </div>
-                        )}
                       </td>
                       {/* PATIENT */}
                       <td className="px-2.5 py-3 align-top">
-                        <span className="text-sm font-semibold text-navy leading-5">{order.patient}</span>
+                        <div className="space-y-1">
+                          <span className="block text-sm font-semibold text-navy leading-5">{order.patient}</span>
+                          <span className="block font-mono text-[11px] text-gray-400 break-all">{order.msid}</span>
+                        </div>
                         {order.portalAccountStatus === "linked" && (
                           <div className="mt-0.5">
                             <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
@@ -2825,29 +3073,40 @@ const reviewOrder = useMemo(
                             </span>
                           </div>
                         )}
+                        {order.status === "Needs Follow-Up" && (
+                          <div className="mt-1 flex items-center gap-1 text-[10px] font-semibold text-amber-700">
+                            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400" />
+                            Follow-up required
+                          </div>
+                        )}
                       </td>
                       {/* ITEMS */}
                       <td className="px-2.5 py-3 align-top">
                         <span className="block text-sm text-gray-700 leading-5 line-clamp-2">
-                          {order.items || order.itemDescription || "—"}
+                          {order.items ? formatItemsDisplay(order.items) : order.itemDescription || "—"}
                         </span>
                       </td>
                       {/* FUNDING */}
                       <td className="px-2.5 py-3 align-top">
                         {order.estimatedFundedAmount !== null || order.estimatedItemAmount !== null ? (
                           <div className="space-y-0.5 text-xs leading-4">
+                            {order.needsFundingReview && (
+                              <div className="inline-flex w-fit items-center rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">
+                                Funding check
+                              </div>
+                            )}
                             {order.estimatedFundedAmount !== null && (
-                              <div className="font-semibold text-emerald-700">{formatEstimate(order.estimatedFundedAmount)} funded</div>
+                              <div className="font-semibold text-emerald-700">Est. {formatEstimate(order.estimatedFundedAmount)} funded</div>
                             )}
                             {order.estimatedPatientCopay !== null && order.estimatedPatientCopay > 0 && (
                               <div className="text-gray-600">{formatEstimate(order.estimatedPatientCopay)} co-pay</div>
                             )}
                             {order.estimatedItemAmount !== null && (
-                              <div className="text-gray-400">Est {formatEstimate(order.estimatedItemAmount)}</div>
+                              <div className="text-gray-400">Est. {formatEstimate(order.estimatedItemAmount)} total</div>
                             )}
                           </div>
                         ) : (
-                          <span className="text-xs text-gray-400">—</span>
+                          <span className="text-xs text-gray-400">Visibility only — no estimate</span>
                         )}
                       </td>
                       {/* STATUS */}
@@ -2875,6 +3134,29 @@ const reviewOrder = useMemo(
                           )}
                         </div>
                       </td>
+                      {/* COMMUNICATION */}
+                      <td className="px-2.5 py-3 align-top">
+                        {(() => {
+                          const notifState = notifStates.get(order.id);
+                          const label = commCellLabel(order, notifState);
+                          if (label === "Communication queued") {
+                            return (
+                              <span className="inline-flex w-fit max-w-full items-center gap-1 rounded-full border border-[#74C0A2]/40 bg-[#74C0A2]/20 px-2 py-0.5 text-[11px] font-semibold text-[#0B5C6C]">
+                                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#0B5C6C]/50" />
+                                <span className="leading-4">{label}</span>
+                              </span>
+                            );
+                          }
+                          if (label === "Previous communication superseded") {
+                            return (
+                              <span className="inline-flex w-fit max-w-full items-center rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+                                {label}
+                              </span>
+                            );
+                          }
+                          return <span className="text-xs text-gray-400">{label}</span>;
+                        })()}
+                      </td>
                       {/* CREATED */}
                       <td className="px-2.5 py-3 align-top">
                         <span className="text-xs text-gray-700 leading-5">{order.date}</span>
@@ -2886,7 +3168,7 @@ const reviewOrder = useMemo(
                           onClick={() => handleReviewRequest(order)}
                           className="bg-[#0B5C6C] text-white text-xs font-semibold px-3 py-1.5 rounded-lg min-h-[34px] hover:bg-[#0B5C6C]/90 transition-colors whitespace-nowrap"
                         >
-                          Open review
+                          {orderNeedsAction(order) ? "Open review" : "View"}
                         </button>
                       </td>
                     </tr>
