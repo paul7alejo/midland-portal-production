@@ -30,6 +30,16 @@ const docClient = DynamoDBDocumentClient.from(
 
 // ── Record types ──────────────────────────────────────────────────────────────
 
+export interface PatientAddressStructured {
+  line1?: string
+  line2?: string
+  suburb?: string
+  city?: string
+  region?: string
+  postal_code?: string
+  country?: string
+}
+
 export interface PatientRecord {
   pk: string         // USER#uuid
   sk: 'PROFILE'
@@ -41,6 +51,8 @@ export interface PatientRecord {
   date_of_birth?: string
   phone?: string
   address?: string
+  address_structured?: PatientAddressStructured
+  gender?: string
   funded_by?: string
   nhi_encrypted?: string
   nhi_hash?: string
@@ -189,6 +201,8 @@ export type ImportedPatientSummary = Pick<
   | 'email'
   | 'phone'
   | 'address'
+  | 'address_structured'
+  | 'gender'
   | 'date_of_birth'
   | 'funded_by'
   | 'import_batch_id'
@@ -235,6 +249,53 @@ export async function getPatientByMSID(msid: string, orgId: string): Promise<Pat
   // Cognito custom:msid may be stored without the prefix on older/manual accounts.
   const withPrefix = msid.startsWith('MS-') ? msid : `MS-${msid}`
   return (await queryById(withPrefix)) ?? (await queryById(withPrefix.slice(3)))
+}
+
+// Admin-editable patient fields only — NHI, MSID (portal_id), and date_of_birth
+// are intentionally excluded from this function's parameter shape so they can
+// never be written through this path, regardless of caller input.
+export async function updateAdminPatientDetails(params: {
+  pk: string
+  fields: {
+    name?: string
+    phone?: string
+    email?: string
+    gender?: string
+    address?: string
+    address_structured?: PatientAddressStructured
+  }
+  adminSub: string
+  adminEmail: string
+}): Promise<void> {
+  const now = new Date().toISOString()
+  const entries = Object.entries(params.fields).filter(([, value]) => value !== undefined)
+
+  const ExpressionAttributeNames: Record<string, string> = {
+    '#updated_at': 'updated_at',
+    '#updated_by': 'updated_by',
+    '#updated_by_email': 'updated_by_email',
+  }
+  const ExpressionAttributeValues: Record<string, unknown> = {
+    ':now': now,
+    ':sub': params.adminSub,
+    ':email': params.adminEmail,
+  }
+  const setClauses: string[] = ['#updated_at = :now', '#updated_by = :sub', '#updated_by_email = :email']
+
+  for (const [key, value] of entries) {
+    ExpressionAttributeNames[`#${key}`] = key
+    ExpressionAttributeValues[`:${key}`] = value
+    setClauses.push(`#${key} = :${key}`)
+  }
+
+  await docClient.send(new UpdateCommand({
+    TableName: TABLES.PATIENTS,
+    Key: { pk: params.pk, sk: 'PROFILE' },
+    ConditionExpression: 'attribute_exists(pk)',
+    UpdateExpression: `SET ${setClauses.join(', ')}`,
+    ExpressionAttributeNames,
+    ExpressionAttributeValues,
+  }))
 }
 
 export async function listImportedPatients(orgId: string): Promise<ImportedPatientSummary[]> {
@@ -1531,6 +1592,10 @@ export interface PatientNoteRecord {
   created_by_email: string
   note_type: 'internal'
   visibility: 'admin_only'
+  // admin-facing note category, e.g. 'admin_note', 'contact_update' — distinct
+  // from the fixed `note_type` visibility marker above
+  admin_note_type?: string
+  follow_up_required?: boolean
   // edit fields
   updated_at?: string
   updated_by?: string
@@ -1549,6 +1614,8 @@ export async function putPatientNote(params: {
   body: string
   adminSub: string
   adminEmail: string
+  adminNoteType?: string
+  followUpRequired?: boolean
 }): Promise<PatientNoteRecord> {
   const msidNorm = params.msid.startsWith('MS-') ? params.msid : `MS-${params.msid}`
   const timestamp_ms = Date.now()
@@ -1566,6 +1633,8 @@ export async function putPatientNote(params: {
     created_by_email: params.adminEmail,
     note_type: 'internal',
     visibility: 'admin_only',
+    ...(params.adminNoteType !== undefined && { admin_note_type: params.adminNoteType }),
+    ...(params.followUpRequired !== undefined && { follow_up_required: params.followUpRequired }),
   }
   await docClient.send(new PutCommand({
     TableName: TABLES.PATIENTS,

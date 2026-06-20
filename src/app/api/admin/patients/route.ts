@@ -6,13 +6,71 @@ import {
   getPatientMask,
   listPatients,
   listImportedPatients,
+  updateAdminPatientDetails,
   type DeviceRecord,
   type ImportedPatientSummary,
   type MaskRecord,
+  type PatientAddressStructured,
   type PatientRecord,
 } from '@/lib/aws/dynamodb';
+import { writeAdminAuditEvent } from '@/lib/aws/audit';
 
 const ORG_ID = 'midland-sleep';
+
+// Fields an admin may update through PATCH. NHI, MSID (portal_id), and
+// date_of_birth are deliberately excluded — they are never written here,
+// regardless of what a caller sends.
+const ALLOWED_PATCH_FIELDS = new Set([
+  'msid',
+  'name',
+  'phone',
+  'email',
+  'gender',
+  'address',
+]);
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function cleanString(value: unknown, maxLength: number): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string') return undefined;
+  const cleaned = value.trim();
+  if (cleaned.length > maxLength) return undefined;
+  return cleaned;
+}
+
+function parseAddress(value: unknown): PatientAddressStructured | undefined {
+  if (value === undefined) return undefined;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const raw = value as Record<string, unknown>;
+  return {
+    line1:       cleanString(raw.line1, 120) ?? '',
+    line2:       cleanString(raw.line2, 120) ?? '',
+    suburb:      cleanString(raw.suburb, 80) ?? '',
+    city:        cleanString(raw.city, 80) ?? '',
+    region:      cleanString(raw.region, 80) ?? '',
+    postal_code: cleanString(raw.postal_code, 20) ?? '',
+    country:     cleanString(raw.country, 80) || 'New Zealand',
+  };
+}
+
+function formatAddress(address: PatientAddressStructured): string {
+  return [
+    address.line1,
+    address.line2,
+    address.suburb,
+    [address.city, address.region, address.postal_code].filter(Boolean).join(' '),
+    address.country,
+  ].filter(Boolean).join(', ');
+}
+
+function patientPatchValue(patient: PatientRecord, key: string): unknown {
+  if (key === 'address') return patient.address_structured;
+  return patient[key as keyof PatientRecord];
+}
+
+function valuesEqual(a: unknown, b: unknown): boolean {
+  return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+}
 
 interface ImportedPatientExportRow {
   patientName: string;
@@ -39,6 +97,8 @@ function sanitizeImportedPatient(patient: PatientRecord): ImportedPatientSummary
     email: patient.email,
     phone: patient.phone,
     address: patient.address,
+    address_structured: patient.address_structured,
+    gender: patient.gender,
     date_of_birth: patient.date_of_birth,
     funded_by: patient.funded_by,
     import_batch_id: patient.import_batch_id,
@@ -239,5 +299,141 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ patients });
   } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  const user = await getAdminUser();
+  if (!user || !isAuthorizedAdmin(user)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+  }
+
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+  }
+
+  const payload = body as Record<string, unknown>;
+  for (const key of Object.keys(payload)) {
+    if (!ALLOWED_PATCH_FIELDS.has(key)) {
+      return NextResponse.json({ error: `Field '${key}' cannot be updated` }, { status: 400 });
+    }
+  }
+
+  const msid = cleanString(payload.msid, 32) ?? '';
+  if (!/^MS-\d+$/.test(msid)) {
+    return NextResponse.json({ error: 'Invalid msid' }, { status: 400 });
+  }
+
+  const fields: {
+    name?: string;
+    phone?: string;
+    email?: string;
+    gender?: string;
+    address?: string;
+    address_structured?: PatientAddressStructured;
+  } = {};
+
+  if (payload.name !== undefined) {
+    const name = cleanString(payload.name, 120);
+    if (!name) return NextResponse.json({ error: 'Invalid name' }, { status: 400 });
+    fields.name = name;
+  }
+
+  if (payload.phone !== undefined) {
+    const phone = cleanString(payload.phone, 40);
+    if (phone === undefined) return NextResponse.json({ error: 'Invalid phone' }, { status: 400 });
+    fields.phone = phone;
+  }
+
+  if (payload.email !== undefined) {
+    const email = cleanString(payload.email, 160);
+    if (email === undefined || (email && !EMAIL_RE.test(email))) {
+      return NextResponse.json({ error: 'Invalid email' }, { status: 400 });
+    }
+    fields.email = email;
+  }
+
+  if (payload.gender !== undefined) {
+    const gender = cleanString(payload.gender, 40);
+    if (gender === undefined) return NextResponse.json({ error: 'Invalid gender' }, { status: 400 });
+    fields.gender = gender;
+  }
+
+  if (payload.address !== undefined) {
+    const address = parseAddress(payload.address);
+    if (!address) return NextResponse.json({ error: 'Invalid address' }, { status: 400 });
+    fields.address_structured = address;
+    fields.address = formatAddress(address);
+  }
+
+  if (Object.keys(fields).length === 0) {
+    return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
+  }
+
+  try {
+    const patient = await getPatientByMSID(msid, ORG_ID);
+    if (!patient) {
+      return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
+    }
+
+    const changedFields = Object.keys(fields).filter((key) => {
+      if (key === 'address') return !valuesEqual(patient.address, fields.address);
+      if (key === 'address_structured') return !valuesEqual(patientPatchValue(patient, 'address'), fields.address_structured);
+      return !valuesEqual(patientPatchValue(patient, key), fields[key as keyof typeof fields]);
+    });
+
+    if (changedFields.length === 0) {
+      return NextResponse.json({ error: 'No fields changed' }, { status: 400 });
+    }
+
+    // Audit-first: write the audit event before mutating. If the audit write
+    // fails, abort — this endpoint is fail-closed, matching the pattern used
+    // by /api/admin/patients/notes.
+    const auditResult = await writeAdminAuditEvent({
+      action:      'PATIENT_DETAILS_UPDATED',
+      adminSub:    user.sub,
+      adminEmail:  user.email,
+      patientMsid: patient.portal_id ?? msid,
+      details:     `Patient details updated: ${changedFields.sort().join(', ')}`,
+    });
+    if (!auditResult.ok) {
+      return NextResponse.json({ error: 'Audit write failed — patient details not saved' }, { status: 500 });
+    }
+
+    await updateAdminPatientDetails({
+      pk: patient.pk,
+      fields,
+      adminSub: user.sub,
+      adminEmail: user.email,
+    });
+
+    const updatedPatient: PatientRecord = {
+      ...patient,
+      ...fields,
+      updated_at: new Date().toISOString(),
+      updated_by: user.sub,
+      updated_by_email: user.email,
+    };
+
+    return NextResponse.json({
+      ok: true,
+      patient: sanitizeImportedPatient(updatedPatient),
+      changed_fields: changedFields,
+    });
+  } catch (err: unknown) {
+    const errorName = err instanceof Error ? err.name : 'UnknownError';
+    if (errorName === 'ConditionalCheckFailedException') {
+      return NextResponse.json({ error: 'Patient record could not be updated — it may have changed' }, { status: 409 });
+    }
+    // Safe metadata only — no raw error payloads, no identifiers.
+    console.error('[patients] PATCH failed', { errorName, hasMsid: Boolean(msid), adminPresent: Boolean(user.email) });
+    return NextResponse.json({ error: 'Failed to update patient' }, { status: 500 });
   }
 }

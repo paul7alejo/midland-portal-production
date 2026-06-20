@@ -5,7 +5,6 @@ import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import {
-  Archive,
   AlertTriangle,
   Check,
   ChevronLeft,
@@ -429,6 +428,24 @@ function parseAddress(address?: string) {
   };
 }
 
+// Structured address is the preferred source for display; legacy flat string
+// is only used when no structured fields are present.
+function formatStructuredAddress(structured: StructuredPatientAddress | undefined, fallback?: string): string {
+  const hasStructured = structured && [structured.line1, structured.line2, structured.suburb, structured.city, structured.region, structured.postal_code].some((v) => v?.trim());
+  if (!hasStructured || !structured) return safeValue(fallback);
+
+  const lines: string[] = [];
+  if (structured.line1?.trim()) lines.push(structured.line1.trim());
+  if (structured.line2?.trim()) lines.push(structured.line2.trim());
+  const cityLine = [structured.suburb, structured.city, structured.region, structured.postal_code]
+    .map((v) => v?.trim())
+    .filter(Boolean)
+    .join(" ");
+  if (cityLine) lines.push(cityLine);
+  if (structured.country?.trim()) lines.push(structured.country.trim());
+  return lines.join(", ");
+}
+
 function ModalShell({
   title,
   subtitle,
@@ -490,6 +507,7 @@ const SEVERITY_CHIP: Record<string, string> = {
 };
 
 function activityArea(action: string): string {
+  if (action.startsWith('PATIENT_DETAILS')) return 'Patient';
   if (action.startsWith('PATIENT_REVIEW')) return 'Review';
   if (action.startsWith('PATIENT_OUTREACH')) return 'Outreach';
   if (action.startsWith('PATIENT_SAFETY')) return 'Admin Caution';
@@ -500,6 +518,7 @@ function activityArea(action: string): string {
 }
 
 const AREA_CHIP: Record<string, string> = {
+  'Patient':        'border-teal-200 bg-teal-50 text-teal-700',
   'Review':         'border-sky-200 bg-sky-50 text-sky-700',
   'Outreach':       'border-orange-200 bg-orange-50 text-orange-700',
   'Admin Caution':  'border-amber-200 bg-amber-50 text-amber-700',
@@ -898,7 +917,6 @@ function OverviewTab({
   onSetReviewStatus,
   onEdit,
   onAddInfo,
-  onArchive,
 }: {
   patient: DrawerPatient;
   reviewLoading: boolean;
@@ -906,7 +924,6 @@ function OverviewTab({
   onSetReviewStatus: (status: string) => void;
   onEdit: () => void;
   onAddInfo: () => void;
-  onArchive: () => void;
 }) {
   const age = calculateAgeFromDisplayDate(patient.dob);
   const showMarkReviewed =
@@ -958,7 +975,7 @@ function OverviewTab({
           <FieldRow label="Email Address" value={patient.email} />
           <FieldRow label="Portal Access" value={portalLinked ? "Linked" : "Not linked"} />
           <div className="sm:col-span-2">
-            <FieldRow label="Physical Address" value={patient.address} />
+            <FieldRow label="Physical Address" value={formatStructuredAddress(patient.addressStructured, patient.address)} />
           </div>
           <FieldRow label="MSID" value={<MonoValue value={patient.msid} />} />
         </dl>
@@ -1004,20 +1021,6 @@ function OverviewTab({
             </div>
           </dl>
           <button type="button" className="mt-4 text-sm font-semibold text-emerald-200 hover:text-white">View details →</button>
-        </div>
-      </section>
-
-      <section className="border-t border-[#E0CBAA] pt-5">
-        <h3 className="mb-3 text-xs font-bold uppercase tracking-[0.18em] text-red-600">Danger Zone</h3>
-        <div className="flex items-center justify-between gap-4 rounded-lg border border-red-200 bg-red-50 px-4 py-4">
-          <div>
-            <p className="text-sm font-semibold text-gray-800">Archive this patient</p>
-            <p className="mt-1 text-xs text-gray-500">Remove from active worklists. Record is retained for audit.</p>
-          </div>
-          <button type="button" onClick={onArchive} className="inline-flex items-center gap-2 rounded-md bg-red-600 px-3 py-2 text-xs font-bold text-white hover:bg-red-700">
-            <Archive className="h-4 w-4" />
-            Archive
-          </button>
         </div>
       </section>
     </div>
@@ -1272,109 +1275,31 @@ function EditPatientDetailsModal({
   );
 }
 
-const ARCHIVE_REASONS = [
-  "Patient deceased",
-  "Patient relocated — no longer in region",
-  "Duplicate record",
-  "Patient request",
-  "No longer under care",
-  "Other",
-];
+const NOTE_TYPE_LABELS: Record<string, string> = {
+  contact_update:            "Contact Update",
+  equipment_update:          "Equipment Update",
+  entitlement_funding_note:  "Entitlement / Funding Note",
+  admin_note:                "Admin Note",
+  safety_review_note:        "Safety / Review Note",
+  outreach_note:             "Outreach Note",
+};
 
-function ArchivePatientModal({ patient, onClose }: { patient: DrawerPatient; onClose: () => void }) {
-  const [reason, setReason] = useState("");
-  const [details, setDetails] = useState("");
-  const [archiving, setArchiving] = useState(false);
+function noteTypeLabel(noteType: string | undefined): string {
+  if (!noteType) return "Admin note";
+  return NOTE_TYPE_LABELS[noteType] ?? "Admin note";
+}
 
-  function handleArchiveClick() {
-    if (!reason || archiving) return;
-    setArchiving(true);
-    setTimeout(() => {
-      setArchiving(false);
-      onClose();
-    }, 700);
-  }
-
-  return (
-    <ModalShell
-      title="Archive patient record?"
-      onClose={onClose}
-      footer={
-        <>
-          <p className="text-xs text-gray-500">This action will be logged in the audit trail under your administrator ID.</p>
-          <div className="flex gap-3">
-            <button type="button" onClick={onClose} disabled={archiving} className="rounded-lg border border-[#E0CBAA] bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 disabled:opacity-50">Cancel</button>
-            <button
-              type="button"
-              disabled={!reason || archiving}
-              onClick={handleArchiveClick}
-              className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
-            >
-              <Archive className="h-4 w-4" />
-              {archiving ? "Archiving…" : "Archive patient"}
-            </button>
-          </div>
-        </>
-      }
-    >
-      <div className="flex items-center gap-3 rounded-lg border border-[#E0CBAA] bg-[#FDFCF5] px-4 py-3">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#0B5C6C] text-xs font-bold text-white">
-          {patientInitials(patient.name)}
-        </span>
-        <div>
-          <p className="text-sm font-semibold text-gray-800">{patient.name}</p>
-          <p className="font-mono text-xs text-gray-500">{patient.msid}</p>
-        </div>
-      </div>
-
-      <p className="mt-4 text-sm leading-6 text-gray-600">
-        This will remove the patient from active worklists but retain the record for audit and history. This does not delete the patient.
-      </p>
-
-      <ul className="mt-4 space-y-2 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-900">
-        <li className="flex items-center gap-2"><Check className="h-3.5 w-3.5 shrink-0 text-emerald-600" /> Record retained for audit and history</li>
-        <li className="flex items-center gap-2"><Check className="h-3.5 w-3.5 shrink-0 text-emerald-600" /> Excluded from active worklists and reports</li>
-        <li className="flex items-center gap-2"><RefreshCw className="h-3.5 w-3.5 shrink-0 text-[#0B5C6C]" /> Can be restored by an authorised admin</li>
-      </ul>
-
-      <label className="mt-5 block">
-        <span className="mb-2 block text-sm font-semibold text-gray-700">Archive reason *</span>
-        <select
-          value={reason}
-          onChange={(event) => setReason(event.target.value)}
-          required
-          className="w-full rounded-lg border border-red-200 bg-white px-3 py-2.5 text-sm focus:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-100"
-        >
-          <option value="">Select a reason...</option>
-          {ARCHIVE_REASONS.map((option) => <option key={option}>{option}</option>)}
-        </select>
-      </label>
-
-      {reason === "Other" && (
-        <label className="mt-4 block">
-          <span className="mb-2 block text-sm font-semibold text-gray-700">Additional details</span>
-          <textarea
-            rows={3}
-            value={details}
-            onChange={(event) => setDetails(event.target.value)}
-            className="w-full rounded-lg border border-red-200 bg-white px-3 py-3 text-sm focus:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-100"
-            placeholder="Provide context..."
-          />
-        </label>
-      )}
-
-      <p className="mt-4 text-xs text-gray-500">Archive action is prepared for controlled release. Records are not removed until the archive workflow is enabled.</p>
-    </ModalShell>
-  );
+function noteBodyPreview(body: string): string {
+  return body.length > 120 ? `${body.slice(0, 120)}…` : body;
 }
 
 const ADD_INFO_TYPES = [
-  { label: "Contact Update",             icon: Phone,         desc: "Update or add contact details" },
-  { label: "Equipment Update",           icon: Monitor,       desc: "Note equipment changes or issues" },
-  { label: "Entitlement / Funding Note", icon: DollarSign,    desc: "Record entitlement information" },
-  { label: "Admin Note",                 icon: ClipboardList, desc: "General administrative note" },
-  { label: "Safety / Review Note",       icon: ShieldAlert,   desc: "Flag safety concerns" },
-  { label: "Outreach Note",              icon: Mail,          desc: "Record outreach contact or attempt" },
+  { id: "contact_update",           label: NOTE_TYPE_LABELS.contact_update,           icon: Phone,         desc: "Update or add contact details" },
+  { id: "equipment_update",         label: NOTE_TYPE_LABELS.equipment_update,         icon: Monitor,       desc: "Note equipment changes or issues" },
+  { id: "entitlement_funding_note", label: NOTE_TYPE_LABELS.entitlement_funding_note, icon: DollarSign,    desc: "Record entitlement information" },
+  { id: "admin_note",               label: NOTE_TYPE_LABELS.admin_note,               icon: ClipboardList, desc: "General administrative note" },
+  { id: "safety_review_note",       label: NOTE_TYPE_LABELS.safety_review_note,       icon: ShieldAlert,   desc: "Flag safety concerns" },
+  { id: "outreach_note",            label: NOTE_TYPE_LABELS.outreach_note,            icon: Mail,          desc: "Record outreach contact or attempt" },
 ] as const;
 
 function AddInformationModal({
@@ -1394,10 +1319,10 @@ function AddInformationModal({
   const [noteType, setNoteType] = useState<string | null>(null);
   const [noteBody, setNoteBody] = useState("");
   const [followUpRequired, setFollowUpRequired] = useState(false);
-  const selected = ADD_INFO_TYPES.find((type) => type.label === noteType);
+  const selected = ADD_INFO_TYPES.find((type) => type.id === noteType);
 
-  function chooseType(label: string) {
-    setNoteType(label);
+  function chooseType(id: string) {
+    setNoteType(id);
     setStep("entry");
   }
   function backToTypes() {
@@ -1424,7 +1349,7 @@ function AddInformationModal({
               <button
                 type="button"
                 disabled={!noteBody.trim() || saving}
-                onClick={() => onSave({ noteType: noteType ?? "Admin Note", body: noteBody.trim(), followUpRequired })}
+                onClick={() => onSave({ noteType: noteType ?? "admin_note", body: noteBody.trim(), followUpRequired })}
                 className="rounded-lg bg-[#0B5C6C] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#0B4A57] disabled:opacity-50"
               >
                 {saving ? "Saving…" : "Save Note"}
@@ -1440,9 +1365,9 @@ function AddInformationModal({
             const Icon = type.icon;
             return (
               <button
-                key={type.label}
+                key={type.id}
                 type="button"
-                onClick={() => chooseType(type.label)}
+                onClick={() => chooseType(type.id)}
                 className="flex items-start gap-3 rounded-lg border border-[#E0CBAA] bg-white p-3.5 text-left transition-colors hover:border-[#0B5C6C]"
               >
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#0B5C6C]/10">
@@ -1544,7 +1469,7 @@ function RecordTab({
           <FieldRow label="Primary Phone" value={patient.phone} />
           <FieldRow label="Email" value={patient.email} />
           <div className="sm:col-span-2">
-            <FieldRow label="Physical Address" value={patient.address} />
+            <FieldRow label="Physical Address" value={formatStructuredAddress(patient.addressStructured, patient.address)} />
           </div>
         </dl>
       </section>
@@ -1594,7 +1519,7 @@ function RecordTab({
   );
 }
 
-const AREA_OPTIONS = ["All", "Review", "Outreach", "Admin Caution", "Notes", "Portal Account", "Import", "Other"] as const;
+const AREA_OPTIONS = ["All", "Patient", "Review", "Outreach", "Admin Caution", "Notes", "Portal Account", "Import", "Other"] as const;
 
 function HistoryTab({
   patientActivity,
@@ -2268,6 +2193,7 @@ function NotesTab({
   noteActionLoading,
   noteActionError,
   onAdd,
+  onAddInfo,
   onStartEdit,
   onCancelEdit,
   onSaveEdit,
@@ -2290,6 +2216,7 @@ function NotesTab({
   noteActionLoading: boolean;
   noteActionError: string | null;
   onAdd: () => void;
+  onAddInfo: () => void;
   onStartEdit: (noteId: string, body: string) => void;
   onCancelEdit: () => void;
   onSaveEdit: () => void;
@@ -2306,10 +2233,10 @@ function NotesTab({
         <h3 className="text-xs font-bold uppercase tracking-[0.18em] text-[#0B5C6C]">Notes &amp; Records</h3>
         <button
           type="button"
-          onClick={() => composeRef.current?.focus()}
+          onClick={onAddInfo}
           className="inline-flex items-center gap-1.5 rounded-lg border border-[#E0CBAA] bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:border-[#0B5C6C] hover:text-[#0B5C6C]"
         >
-          <Plus className="h-3.5 w-3.5" /> Add note
+          <Plus className="h-3.5 w-3.5" /> Add information
         </button>
       </div>
 
@@ -2413,11 +2340,9 @@ function NotesTab({
                   /* ── Read / delete-confirm mode ── */
                   <>
                     <div className="flex items-start justify-between gap-3">
-                      {note.note_type ? (
-                        <span className="inline-flex items-center rounded-full border border-[#D7E8EA] bg-[#F3FAFA] px-2.5 py-0.5 text-xs font-semibold text-[#0B5C6C]">
-                          {note.note_type}
-                        </span>
-                      ) : <span />}
+                      <span className="inline-flex items-center rounded-full border border-[#D7E8EA] bg-[#F3FAFA] px-2.5 py-0.5 text-xs font-semibold text-[#0B5C6C]">
+                        {noteTypeLabel(note.note_type)}
+                      </span>
                       <time className="shrink-0 text-xs text-gray-400">{formatNzDateTime(note.created_at)}</time>
                     </div>
 
@@ -2743,7 +2668,7 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
   const [addInfoSaveError, setAddInfoSaveError] = useState<string | null>(null);
   const [patientActivity, setPatientActivity]           = useState<PatientActivityEvent[]>([]);
   const [patientActivityState, setPatientActivityState] = useState<"idle" | "loading" | "loaded" | "error">("idle");
-  const [modal, setModal] = useState<"edit" | "archive" | "add-info" | null>(null);
+  const [modal, setModal] = useState<"edit" | "add-info" | null>(null);
   const nhiTimerRef              = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activityFetchedRef       = useRef(false);
 
@@ -2926,6 +2851,7 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
       const data = (await res.json()) as Record<string, unknown>;
       const note = data.note as PersistedNote;
       setPersistedNotes((prev) => [note, ...prev]);
+      addOptimisticActivity(`${noteTypeLabel(note.note_type)} note added`, "NOTE_CREATED", noteBodyPreview(note.body));
       setNoteText("");
     } catch {
       setNotesError("Note could not be saved. Please try again.");
@@ -3240,7 +3166,7 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
       }
       const data = (await res.json()) as { note: PersistedNote };
       setPersistedNotes((prev) => [data.note, ...prev]);
-      addOptimisticActivity("Note added", "NOTE_CREATED", payload.noteType);
+      addOptimisticActivity(`${noteTypeLabel(payload.noteType)} note added`, "NOTE_CREATED", noteBodyPreview(payload.body));
       setModal(null);
     } catch (err) {
       setAddInfoSaveError(err instanceof Error ? err.message : "Save failed");
@@ -3367,7 +3293,6 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
                   onSetReviewStatus={handleSetReviewStatus}
                   onEdit={() => setModal("edit")}
                   onAddInfo={() => setModal("add-info")}
-                  onArchive={() => setModal("archive")}
                 />
               )}
               {activeTab === "safety" && (
@@ -3414,6 +3339,7 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
                   noteActionLoading={noteActionLoading}
                   noteActionError={noteActionError}
                   onAdd={handleAddNote}
+                  onAddInfo={() => setModal("add-info")}
                   onStartEdit={handleStartEdit}
                   onCancelEdit={handleCancelEdit}
                   onSaveEdit={handleSaveEdit}
@@ -3442,9 +3368,6 @@ export function PatientDrawer({ isOpen, onClose, msid, patientName, onReviewStat
           saving={editSaving}
           saveError={editSaveError}
         />
-      )}
-      {patient && modal === "archive" && (
-        <ArchivePatientModal patient={patient} onClose={() => setModal(null)} />
       )}
       {patient && modal === "add-info" && (
         <AddInformationModal

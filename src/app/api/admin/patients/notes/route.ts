@@ -17,6 +17,15 @@ const NOTE_SK_RE = /^NOTE#\d+#[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0
 const ORG_ID = 'midland-sleep'
 const NOTE_MAX_LEN = 1000
 
+const VALID_NOTE_TYPES = new Set([
+  'contact_update',
+  'equipment_update',
+  'entitlement_funding_note',
+  'admin_note',
+  'safety_review_note',
+  'outreach_note',
+])
+
 export async function GET(req: NextRequest) {
   const admin = await getAdminUser()
   if (!admin || !isAuthorizedAdmin(admin)) {
@@ -36,6 +45,8 @@ export async function GET(req: NextRequest) {
       body: n.body,
       created_at: n.created_at,
       created_by_email: n.created_by_email,
+      note_type: n.admin_note_type,
+      follow_up_required: n.follow_up_required ?? false,
       is_owner: n.created_by === admin.sub,
       updated_at: n.updated_at ?? null,
       is_edited: n.is_edited ?? false,
@@ -59,6 +70,8 @@ export async function POST(req: NextRequest) {
   const payload = body as Record<string, unknown>
   const msid = typeof payload.msid === 'string' ? payload.msid.trim() : ''
   const noteBody = typeof payload.body === 'string' ? payload.body.trim() : ''
+  const rawNoteType = typeof payload.note_type === 'string' ? payload.note_type.trim() : undefined
+  const followUpRequired = payload.follow_up_required === true
 
   if (!MSID_RE.test(msid)) {
     return NextResponse.json({ error: 'Invalid msid' }, { status: 400 })
@@ -66,6 +79,10 @@ export async function POST(req: NextRequest) {
   if (!noteBody || noteBody.length > NOTE_MAX_LEN) {
     return NextResponse.json({ error: 'body must be 1–1000 characters' }, { status: 400 })
   }
+  if (rawNoteType !== undefined && !VALID_NOTE_TYPES.has(rawNoteType)) {
+    return NextResponse.json({ error: 'Invalid note_type' }, { status: 400 })
+  }
+  const noteType = rawNoteType ?? 'admin_note'
 
   const notePreview = noteBody.length > 120 ? noteBody.slice(0, 120) + '…' : noteBody
   const noteCreateAudit = await writeAdminAuditEvent({
@@ -73,7 +90,7 @@ export async function POST(req: NextRequest) {
     adminSub:    admin.sub,
     adminEmail:  admin.email,
     patientMsid: msid,
-    details:     `Note created: ${notePreview}`,
+    details:     `${noteType} note created: ${notePreview}`,
   })
   if (!noteCreateAudit.ok) {
     return NextResponse.json({ error: 'Audit write failed — note not saved' }, { status: 500 })
@@ -85,6 +102,8 @@ export async function POST(req: NextRequest) {
     body: noteBody,
     adminSub: admin.sub,
     adminEmail: admin.email,
+    adminNoteType: noteType,
+    followUpRequired,
   })
   return NextResponse.json({
     ok: true,
@@ -94,6 +113,8 @@ export async function POST(req: NextRequest) {
       body: record.body,
       created_at: record.created_at,
       created_by_email: record.created_by_email,
+      note_type: record.admin_note_type,
+      follow_up_required: record.follow_up_required ?? false,
       is_owner: true,
       updated_at: null,
       is_edited: false,

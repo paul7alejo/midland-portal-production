@@ -17,12 +17,14 @@ export async function GET(request: NextRequest) {
       email: patient.email,
       msid: patient.portal_id,
       org_id: patient.org_id,
+      address_structured: patient.address_structured ?? null,
     });
   } catch (err) {
     if (err instanceof HttpError) {
       return NextResponse.json({ error: err.message }, { status: err.status });
     }
-    console.error('patient/profile GET ERROR:', err instanceof Error ? err.message : String(err));
+    const errorName = err instanceof Error ? err.name : 'UnknownError';
+    console.error('patient/profile GET ERROR:', { errorName });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -79,7 +81,8 @@ export async function PATCH(request: NextRequest) {
     if (err instanceof HttpError) {
       return NextResponse.json({ error: err.message }, { status: err.status });
     }
-    console.error('patient/profile PATCH ERROR:', err instanceof Error ? err.message : String(err));
+    const errorName = err instanceof Error ? err.name : 'UnknownError';
+    console.error('patient/profile PATCH ERROR:', { errorName });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

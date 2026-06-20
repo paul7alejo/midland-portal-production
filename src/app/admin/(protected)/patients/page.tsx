@@ -9,12 +9,21 @@ import {
   ChevronUp,
   Download,
   Filter,
-  LayoutGrid,
   Link2,
   List,
   MoreHorizontal,
+  Rows3,
   Search,
 } from "lucide-react";
+
+type TableDensity = "comfortable" | "compact";
+const DENSITY_STORAGE_KEY = "midland-admin-patients-density";
+
+function loadStoredDensity(): TableDensity {
+  if (typeof window === "undefined") return "compact";
+  const stored = window.localStorage.getItem(DENSITY_STORAGE_KEY);
+  return stored === "comfortable" ? "comfortable" : "compact";
+}
 
 type FundingType       = "ACC" | "Private" | "Health NZ";
 type PatientStatus     = "eligible" | "not_eligible" | "overdue" | "needs_outreach" | "safety_check_due" | "pending_review" | "reviewed";
@@ -851,6 +860,20 @@ export default function AdminPatientsPage() {
   const [reconciliation,        setReconciliation]        = useState<ReconciliationSummary | null>(null);
   const [reconciliationLoading, setReconciliationLoading] = useState(true);
   const [cleanupExpanded,       setCleanupExpanded]       = useState(false);
+  const [density,               setDensity]               = useState<TableDensity>("compact");
+
+  useEffect(() => {
+    setDensity(loadStoredDensity());
+  }, []);
+
+  function changeDensity(next: TableDensity) {
+    setDensity(next);
+    try {
+      window.localStorage.setItem(DENSITY_STORAGE_KEY, next);
+    } catch {
+      // localStorage unavailable — density preference just won't persist
+    }
+  }
 
   function toggleTableSort(key: string) {
     if (tableSortKey === key) {
@@ -1110,6 +1133,10 @@ export default function AdminPatientsPage() {
   const firstItem     = (currentPage - 1) * pageSize + 1;
   const lastItem      = Math.min(currentPage * pageSize, filteredCount);
   const [openMenuMsid, setOpenMenuMsid] = useState<string | null>(null);
+  const isCompact   = density === "compact";
+  const cellPad     = isCompact ? "py-2.5" : "py-4";
+  const rowGap      = isCompact ? "gap-2.5" : "gap-3";
+  const secondaryMt = isCompact ? "mt-0.5" : "mt-1";
 
   return (
     <div className="space-y-6">
@@ -1202,12 +1229,26 @@ export default function AdminPatientsPage() {
           Export
         </a>
 
-        <div className="ml-auto flex rounded-lg border border-[#E0CBAA] bg-white p-1">
-          <button type="button" aria-label="List view" className="rounded-md bg-[#0B5C6C] p-2 text-white">
+        <div className="ml-auto flex rounded-lg border border-[#E0CBAA] bg-white p-1" role="group" aria-label="Table density">
+          <button
+            type="button"
+            title="Comfortable"
+            aria-label="Comfortable row spacing"
+            aria-pressed={density === "comfortable"}
+            onClick={() => changeDensity("comfortable")}
+            className={cn("rounded-md p-2", density === "comfortable" ? "bg-[#0B5C6C] text-white" : "text-gray-400 hover:text-[#0B5C6C]")}
+          >
             <List className="h-4 w-4" />
           </button>
-          <button type="button" aria-label="Grid view" className="rounded-md p-2 text-gray-400 hover:text-[#0B5C6C]">
-            <LayoutGrid className="h-4 w-4" />
+          <button
+            type="button"
+            title="Compact"
+            aria-label="Compact row spacing"
+            aria-pressed={density === "compact"}
+            onClick={() => changeDensity("compact")}
+            className={cn("rounded-md p-2", density === "compact" ? "bg-[#0B5C6C] text-white" : "text-gray-400 hover:text-[#0B5C6C]")}
+          >
+            <Rows3 className="h-4 w-4" />
           </button>
         </div>
 
@@ -1334,8 +1375,8 @@ export default function AdminPatientsPage() {
                   const operationalCue = getOperationalCue(patient);
                   return (
                     <tr key={patient.id} className="hover:bg-[#F8F4EC] transition-colors">
-                      <td className="px-4 py-2.5">
-                        <div className="flex items-start gap-2.5">
+                      <td className={`px-4 ${cellPad}`}>
+                        <div className={`flex items-start ${rowGap}`}>
                           <PatientInitials name={patient.name} />
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-1.5">
@@ -1353,22 +1394,24 @@ export default function AdminPatientsPage() {
                                 </span>
                               )}
                             </div>
-                            {patient.source === "admin_csv" && patient.importedAt && patient.importedAt !== "—" && (
-                              <span className="mt-0.5 block text-xs leading-tight text-gray-500">Imported {patient.importedAt}</span>
+                            {!isCompact && patient.source === "admin_csv" && patient.importedAt && patient.importedAt !== "—" && (
+                              <span className={`${secondaryMt} block text-xs leading-tight text-gray-500`}>Imported {patient.importedAt}</span>
                             )}
-                            <span className="mt-0.5 block text-xs leading-tight font-semibold text-[#0B5C6C]">{operationalCue}</span>
+                            {!isCompact && (
+                              <span className={`${secondaryMt} block text-xs leading-tight font-semibold text-[#0B5C6C]`}>{operationalCue}</span>
+                            )}
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-2.5">
+                      <td className={`px-4 ${cellPad}`}>
                         <span className="whitespace-nowrap tabular-nums min-w-[80px] font-mono text-sm leading-5 text-gray-700">
                           {patient.msid}
                         </span>
                       </td>
-                      <td className="px-4 py-2.5">
+                      <td className={`px-4 ${cellPad}`}>
                         <DobAgeCell value={patient.dateOfBirth ?? "—"} />
                       </td>
-                      <td className="px-4 py-2.5">
+                      <td className={`px-4 ${cellPad}`}>
                         {patient.phone === "—" ? (
                           <span className="text-sm text-gray-500">—</span>
                         ) : (
@@ -1380,15 +1423,15 @@ export default function AdminPatientsPage() {
                           </a>
                         )}
                       </td>
-                      <td className="px-4 py-2.5">
+                      <td className={`px-4 ${cellPad}`}>
                         <span className={`inline-flex items-center text-xs font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${statusCfg.classes}`}>
                           {statusCfg.label}
                         </span>
                       </td>
-                      <td className="px-4 py-2.5">
+                      <td className={`px-4 ${cellPad}`}>
                         <FundingBadge amount={patient.remainingAmount} />
                       </td>
-                      <td className="px-4 py-2.5">
+                      <td className={`px-4 ${cellPad}`}>
                         <div className="relative flex items-center gap-2">
                           <button
                             type="button"
@@ -1425,17 +1468,6 @@ export default function AdminPatientsPage() {
                                   {item}
                                 </button>
                               ))}
-                              <div className="my-1 border-t border-gray-100" />
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setOpenMenuMsid(null);
-                                  openDrawer(patient.msid, patient.name);
-                                }}
-                                className="block w-full px-3 py-2 text-left font-semibold text-red-600 hover:bg-red-50"
-                              >
-                                Archive patient
-                              </button>
                             </div>
                           )}
                         </div>

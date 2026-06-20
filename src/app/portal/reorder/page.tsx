@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { usePatientData } from "@/hooks/usePatientData";
 import { cn } from "@/lib/utils";
@@ -465,6 +465,10 @@ export default function ReorderPage() {
   );
   const [useSavedAddress, setUseSavedAddress] = useState(false);
   const [saveAsDefault, setSaveAsDefault] = useState(false);
+  const [prefilledFromRecord, setPrefilledFromRecord] = useState(false);
+  // Set as soon as the patient types into the override address fields, so the
+  // async record-prefill below never clobbers something they've already entered.
+  const addressEditedRef = useRef(false);
   const [submittedDeliveryAddress, setSubmittedDeliveryAddress] =
     useState<DeliveryAddress | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -510,6 +514,52 @@ export default function ReorderPage() {
     const storedAddress = readSavedDeliveryAddress(addressStorageKey);
     setSavedAddress(storedAddress);
     setUseSavedAddress(Boolean(storedAddress));
+  }, [addressStorageKey, patient?.userId]);
+
+  // Best-effort prefill from the patient's record when there is no locally-saved
+  // address. Read-only into the editable override form — never auto-submitted.
+  useEffect(() => {
+    if (!patient?.userId) return;
+    if (readSavedDeliveryAddress(addressStorageKey)) return;
+    let cancelled = false;
+
+    async function loadRecordAddress() {
+      try {
+        configureCognito();
+        const token = await getIdToken();
+        if (!token) return;
+        const res = await fetch("/api/patient/profile", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json().catch(() => ({})) as {
+          address_structured?: {
+            line1?: string; line2?: string; suburb?: string;
+            city?: string; region?: string; postal_code?: string; country?: string;
+          } | null;
+        };
+        if (cancelled || !data.address_structured || addressEditedRef.current) return;
+        const a = data.address_structured;
+        const mapped = normalizeDeliveryAddress({
+          line1: a.line1,
+          line2: [a.line2, a.suburb].filter(Boolean).join(", "),
+          city: a.city,
+          region: a.region,
+          postcode: a.postal_code,
+          country: a.country,
+        });
+        if (hasCompleteDeliveryAddress(mapped)) {
+          setOverrideAddress(mapped);
+          setPrefilledFromRecord(true);
+        }
+      } catch {
+        // Best-effort prefill — patient can still type the address manually.
+      }
+    }
+
+    void loadRecordAddress();
+    return () => {
+      cancelled = true;
+    };
   }, [addressStorageKey, patient?.userId]);
 
   useEffect(() => {
@@ -583,6 +633,7 @@ export default function ReorderPage() {
     field: keyof DeliveryAddress,
     value: string
   ) => {
+    addressEditedRef.current = true;
     setOverrideAddress((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -1239,10 +1290,12 @@ export default function ReorderPage() {
                 {!savedAddress && (
                   <div className="rounded-lg border border-dashed border-sand bg-sand-pale/50 p-3 sm:p-5">
                     <p className="text-base font-semibold text-charcoal">
-                      No default address saved
+                      {prefilledFromRecord ? "Prefilled from your patient record" : "No default address saved"}
                     </p>
                     <p className="mt-0.5 sm:mt-1 text-sm sm:text-base leading-5 sm:leading-6 text-charcoal/75">
-                      Enter an address for this request.
+                      {prefilledFromRecord
+                        ? "Please confirm this address is correct, or update it before submitting."
+                        : "Enter an address for this request."}
                     </p>
                   </div>
                 )}
