@@ -15,6 +15,7 @@ import {
   Mail,
   Monitor,
   Phone,
+  Plus,
   RefreshCw,
   ShieldAlert,
   X,
@@ -1362,7 +1363,7 @@ function ArchivePatientModal({ patient, onClose }: { patient: DrawerPatient; onC
         </label>
       )}
 
-      <p className="mt-4 text-xs text-gray-500">UI only. No archive mutation is performed from this dialog.</p>
+      <p className="mt-4 text-xs text-gray-500">Archive action is prepared for controlled release. Records are not removed until the archive workflow is enabled.</p>
     </ModalShell>
   );
 }
@@ -2297,12 +2298,25 @@ function NotesTab({
   onConfirmDelete: () => void;
 }) {
   const remaining = 1000 - noteText.length;
+  const composeRef = useRef<HTMLTextAreaElement>(null);
+
   return (
     <div className="space-y-5">
+      <div className="flex items-center justify-between">
+        <h3 className="text-xs font-bold uppercase tracking-[0.18em] text-[#0B5C6C]">Notes &amp; Records</h3>
+        <button
+          type="button"
+          onClick={() => composeRef.current?.focus()}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-[#E0CBAA] bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:border-[#0B5C6C] hover:text-[#0B5C6C]"
+        >
+          <Plus className="h-3.5 w-3.5" /> Add note
+        </button>
+      </div>
+
       {/* Add note input */}
       <div className="space-y-2">
-        <label className="block text-base font-medium text-gray-700">Add a note</label>
         <textarea
+          ref={composeRef}
           value={noteText}
           onChange={(e) => setNoteText(e.target.value)}
           onKeyDown={(e) => {
@@ -2352,8 +2366,6 @@ function NotesTab({
         </div>
       ) : (
         <div className="space-y-3">
-          <h4 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Staff notes</h4>
-
           {noteActionError && (
             <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3">
               <p className="text-sm text-red-700">{noteActionError}</p>
@@ -2365,7 +2377,7 @@ function NotesTab({
             const isDeleting = deletingNoteId === note.note_id;
 
             return (
-              <div key={note.note_id} className="bg-gray-50 rounded-xl p-4 space-y-3">
+              <div key={note.note_id} className="rounded-xl border border-[#E0CBAA] bg-[#FFFCF6] p-4 space-y-3">
                 {isEditing ? (
                   /* ── Edit mode ── */
                   <div className="space-y-2">
@@ -2400,46 +2412,49 @@ function NotesTab({
                 ) : (
                   /* ── Read / delete-confirm mode ── */
                   <>
-                    {(note.note_type || note.follow_up_required) && (
-                      <div className="flex flex-wrap items-center gap-2">
-                        {note.note_type && (
-                          <span className="inline-flex items-center rounded-full border border-[#D7E8EA] bg-[#F3FAFA] px-2.5 py-0.5 text-xs font-semibold text-[#0B5C6C]">
-                            {note.note_type}
-                          </span>
-                        )}
-                        {note.follow_up_required && (
-                          <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
-                            Follow-up required
-                          </span>
-                        )}
-                      </div>
-                    )}
+                    <div className="flex items-start justify-between gap-3">
+                      {note.note_type ? (
+                        <span className="inline-flex items-center rounded-full border border-[#D7E8EA] bg-[#F3FAFA] px-2.5 py-0.5 text-xs font-semibold text-[#0B5C6C]">
+                          {note.note_type}
+                        </span>
+                      ) : <span />}
+                      <time className="shrink-0 text-xs text-gray-400">{formatNzDateTime(note.created_at)}</time>
+                    </div>
+
                     <p className="text-base text-gray-800 whitespace-pre-wrap">{note.body}</p>
-                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                      <p className="text-sm text-gray-500">
-                        {note.created_by_email ?? "Staff"} · {formatNzDateTime(note.created_at)}
+
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-xs text-gray-500">
+                        {note.created_by_email ?? "Staff"}
                         {note.is_edited && note.updated_at && (
                           <span className="ml-1 text-gray-400">· Edited {formatNzDateTime(note.updated_at)}</span>
                         )}
                       </p>
-                      {note.is_owner && !isDeleting && (
-                        <div className="flex gap-3 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => onStartEdit(note.note_id, note.body)}
-                            className="text-sm font-medium text-[#0B5C6C] hover:text-[#0B5C6C]/80 transition-colors"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => onStartDelete(note.note_id)}
-                            className="text-sm font-medium text-red-500 hover:text-red-700 transition-colors"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      )}
+                      <div className="flex items-center gap-3">
+                        {note.follow_up_required && (
+                          <span className="inline-flex items-center rounded-full border border-orange-200 bg-orange-50 px-2.5 py-0.5 text-xs font-semibold text-orange-700">
+                            Follow-up required
+                          </span>
+                        )}
+                        {note.is_owner && !isDeleting && (
+                          <div className="flex gap-3 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => onStartEdit(note.note_id, note.body)}
+                              className="text-sm font-medium text-[#0B5C6C] hover:text-[#0B5C6C]/80 transition-colors"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => onStartDelete(note.note_id)}
+                              className="text-sm font-medium text-red-500 hover:text-red-700 transition-colors"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     {isDeleting && (

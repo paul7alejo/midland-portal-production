@@ -570,19 +570,19 @@ function getOperationalCue(patient: Patient): string {
   return "View record details";
 }
 
+function needsReview(patient: Patient): boolean {
+  if (patient.status === "reviewed") return false;
+  if (patient.status === "pending_review") return true;
+  if (patient.status === "safety_check_due") return true;
+  if (patient.safetyCheckRequired) return true;
+  // Imported records need staff review until explicitly marked reviewed.
+  if (patient.source === "admin_csv") return true;
+  const review = (patient.reviewStatus ?? "").trim().toLowerCase();
+  return review === "pending review" || review === "review required";
+}
+
 function getActionLabel(patient: Patient): string {
-  if (patient.status === "reviewed") return "View";
-  if (
-    patient.status === "pending_review" ||
-    patient.status === "needs_outreach" ||
-    patient.status === "overdue" ||
-    patient.status === "safety_check_due" ||
-    patient.source === "admin_csv" ||
-    patient.source === "dynamodb/manual"
-  ) {
-    return "Open review";
-  }
-  return "View";
+  return needsReview(patient) ? "Open review" : "View";
 }
 
 function PatientInitials({ name }: { name: string }) {
@@ -1334,41 +1334,41 @@ export default function AdminPatientsPage() {
                   const operationalCue = getOperationalCue(patient);
                   return (
                     <tr key={patient.id} className="hover:bg-[#F8F4EC] transition-colors">
-                      <td className="px-4 py-4">
-                        <div className="flex items-start gap-3">
+                      <td className="px-4 py-2.5">
+                        <div className="flex items-start gap-2.5">
                           <PatientInitials name={patient.name} />
                           <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-1.5">
                               <button
                                 type="button"
                                 disabled={actionCfg.disabled}
                                 onClick={actionCfg.disabled ? undefined : () => openDrawer(patient.msid, patient.name)}
-                                className="bg-transparent border-0 p-0 text-left cursor-pointer text-sm font-bold text-navy hover:text-[#0B5C6C] hover:underline disabled:cursor-default disabled:hover:text-navy disabled:hover:no-underline"
+                                className="bg-transparent border-0 p-0 text-left cursor-pointer text-sm font-semibold text-navy hover:text-[#0B5C6C] hover:underline disabled:cursor-default disabled:hover:text-navy disabled:hover:no-underline"
                               >
                                 {patient.name}
                               </button>
                               {patient.source === "admin_csv" && (
-                                <span className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-sky-700">
+                                <span className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-sky-700">
                                   Imported
                                 </span>
                               )}
                             </div>
                             {patient.source === "admin_csv" && patient.importedAt && patient.importedAt !== "—" && (
-                              <span className="mt-1 block text-xs text-gray-500">Imported {patient.importedAt}</span>
+                              <span className="mt-0.5 block text-xs leading-tight text-gray-500">Imported {patient.importedAt}</span>
                             )}
-                            <span className="mt-1 block text-xs font-semibold text-[#0B5C6C]">{operationalCue}</span>
+                            <span className="mt-0.5 block text-xs leading-tight font-semibold text-[#0B5C6C]">{operationalCue}</span>
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-4">
+                      <td className="px-4 py-2.5">
                         <span className="whitespace-nowrap tabular-nums min-w-[80px] font-mono text-sm leading-5 text-gray-700">
                           {patient.msid}
                         </span>
                       </td>
-                      <td className="px-4 py-4">
+                      <td className="px-4 py-2.5">
                         <DobAgeCell value={patient.dateOfBirth ?? "—"} />
                       </td>
-                      <td className="px-4 py-4">
+                      <td className="px-4 py-2.5">
                         {patient.phone === "—" ? (
                           <span className="text-sm text-gray-500">—</span>
                         ) : (
@@ -1380,15 +1380,15 @@ export default function AdminPatientsPage() {
                           </a>
                         )}
                       </td>
-                      <td className="px-4 py-4">
-                        <span className={`inline-flex items-center text-xs font-bold px-3 py-1.5 rounded-full whitespace-nowrap ${statusCfg.classes}`}>
+                      <td className="px-4 py-2.5">
+                        <span className={`inline-flex items-center text-xs font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${statusCfg.classes}`}>
                           {statusCfg.label}
                         </span>
                       </td>
-                      <td className="px-4 py-4">
+                      <td className="px-4 py-2.5">
                         <FundingBadge amount={patient.remainingAmount} />
                       </td>
-                      <td className="px-4 py-4">
+                      <td className="px-4 py-2.5">
                         <div className="relative flex items-center gap-2">
                           <button
                             type="button"
