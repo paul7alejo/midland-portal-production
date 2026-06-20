@@ -2863,7 +2863,7 @@ const reviewOrder = useMemo(
   }, [orders, communicationQueuedOrders]);
 
   return (
-    <div className="space-y-7 xl:-mx-8 2xl:-mx-16">
+    <div className="mx-auto w-full max-w-[1560px] space-y-7 px-5 sm:px-6 lg:px-8 xl:px-10">
       {/* Header */}
       <div className="rounded-2xl border border-sand bg-white px-6 py-6 shadow-sm md:px-7">
         <div className="flex items-center justify-between gap-5 flex-wrap">
@@ -2999,13 +2999,13 @@ const reviewOrder = useMemo(
               <p className="px-5 py-6 text-sm text-gray-500">No requests currently need attention.</p>
             ) : (
               <>
-                <div className="hidden lg:grid grid-cols-[110px_140px_minmax(180px,1fr)_160px_90px_140px] gap-3 px-5 py-2 bg-[#FAF8F2] border-b border-sand/60 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                <div className="hidden lg:grid grid-cols-[160px_180px_minmax(260px,1fr)_220px_116px_136px] gap-x-4 px-5 py-2 bg-[#FAF8F2] border-b border-sand/60 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
                   <span>Request</span>
                   <span>Patient</span>
                   <span>Reason</span>
                   <span>Status / Comm.</span>
                   <span>Age</span>
-                  <span>Next action</span>
+                  <span className="text-right">Next action</span>
                 </div>
                 <div className="divide-y divide-sand/60">
                   {attentionOrders.map((order) => {
@@ -3022,23 +3022,24 @@ const reviewOrder = useMemo(
                     return (
                       <div key={order.id} className="px-5 py-3.5 hover:bg-[#F5F3EE] transition-colors">
                         {/* Wide layout — one row per request */}
-                        <div className="hidden lg:grid lg:grid-cols-[110px_140px_minmax(180px,1fr)_160px_90px_140px] lg:items-center lg:gap-3">
+                        <div className="hidden lg:grid lg:grid-cols-[160px_180px_minmax(260px,1fr)_220px_116px_136px] lg:items-center lg:gap-x-4">
                           <button
                             type="button"
                             onClick={() => handleReviewRequest(order)}
                             title={order.requestId}
-                            className="font-mono text-sm font-semibold text-[#0B5C6C] hover:underline truncate text-left"
+                            className="min-w-0 font-mono text-sm font-semibold text-[#0B5C6C] hover:underline truncate text-left"
                           >
                             {order.requestId}
                           </button>
-                          <span className="text-sm font-medium text-navy truncate" title={order.patient}>{order.patient}</span>
-                          <span className="text-xs text-gray-600 leading-5 truncate" title={reason}>{reason}</span>
-                          {statusOrCommBadge}
+                          <span className="min-w-0 text-sm font-medium text-navy truncate" title={order.patient}>{order.patient}</span>
+                          <span className="min-w-0 text-xs text-gray-600 leading-5 truncate" title={reason}>{reason}</span>
+                          <div className="min-w-0">{statusOrCommBadge}</div>
                           <span className="text-xs text-gray-400 whitespace-nowrap" title={order.date}>{formatRequestAge(order.date)}</span>
                           <button
                             type="button"
                             onClick={() => handleReviewRequest(order)}
-                            className="w-fit text-xs font-semibold px-3 py-1.5 rounded-lg bg-[#0B5C6C] text-white hover:bg-[#0B5C6C]/90 transition-colors whitespace-nowrap"
+                            title={nextAction}
+                            className="w-full justify-self-end truncate rounded-lg bg-[#0B5C6C] px-2.5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#0B5C6C]/90"
                           >
                             {nextAction}
                           </button>
@@ -3051,15 +3052,16 @@ const reviewOrder = useMemo(
                               <button
                                 type="button"
                                 onClick={() => handleReviewRequest(order)}
+                                title={order.requestId}
                                 className="block font-mono text-sm font-semibold text-[#0B5C6C] hover:underline truncate text-left"
                               >
                                 {order.requestId}
                               </button>
-                              <span className="block text-sm font-medium text-navy truncate">{order.patient}</span>
+                              <span className="block text-sm font-medium text-navy truncate" title={order.patient}>{order.patient}</span>
                             </div>
                             <div className="shrink-0">{statusOrCommBadge}</div>
                           </div>
-                          <p className="text-xs text-gray-600 leading-5">{reason}</p>
+                          <p className="text-xs text-gray-600 leading-5" title={reason}>{reason}</p>
                           <div className="flex items-center justify-between gap-3 pt-1">
                             <span className="text-xs text-gray-400 whitespace-nowrap">{formatRequestAge(order.date)}</span>
                             <button
