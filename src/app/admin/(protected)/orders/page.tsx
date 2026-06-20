@@ -422,6 +422,20 @@ function describeNextAction(order: Order, hasNotif = false): string {
   return "View request";
 }
 
+// Short labels for the Needs Attention action button only — the drawer's
+// Next Action card keeps the full describeNextAction() phrasing.
+const NEEDS_ATTENTION_ACTION_SHORT: Record<string, string> = {
+  "Review request": "Review",
+  "Review communication": "Review comms",
+  "Follow up with patient": "Follow up",
+  "View completed request": "View",
+  "Check funding": "Check funding",
+  "View request": "View",
+};
+function shortNextAction(fullText: string): string {
+  return NEEDS_ATTENTION_ACTION_SHORT[fullText] ?? fullText;
+}
+
 // "3 days" / "Today" — used for Needs Attention's Age column and the Work
 // Log summary card's Request age metric. Derived only from the request's
 // already-loaded created date.
@@ -3151,7 +3165,7 @@ const reviewOrder = useMemo(
                             title={nextAction}
                             className="w-full justify-self-end truncate rounded-lg bg-[#0B5C6C] px-2.5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#0B5C6C]/90"
                           >
-                            {nextAction}
+                            {shortNextAction(nextAction)}
                           </button>
                         </div>
 
@@ -3177,9 +3191,10 @@ const reviewOrder = useMemo(
                             <button
                               type="button"
                               onClick={() => handleReviewRequest(order)}
+                              title={nextAction}
                               className="w-fit text-xs font-semibold px-3 py-1.5 rounded-lg bg-[#0B5C6C] text-white hover:bg-[#0B5C6C]/90 transition-colors whitespace-nowrap"
                             >
-                              {nextAction}
+                              {shortNextAction(nextAction)}
                             </button>
                           </div>
                         </div>
