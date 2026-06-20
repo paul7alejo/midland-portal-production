@@ -13,7 +13,7 @@ type OrderSortOpt  = "newest" | "oldest" | "name_az" | "status";
 type RequestCategory = "Mask" | "Headgear" | "Filters" | "Tubing" | "Cleaning supplies" | "Support request";
 type ReportWindow    = "7d" | "30d" | "90d" | "all";
 type ReportSource    = "patient_portal" | "support_request" | "admin_created" | "other";
-type ReviewTab       = "request" | "funding" | "patient" | "communication" | "history";
+type ReviewTab       = "request" | "funding" | "patient" | "communication" | "workLog" | "history";
 type KpiActiveFilter = "newRequests" | "needsStaffReview" | "needsFundingReview" | "needsFollowUp" | "deliveredThisMonth";
 type RowsPerPage     = 20 | 50 | 100;
 
@@ -408,12 +408,30 @@ function attentionReason(order: Order, hasNotif: boolean): string {
   return "Needs attention";
 }
 
-function attentionNextAction(order: Order): string {
-  if (order.status === "New") return "Open review";
-  if (order.needsFundingReview) return "Complete funding check";
-  if (order.status === "Needs Follow-Up") return "Contact patient";
-  if (order.status === "Reviewing") return "Complete review";
-  return "View";
+// Shared "what should staff do next" phrasing — used by the Needs Attention
+// panel's next-action text and the drawer's Next Action card. The simpler
+// "Open review" / "View" binary used by the table action button is decided
+// separately by orderNeedsAction().
+function describeNextAction(order: Order, hasNotif = false): string {
+  if (order.status === "New") return "Review request";
+  if (order.needsFundingReview) return "Check funding";
+  if (order.status === "Needs Follow-Up") return "Follow up with patient";
+  if (order.status === "Reviewing") return "Review request";
+  if (hasNotif) return "Review communication";
+  if (order.status === "Delivered" || order.status === "Declined") return "View completed request";
+  return "View request";
+}
+
+// "3 days" / "Today" — used for Needs Attention's Age column and the Work
+// Log summary card's Request age metric. Derived only from the request's
+// already-loaded created date.
+function formatRequestAge(dateStr: string): string {
+  const d = parseToDate(dateStr);
+  if (!d) return "—";
+  const diffDays = Math.floor((Date.now() - d.getTime()) / (1000 * 60 * 60 * 24));
+  if (diffDays <= 0) return "Today";
+  if (diffDays === 1) return "1 day";
+  return `${diffDays} days`;
 }
 
 // Communication cell label — derived only from data the notification queue
@@ -436,6 +454,56 @@ function formatItemsDisplay(itemsStr: string): string {
   const parts = itemsStr.split(",").map((p) => p.trim()).filter(Boolean);
   if (parts.length <= 2) return itemsStr;
   return `${parts.slice(0, 2).join(", ")} +${parts.length - 2} more`;
+}
+
+// ─── Request Work Log ────────────────────────────────────────────────────────
+// Local-session admin work notes/time tracking. There is no backend
+// persistence for this yet — entries live only in RequestReviewDrawer's
+// component state and are lost on page reload. Kept deliberately separate
+// from the History tab, which is system/audit-derived.
+type WorkLogType =
+  | "General note"
+  | "Funding check"
+  | "Patient follow-up"
+  | "Communication review"
+  | "Fulfilment action"
+  | "Internal admin";
+
+const WORK_LOG_TYPES: WorkLogType[] = [
+  "General note",
+  "Funding check",
+  "Patient follow-up",
+  "Communication review",
+  "Fulfilment action",
+  "Internal admin",
+];
+
+const WORK_LOG_TYPE_BADGE: Record<WorkLogType, string> = {
+  "General note":         "bg-gray-100 text-gray-700 border border-gray-200",
+  "Funding check":        "bg-amber-100 text-amber-800 border border-amber-200",
+  "Patient follow-up":    "bg-orange-100 text-orange-700 border border-orange-200",
+  "Communication review": "bg-[#74C0A2]/20 text-[#0B5C6C] border border-[#74C0A2]/40",
+  "Fulfilment action":    "bg-purple-100 text-purple-700 border border-purple-200",
+  "Internal admin":       "bg-blue-100 text-blue-700 border border-blue-200",
+};
+
+interface WorkLogEntry {
+  id: string;
+  type: WorkLogType;
+  minutes: number;
+  note: string;
+  followUpRequired: boolean;
+  createdAt: string;
+}
+
+// "0 min" / "45 min" / "1h" / "1h 20m"
+function formatWorkLogMinutes(totalMinutes: number): string {
+  if (totalMinutes <= 0) return "0 min";
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  if (h === 0) return `${m} min`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
 }
 
 const STATUS_TABS: { key: StatusTab; label: string }[] = [
@@ -1385,11 +1453,53 @@ function RequestReviewDrawer({
     return () => { cancelled = true; };
   }, [tab, order?.msid]);
 
+  // Work log — local session state only, keyed by request id. No backend
+  // endpoint exists for this yet (see WorkLogEntry comment above).
+  const [workLogsByOrder, setWorkLogsByOrder] = useState<Record<string, WorkLogEntry[]>>({});
+  const [workType,        setWorkType]        = useState<WorkLogType>("General note");
+  const [workHours,       setWorkHours]       = useState(0);
+  const [workMinutes,     setWorkMinutes]     = useState(0);
+  const [workNote,        setWorkNote]        = useState("");
+  const [workFollowUp,    setWorkFollowUp]    = useState(false);
+
+  useEffect(() => {
+    setWorkType("General note");
+    setWorkHours(0);
+    setWorkMinutes(0);
+    setWorkNote("");
+    setWorkFollowUp(false);
+  }, [order?.id]);
+
+  function handleAddWorkLog() {
+    if (!order || !workNote.trim()) return;
+    const entry: WorkLogEntry = {
+      id: `wl-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      type: workType,
+      minutes: workHours * 60 + workMinutes,
+      note: workNote.trim(),
+      followUpRequired: workFollowUp,
+      createdAt: new Date().toISOString(),
+    };
+    setWorkLogsByOrder((prev) => ({
+      ...prev,
+      [order.id]: [entry, ...(prev[order.id] ?? [])],
+    }));
+    setWorkType("General note");
+    setWorkHours(0);
+    setWorkMinutes(0);
+    setWorkNote("");
+    setWorkFollowUp(false);
+  }
+
+  const workLogEntries = order ? (workLogsByOrder[order.id] ?? []) : [];
+  const workLogTotalMinutes = workLogEntries.reduce((sum, e) => sum + e.minutes, 0);
+
   const REVIEW_TABS: { key: ReviewTab; label: string }[] = [
     { key: "request", label: "Request" },
     { key: "funding", label: "Funding" },
     { key: "patient", label: "Patient" },
     { key: "communication", label: "Communication" },
+    { key: "workLog", label: "Work Log" },
     { key: "history", label: "History" },
   ];
 
@@ -1503,6 +1613,24 @@ function RequestReviewDrawer({
                 </div>
                 <p className="mt-2 text-xs text-gray-500 leading-5">{STATUS_LIFECYCLE_COPY[order.status]}</p>
               </div>
+
+              {/* Next action — only shown when something is genuinely outstanding */}
+              {orderNeedsAction(order) && (
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Next action</p>
+                  <div className="flex items-start gap-3 rounded-lg border border-[#0B5C6C]/20 bg-[#0B5C6C]/5 px-4 py-3">
+                    <span className="mt-0.5 text-[#0B5C6C]" aria-hidden="true">
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                      </svg>
+                    </span>
+                    <div>
+                      <p className="text-sm font-semibold text-navy">{describeNextAction(order, notifState?.ok === true)}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">Use the status control above or the tabs on this drawer to action this request.</p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Funding context + review flag */}
               <div>
@@ -1765,6 +1893,141 @@ function RequestReviewDrawer({
           ) : tab === "communication" ? (
             <div className="space-y-5">
               <NotificationSection notifState={notifState} orderStatus={order.status} />
+            </div>
+          ) : tab === "workLog" ? (
+            <div className="space-y-5">
+              {/* Add work log form */}
+              <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-4 space-y-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Add work log entry</p>
+
+                <label className="block">
+                  <span className="block text-xs font-medium text-gray-600 mb-1">Work type</span>
+                  <select
+                    value={workType}
+                    onChange={(e) => setWorkType(e.target.value as WorkLogType)}
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0B5C6C]/30"
+                  >
+                    {WORK_LOG_TYPES.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="block">
+                    <span className="block text-xs font-medium text-gray-600 mb-1">Hours</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={24}
+                      value={workHours}
+                      onChange={(e) => setWorkHours(Math.min(24, Math.max(0, Number(e.target.value) || 0)))}
+                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0B5C6C]/30"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="block text-xs font-medium text-gray-600 mb-1">Minutes</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={59}
+                      value={workMinutes}
+                      onChange={(e) => setWorkMinutes(Math.min(59, Math.max(0, Number(e.target.value) || 0)))}
+                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0B5C6C]/30"
+                    />
+                  </label>
+                </div>
+
+                <label className="block">
+                  <span className="block text-xs font-medium text-gray-600 mb-1">Note</span>
+                  <textarea
+                    rows={3}
+                    value={workNote}
+                    onChange={(e) => setWorkNote(e.target.value)}
+                    placeholder="Describe work completed, follow-up needed, or decision made…"
+                    maxLength={1000}
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0B5C6C]/30"
+                  />
+                </label>
+
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={workFollowUp}
+                    onChange={(e) => setWorkFollowUp(e.target.checked)}
+                    className="h-4 w-4 rounded accent-[#0B5C6C]"
+                  />
+                  Follow-up required
+                </label>
+
+                <button
+                  type="button"
+                  onClick={handleAddWorkLog}
+                  disabled={!workNote.trim()}
+                  className="w-full rounded-lg bg-[#0B5C6C] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#0B5C6C]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Add work log
+                </button>
+              </div>
+
+              {/* Summary card */}
+              <div className="rounded-lg border border-[#0B5C6C]/20 bg-[#0B5C6C]/5 px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#0B5C6C] mb-2.5">Handling time</p>
+                <dl className="grid grid-cols-2 gap-3">
+                  <div>
+                    <dt className="text-xs text-gray-500">Work logged</dt>
+                    <dd className="text-sm font-semibold text-gray-800">{formatWorkLogMinutes(workLogTotalMinutes)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-gray-500">Entries</dt>
+                    <dd className="text-sm font-semibold text-gray-800">{workLogEntries.length}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-gray-500">Request age</dt>
+                    <dd className="text-sm font-semibold text-gray-800">{formatRequestAge(order.date)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-gray-500">Current status</dt>
+                    <dd>
+                      <span className={cn("inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-full", STATUS_BADGE[order.status])}>
+                        {order.status}
+                      </span>
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+
+              {/* Work log entries */}
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Work log entries</p>
+                {workLogEntries.length === 0 ? (
+                  <p className="text-sm text-gray-400 py-3">No work logged for this request yet.</p>
+                ) : (
+                  workLogEntries.map((entry) => (
+                    <div key={entry.id} className="rounded-lg border border-gray-200 bg-white px-4 py-3 space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={cn("inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-full", WORK_LOG_TYPE_BADGE[entry.type])}>
+                          {entry.type}
+                        </span>
+                        <span className="text-xs text-gray-400 whitespace-nowrap">{formatHistoryDate(entry.createdAt)}</span>
+                      </div>
+                      <p className="text-sm text-gray-800 leading-5 whitespace-pre-wrap">{entry.note}</p>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs text-gray-500">Staff user · {formatWorkLogMinutes(entry.minutes)}</span>
+                        {entry.followUpRequired && (
+                          <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 border border-orange-200">
+                            Follow-up required
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <p className="text-[10px] text-gray-400 leading-4">
+                Work log persistence will be enabled in a later controlled release — entries are kept for this browser session only.
+              </p>
             </div>
           ) : (
             <div className="space-y-5">
@@ -2736,46 +2999,78 @@ const reviewOrder = useMemo(
               <p className="px-5 py-6 text-sm text-gray-500">No requests currently need attention.</p>
             ) : (
               <>
-                <div className="hidden lg:grid grid-cols-[130px_150px_1fr_170px_90px_120px] gap-3 px-5 py-2 bg-[#FAF8F2] border-b border-sand/60 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                <div className="hidden lg:grid grid-cols-[110px_140px_minmax(180px,1fr)_160px_90px_140px] gap-3 px-5 py-2 bg-[#FAF8F2] border-b border-sand/60 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
                   <span>Request</span>
                   <span>Patient</span>
                   <span>Reason</span>
                   <span>Status / Comm.</span>
-                  <span>Created</span>
+                  <span>Age</span>
                   <span>Next action</span>
                 </div>
                 <div className="divide-y divide-sand/60">
                   {attentionOrders.map((order) => {
                     const hasNotif = notifStates.get(order.id)?.ok === true;
+                    const reason = attentionReason(order, hasNotif);
+                    const nextAction = describeNextAction(order, hasNotif);
+                    const statusOrCommBadge = hasNotif ? (
+                      <span className="inline-flex w-fit max-w-full items-center text-xs font-semibold px-2.5 py-0.5 rounded-full whitespace-nowrap border border-[#74C0A2]/40 bg-[#74C0A2]/20 text-[#0B5C6C]">
+                        Communication queued
+                      </span>
+                    ) : (
+                      <span className={cn("inline-flex w-fit max-w-full items-center text-xs font-semibold px-2.5 py-0.5 rounded-full whitespace-nowrap", STATUS_BADGE[order.status])}>{order.status}</span>
+                    );
                     return (
-                      <div
-                        key={order.id}
-                        className="flex flex-col gap-2 px-5 py-3.5 hover:bg-[#F5F3EE] transition-colors lg:grid lg:grid-cols-[130px_150px_1fr_170px_90px_120px] lg:items-center lg:gap-3"
-                      >
-                        <button
-                          type="button"
-                          onClick={() => handleReviewRequest(order)}
-                          className="font-mono text-sm font-semibold text-[#0B5C6C] hover:underline whitespace-nowrap text-left"
-                        >
-                          {order.requestId}
-                        </button>
-                        <span className="text-sm font-medium text-navy truncate">{order.patient}</span>
-                        <span className="text-xs text-gray-600 leading-5">{attentionReason(order, hasNotif)}</span>
-                        {hasNotif ? (
-                          <span className="inline-flex w-fit items-center text-xs font-semibold px-2.5 py-0.5 rounded-full whitespace-nowrap border border-[#74C0A2]/40 bg-[#74C0A2]/20 text-[#0B5C6C]">
-                            Patient communication queued
-                          </span>
-                        ) : (
-                          <span className={cn("inline-flex w-fit items-center text-xs font-semibold px-2.5 py-0.5 rounded-full whitespace-nowrap", STATUS_BADGE[order.status])}>{order.status}</span>
-                        )}
-                        <span className="text-xs text-gray-400 whitespace-nowrap">{order.date}</span>
-                        <button
-                          type="button"
-                          onClick={() => handleReviewRequest(order)}
-                          className="w-fit text-xs font-semibold px-3 py-1.5 rounded-lg bg-[#0B5C6C] text-white hover:bg-[#0B5C6C]/90 transition-colors whitespace-nowrap"
-                        >
-                          {attentionNextAction(order)}
-                        </button>
+                      <div key={order.id} className="px-5 py-3.5 hover:bg-[#F5F3EE] transition-colors">
+                        {/* Wide layout — one row per request */}
+                        <div className="hidden lg:grid lg:grid-cols-[110px_140px_minmax(180px,1fr)_160px_90px_140px] lg:items-center lg:gap-3">
+                          <button
+                            type="button"
+                            onClick={() => handleReviewRequest(order)}
+                            title={order.requestId}
+                            className="font-mono text-sm font-semibold text-[#0B5C6C] hover:underline truncate text-left"
+                          >
+                            {order.requestId}
+                          </button>
+                          <span className="text-sm font-medium text-navy truncate" title={order.patient}>{order.patient}</span>
+                          <span className="text-xs text-gray-600 leading-5 truncate" title={reason}>{reason}</span>
+                          {statusOrCommBadge}
+                          <span className="text-xs text-gray-400 whitespace-nowrap" title={order.date}>{formatRequestAge(order.date)}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleReviewRequest(order)}
+                            className="w-fit text-xs font-semibold px-3 py-1.5 rounded-lg bg-[#0B5C6C] text-white hover:bg-[#0B5C6C]/90 transition-colors whitespace-nowrap"
+                          >
+                            {nextAction}
+                          </button>
+                        </div>
+
+                        {/* Narrow layout — primary identity, then stacked secondary info */}
+                        <div className="lg:hidden space-y-2">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <button
+                                type="button"
+                                onClick={() => handleReviewRequest(order)}
+                                className="block font-mono text-sm font-semibold text-[#0B5C6C] hover:underline truncate text-left"
+                              >
+                                {order.requestId}
+                              </button>
+                              <span className="block text-sm font-medium text-navy truncate">{order.patient}</span>
+                            </div>
+                            <div className="shrink-0">{statusOrCommBadge}</div>
+                          </div>
+                          <p className="text-xs text-gray-600 leading-5">{reason}</p>
+                          <div className="flex items-center justify-between gap-3 pt-1">
+                            <span className="text-xs text-gray-400 whitespace-nowrap">{formatRequestAge(order.date)}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleReviewRequest(order)}
+                              className="w-fit text-xs font-semibold px-3 py-1.5 rounded-lg bg-[#0B5C6C] text-white hover:bg-[#0B5C6C]/90 transition-colors whitespace-nowrap"
+                            >
+                              {nextAction}
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     );
                   })}
