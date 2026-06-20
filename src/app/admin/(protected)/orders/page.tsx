@@ -489,11 +489,14 @@ const WORK_LOG_TYPE_BADGE: Record<WorkLogType, string> = {
 
 interface WorkLogEntry {
   id: string;
+  orderId: string;
   type: WorkLogType;
   minutes: number;
   note: string;
   followUpRequired: boolean;
   createdAt: string;
+  updatedAt?: string;
+  createdBy?: string;
 }
 
 // "0 min" / "45 min" / "1h" / "1h 20m"
@@ -1455,40 +1458,89 @@ function RequestReviewDrawer({
 
   // Work log — local session state only, keyed by request id. No backend
   // endpoint exists for this yet (see WorkLogEntry comment above).
-  const [workLogsByOrder, setWorkLogsByOrder] = useState<Record<string, WorkLogEntry[]>>({});
-  const [workType,        setWorkType]        = useState<WorkLogType>("General note");
-  const [workHours,       setWorkHours]       = useState(0);
-  const [workMinutes,     setWorkMinutes]     = useState(0);
-  const [workNote,        setWorkNote]        = useState("");
-  const [workFollowUp,    setWorkFollowUp]    = useState(false);
+  const [workLogsByOrder,    setWorkLogsByOrder]    = useState<Record<string, WorkLogEntry[]>>({});
+  const [workLogModalOpen,   setWorkLogModalOpen]   = useState(false);
+  const [editingWorkLogId,   setEditingWorkLogId]   = useState<string | null>(null);
+  const [workType,           setWorkType]           = useState<WorkLogType>("General note");
+  const [workHours,          setWorkHours]           = useState(0);
+  const [workMinutes,        setWorkMinutes]         = useState(0);
+  const [workNote,           setWorkNote]            = useState("");
+  const [workFollowUp,       setWorkFollowUp]        = useState(false);
 
   useEffect(() => {
-    setWorkType("General note");
-    setWorkHours(0);
-    setWorkMinutes(0);
-    setWorkNote("");
-    setWorkFollowUp(false);
+    setWorkLogModalOpen(false);
+    setEditingWorkLogId(null);
   }, [order?.id]);
 
-  function handleAddWorkLog() {
-    if (!order || !workNote.trim()) return;
-    const entry: WorkLogEntry = {
-      id: `wl-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      type: workType,
-      minutes: workHours * 60 + workMinutes,
-      note: workNote.trim(),
-      followUpRequired: workFollowUp,
-      createdAt: new Date().toISOString(),
-    };
-    setWorkLogsByOrder((prev) => ({
-      ...prev,
-      [order.id]: [entry, ...(prev[order.id] ?? [])],
-    }));
+  function resetWorkLogForm() {
     setWorkType("General note");
     setWorkHours(0);
     setWorkMinutes(0);
     setWorkNote("");
     setWorkFollowUp(false);
+  }
+
+  function handleOpenAddWorkLog() {
+    setEditingWorkLogId(null);
+    resetWorkLogForm();
+    setWorkLogModalOpen(true);
+  }
+
+  function handleOpenEditWorkLog(entry: WorkLogEntry) {
+    setEditingWorkLogId(entry.id);
+    setWorkType(entry.type);
+    setWorkHours(Math.floor(entry.minutes / 60));
+    setWorkMinutes(entry.minutes % 60);
+    setWorkNote(entry.note);
+    setWorkFollowUp(entry.followUpRequired);
+    setWorkLogModalOpen(true);
+  }
+
+  function handleCloseWorkLogModal() {
+    setWorkLogModalOpen(false);
+    setEditingWorkLogId(null);
+    resetWorkLogForm();
+  }
+
+  function handleSaveWorkLog() {
+    if (!order || !workNote.trim()) return;
+    const minutes = workHours * 60 + workMinutes;
+
+    if (editingWorkLogId) {
+      setWorkLogsByOrder((prev) => ({
+        ...prev,
+        [order.id]: (prev[order.id] ?? []).map((e) =>
+          e.id === editingWorkLogId
+            ? { ...e, type: workType, minutes, note: workNote.trim(), followUpRequired: workFollowUp, updatedAt: new Date().toISOString() }
+            : e
+        ),
+      }));
+    } else {
+      const entry: WorkLogEntry = {
+        id: `wl-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        orderId: order.id,
+        type: workType,
+        minutes,
+        note: workNote.trim(),
+        followUpRequired: workFollowUp,
+        createdAt: new Date().toISOString(),
+        createdBy: "Staff user",
+      };
+      setWorkLogsByOrder((prev) => ({
+        ...prev,
+        [order.id]: [entry, ...(prev[order.id] ?? [])],
+      }));
+    }
+
+    handleCloseWorkLogModal();
+  }
+
+  function handleRemoveWorkLog(id: string) {
+    if (!order) return;
+    setWorkLogsByOrder((prev) => ({
+      ...prev,
+      [order.id]: (prev[order.id] ?? []).filter((e) => e.id !== id),
+    }));
   }
 
   const workLogEntries = order ? (workLogsByOrder[order.id] ?? []) : [];
@@ -1498,7 +1550,7 @@ function RequestReviewDrawer({
     { key: "request", label: "Request" },
     { key: "funding", label: "Funding" },
     { key: "patient", label: "Patient" },
-    { key: "communication", label: "Communication" },
+    { key: "communication", label: "Comms" },
     { key: "workLog", label: "Work Log" },
     { key: "history", label: "History" },
   ];
@@ -1518,7 +1570,7 @@ function RequestReviewDrawer({
         aria-modal="true"
         aria-label="Review Request"
         className={cn(
-          "fixed top-0 right-0 bottom-0 z-50 h-screen w-full overflow-hidden sm:w-[480px] bg-white shadow-2xl flex flex-col transition-transform duration-300",
+          "fixed top-0 right-0 bottom-0 z-50 h-screen w-full overflow-hidden sm:w-[min(780px,54vw)] bg-white shadow-2xl flex flex-col transition-transform duration-300",
           isOpen ? "translate-x-0" : "translate-x-full"
         )}
       >
@@ -1896,80 +1948,6 @@ function RequestReviewDrawer({
             </div>
           ) : tab === "workLog" ? (
             <div className="space-y-5">
-              {/* Add work log form */}
-              <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-4 space-y-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Add work log entry</p>
-
-                <label className="block">
-                  <span className="block text-xs font-medium text-gray-600 mb-1">Work type</span>
-                  <select
-                    value={workType}
-                    onChange={(e) => setWorkType(e.target.value as WorkLogType)}
-                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0B5C6C]/30"
-                  >
-                    {WORK_LOG_TYPES.map((t) => (
-                      <option key={t} value={t}>{t}</option>
-                    ))}
-                  </select>
-                </label>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <label className="block">
-                    <span className="block text-xs font-medium text-gray-600 mb-1">Hours</span>
-                    <input
-                      type="number"
-                      min={0}
-                      max={24}
-                      value={workHours}
-                      onChange={(e) => setWorkHours(Math.min(24, Math.max(0, Number(e.target.value) || 0)))}
-                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0B5C6C]/30"
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="block text-xs font-medium text-gray-600 mb-1">Minutes</span>
-                    <input
-                      type="number"
-                      min={0}
-                      max={59}
-                      value={workMinutes}
-                      onChange={(e) => setWorkMinutes(Math.min(59, Math.max(0, Number(e.target.value) || 0)))}
-                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0B5C6C]/30"
-                    />
-                  </label>
-                </div>
-
-                <label className="block">
-                  <span className="block text-xs font-medium text-gray-600 mb-1">Note</span>
-                  <textarea
-                    rows={3}
-                    value={workNote}
-                    onChange={(e) => setWorkNote(e.target.value)}
-                    placeholder="Describe work completed, follow-up needed, or decision made…"
-                    maxLength={1000}
-                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0B5C6C]/30"
-                  />
-                </label>
-
-                <label className="flex items-center gap-2 text-sm text-gray-700">
-                  <input
-                    type="checkbox"
-                    checked={workFollowUp}
-                    onChange={(e) => setWorkFollowUp(e.target.checked)}
-                    className="h-4 w-4 rounded accent-[#0B5C6C]"
-                  />
-                  Follow-up required
-                </label>
-
-                <button
-                  type="button"
-                  onClick={handleAddWorkLog}
-                  disabled={!workNote.trim()}
-                  className="w-full rounded-lg bg-[#0B5C6C] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#0B5C6C]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Add work log
-                </button>
-              </div>
-
               {/* Summary card */}
               <div className="rounded-lg border border-[#0B5C6C]/20 bg-[#0B5C6C]/5 px-4 py-3">
                 <p className="text-xs font-semibold uppercase tracking-wide text-[#0B5C6C] mb-2.5">Handling time</p>
@@ -1997,9 +1975,20 @@ function RequestReviewDrawer({
                 </dl>
               </div>
 
+              {/* Header row */}
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold text-navy">Work Log</p>
+                <button
+                  type="button"
+                  onClick={handleOpenAddWorkLog}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-[#0B5C6C] text-white hover:bg-[#0B5C6C]/90 transition-colors whitespace-nowrap"
+                >
+                  + Add work log
+                </button>
+              </div>
+
               {/* Work log entries */}
               <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Work log entries</p>
                 {workLogEntries.length === 0 ? (
                   <p className="text-sm text-gray-400 py-3">No work logged for this request yet.</p>
                 ) : (
@@ -2009,16 +1998,34 @@ function RequestReviewDrawer({
                         <span className={cn("inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-full", WORK_LOG_TYPE_BADGE[entry.type])}>
                           {entry.type}
                         </span>
-                        <span className="text-xs text-gray-400 whitespace-nowrap">{formatHistoryDate(entry.createdAt)}</span>
+                        <span className="text-xs text-gray-400 whitespace-nowrap">
+                          {entry.updatedAt ? `Edited ${formatHistoryDate(entry.updatedAt)}` : formatHistoryDate(entry.createdAt)}
+                        </span>
                       </div>
                       <p className="text-sm text-gray-800 leading-5 whitespace-pre-wrap">{entry.note}</p>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs text-gray-500">Staff user · {formatWorkLogMinutes(entry.minutes)}</span>
-                        {entry.followUpRequired && (
-                          <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 border border-orange-200">
-                            Follow-up required
-                          </span>
-                        )}
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <span className="text-xs text-gray-500">{entry.createdBy ?? "Staff user"} · {formatWorkLogMinutes(entry.minutes)}</span>
+                        <div className="flex items-center gap-2">
+                          {entry.followUpRequired && (
+                            <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 border border-orange-200">
+                              Follow-up required
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditWorkLog(entry)}
+                            className="text-xs font-medium text-[#0B5C6C] hover:underline"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveWorkLog(entry.id)}
+                            className="text-xs font-medium text-red-600 hover:underline"
+                          >
+                            Remove
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))
@@ -2115,6 +2122,109 @@ function RequestReviewDrawer({
           )}
         </div>
       </div>
+
+      {/* Add / Edit work log modal */}
+      {workLogModalOpen && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/40 z-[60]"
+            onClick={handleCloseWorkLogModal}
+            aria-hidden="true"
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={editingWorkLogId ? "Edit work log entry" : "Add work log entry"}
+            className="fixed inset-0 z-[60] flex items-center justify-center px-4"
+          >
+            <div className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-xl bg-white shadow-2xl">
+              <div className="px-5 py-4 border-b border-gray-200">
+                <h3 className="text-base font-semibold text-navy">
+                  {editingWorkLogId ? "Edit work log entry" : "Add work log entry"}
+                </h3>
+              </div>
+              <div className="px-5 py-4 space-y-3">
+                <label className="block">
+                  <span className="block text-xs font-medium text-gray-600 mb-1">Work type</span>
+                  <select
+                    value={workType}
+                    onChange={(e) => setWorkType(e.target.value as WorkLogType)}
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0B5C6C]/30"
+                  >
+                    {WORK_LOG_TYPES.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="block">
+                    <span className="block text-xs font-medium text-gray-600 mb-1">Hours</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={24}
+                      value={workHours}
+                      onChange={(e) => setWorkHours(Math.min(24, Math.max(0, Number(e.target.value) || 0)))}
+                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0B5C6C]/30"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="block text-xs font-medium text-gray-600 mb-1">Minutes</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={59}
+                      value={workMinutes}
+                      onChange={(e) => setWorkMinutes(Math.min(59, Math.max(0, Number(e.target.value) || 0)))}
+                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0B5C6C]/30"
+                    />
+                  </label>
+                </div>
+
+                <label className="block">
+                  <span className="block text-xs font-medium text-gray-600 mb-1">Note</span>
+                  <textarea
+                    rows={3}
+                    value={workNote}
+                    onChange={(e) => setWorkNote(e.target.value)}
+                    placeholder="Describe work completed, follow-up needed, or decision made…"
+                    maxLength={1000}
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0B5C6C]/30"
+                  />
+                </label>
+
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={workFollowUp}
+                    onChange={(e) => setWorkFollowUp(e.target.checked)}
+                    className="h-4 w-4 rounded accent-[#0B5C6C]"
+                  />
+                  Follow-up required
+                </label>
+              </div>
+              <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={handleCloseWorkLogModal}
+                  className="text-sm font-medium px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveWorkLog}
+                  disabled={!workNote.trim()}
+                  className="text-sm font-semibold px-4 py-2 rounded-lg bg-[#0B5C6C] text-white hover:bg-[#0B5C6C]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {editingWorkLogId ? "Save changes" : "Add work log"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </>
   );
 
@@ -2863,7 +2973,7 @@ const reviewOrder = useMemo(
   }, [orders, communicationQueuedOrders]);
 
   return (
-    <div className="mx-auto w-full max-w-[1560px] space-y-7 px-5 sm:px-6 lg:px-8 xl:px-10">
+    <div className="mx-auto w-full max-w-[1680px] space-y-7 px-4 sm:px-5 lg:px-6 xl:px-8">
       {/* Header */}
       <div className="rounded-2xl border border-sand bg-white px-6 py-6 shadow-sm md:px-7">
         <div className="flex items-center justify-between gap-5 flex-wrap">
