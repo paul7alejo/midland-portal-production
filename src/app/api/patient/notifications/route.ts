@@ -18,6 +18,7 @@ type SafePatientNotification = Pick<
   | 'read_at'
   | 'channel'
   | 'delivery_status'
+  | 'link_target'
 >;
 
 function toSafeNotification(update: PatientPortalUpdateRecord): SafePatientNotification {
@@ -31,6 +32,7 @@ function toSafeNotification(update: PatientPortalUpdateRecord): SafePatientNotif
     read_at: update.read_at ?? null,
     channel: update.channel,
     delivery_status: update.delivery_status,
+    link_target: update.link_target,
   };
 }
 

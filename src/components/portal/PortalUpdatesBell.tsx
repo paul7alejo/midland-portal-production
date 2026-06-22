@@ -48,6 +48,14 @@ interface PatientPortalNotification {
   read_at: string | null;
   channel: "portal";
   delivery_status: "visible";
+  link_target?: string;
+}
+
+// Only ever navigate to a known portal page — defense in depth even though
+// link_target is always set server-side by trusted admin-approval code.
+function resolveNotificationDestination(notification: PatientPortalNotification): string {
+  if (notification.link_target?.startsWith("/portal/")) return notification.link_target;
+  return REQUEST_STATUS_DESTINATION;
 }
 
 interface PatientNotice {
@@ -227,7 +235,7 @@ export default function PortalUpdatesBell({ className }: { className?: string })
       }
     } finally {
       setOpen(false);
-      router.push(REQUEST_STATUS_DESTINATION);
+      router.push(resolveNotificationDestination(notification));
     }
   }
 
@@ -270,6 +278,11 @@ export default function PortalUpdatesBell({ className }: { className?: string })
                       {notification.request_reference && (
                         <span className={cn("mt-2 block font-mono text-[11px] uppercase tracking-wide text-charcoal/45", mobile && "break-all")}>
                           Request {notification.request_reference}
+                        </span>
+                      )}
+                      {notification.link_target?.startsWith("/portal/profile") && (
+                        <span className="mt-2 block text-xs font-semibold text-[#0B5C6C]">
+                          View profile →
                         </span>
                       )}
                     </span>

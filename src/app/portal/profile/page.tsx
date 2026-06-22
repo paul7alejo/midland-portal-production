@@ -315,7 +315,19 @@ export default function ProfilePage() {
   const [copied, setCopied] = useState(false);
   const [nhiState, setNhiState] = useState<NhiState>({ status: "hidden" });
   const [addressModalOpen, setAddressModalOpen] = useState(false);
+  const [showAddressUpdatedNotice, setShowAddressUpdatedNotice] = useState(false);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Reads the ?notice= query param directly (rather than useSearchParams) so
+  // this page can stay statically rendered — this is a one-off banner, not
+  // routing logic.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("notice") === "address-updated") {
+      setShowAddressUpdatedNotice(true);
+    }
+  }, []);
 
   useEffect(() => {
     const load = async () => {
@@ -437,6 +449,23 @@ export default function ProfilePage() {
 
   return (
     <>
+      {showAddressUpdatedNotice && (
+        <div className="mb-4 flex items-start justify-between gap-3 rounded-xl border border-seafoam/40 bg-seafoam-pale/50 px-4 py-3">
+          <p className="text-sm leading-5 text-charcoal/85">
+            <span className="font-semibold text-navy">Delivery address updated.</span>{" "}
+            Midland Sleep has reviewed your address change request and updated the delivery address below.
+          </p>
+          <button
+            type="button"
+            onClick={() => setShowAddressUpdatedNotice(false)}
+            aria-label="Dismiss"
+            className="shrink-0 text-charcoal/50 hover:text-charcoal"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       <h1 className="font-display text-[28px] md:text-[34px] leading-tight font-semibold text-navy mb-2">
         My profile
       </h1>

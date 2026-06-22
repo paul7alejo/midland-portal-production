@@ -33,6 +33,14 @@ interface PatientPortalNotification {
   read_at: string | null;
   channel: "portal";
   delivery_status: "visible";
+  link_target?: string;
+}
+
+// Only ever navigate to a known portal page — defense in depth even though
+// link_target is always set server-side by trusted admin-approval code.
+function resolveNotificationDestination(notification: PatientPortalNotification): string {
+  if (notification.link_target?.startsWith("/portal/")) return notification.link_target;
+  return REQUEST_STATUS_DESTINATION;
 }
 
 interface PatientNotice {
@@ -183,7 +191,7 @@ export default function NotificationsPage() {
     try {
       if (!notification.read_at) await markRead(notification.notification_id);
     } finally {
-      router.push(REQUEST_STATUS_DESTINATION);
+      router.push(resolveNotificationDestination(notification));
     }
   }
 
@@ -252,6 +260,11 @@ export default function NotificationsPage() {
                                 Request {notification.request_reference}
                               </span>
                             )}
+                            {notification.link_target?.startsWith("/portal/profile") && (
+                              <span className="mt-3 block text-sm font-semibold text-[#0B5C6C]">
+                                View profile →
+                              </span>
+                            )}
                           </span>
                         </span>
                       </button>
@@ -290,6 +303,11 @@ export default function NotificationsPage() {
                               {notification.request_reference && (
                                 <span className="mt-3 block font-mono text-xs uppercase tracking-wide text-charcoal/55">
                                   Request {notification.request_reference}
+                                </span>
+                              )}
+                              {notification.link_target?.startsWith("/portal/profile") && (
+                                <span className="mt-3 block text-sm font-semibold text-[#0B5C6C]">
+                                  View profile →
                                 </span>
                               )}
                             </span>

@@ -449,7 +449,19 @@ function orderNeedsAction(order: Order): boolean {
   );
 }
 
+// Short, safe preview of a patient-submitted note for table/list contexts —
+// full text remains available in the drawer, never truncated there.
+function previewPatientNote(note: string, maxLength = 90): string {
+  const trimmed = note.trim();
+  if (trimmed.length <= maxLength) return trimmed;
+  return `${trimmed.slice(0, maxLength).trimEnd()}…`;
+}
+
 function attentionReason(order: Order, hasNotif: boolean): string {
+  if (isAddressChangeRequest(order)) {
+    const note = order.patientNote?.trim();
+    return note ? `Address change requested: ${previewPatientNote(note)}` : "Patient requested delivery address update";
+  }
   if (order.status === "New") return "New request awaiting staff review";
   if (order.needsFundingReview) return "Funding check required before approval";
   if (order.status === "Needs Follow-Up") return order.reviewReason || "Follow-up required";
@@ -463,6 +475,9 @@ function attentionReason(order: Order, hasNotif: boolean): string {
 // "Open review" / "View" binary used by the table action button is decided
 // separately by orderNeedsAction().
 function describeNextAction(order: Order, hasNotif = false): string {
+  if (isAddressChangeRequest(order) && (order.status === "New" || order.status === "Reviewing")) {
+    return "Review address change";
+  }
   if (order.status === "New") return "Review request";
   if (order.needsFundingReview) return "Check funding";
   if (order.status === "Needs Follow-Up") return "Follow up with patient";
@@ -476,6 +491,7 @@ function describeNextAction(order: Order, hasNotif = false): string {
 // Next Action card keeps the full describeNextAction() phrasing.
 const NEEDS_ATTENTION_ACTION_SHORT: Record<string, string> = {
   "Review request": "Review",
+  "Review address change": "Review address",
   "Review communication": "Review comms",
   "Follow up with patient": "Follow up",
   "View completed request": "View",

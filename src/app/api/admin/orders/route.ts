@@ -287,6 +287,7 @@ export async function PATCH(request: NextRequest) {
         orgId: ORG_ID,
         titleOverride: 'Delivery address updated',
         messageOverride: 'Midland Sleep has reviewed your address change request and updated the delivery address on your profile.',
+        linkTarget: '/portal/profile?notice=address-updated',
       })
 
       return NextResponse.json({

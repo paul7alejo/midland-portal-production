@@ -190,6 +190,10 @@ export interface PatientPortalUpdateRecord {
   delivery_status: 'visible'
   created_at: string
   read_at: string | null
+  // Optional in-app navigation target for this notification (e.g.
+  // "/portal/profile?notice=address-updated"). Absent on older records and
+  // on notifications where the generic supply-request destination is fine.
+  link_target?: string
 }
 
 export type ImportedPatientSummary = Pick<
@@ -1471,6 +1475,8 @@ export async function createPatientPortalUpdate(params: {
   // apply (e.g. address-change approval, which isn't a supply-request event).
   titleOverride?: string
   messageOverride?: string
+  // Optional in-app navigation target — see PatientPortalUpdateRecord.link_target.
+  linkTarget?: string
 }): Promise<PatientPortalUpdateWriteResult> {
   const tableName = process.env.NOTIFICATIONS_TABLE_NAME
   if (!tableName) return { ok: false, reason: 'notifications_table_unavailable' }
@@ -1498,6 +1504,7 @@ export async function createPatientPortalUpdate(params: {
         delivery_status:   'visible',
         created_at:        createdAt,
         read_at:           null,
+        link_target:       params.linkTarget,
       } satisfies PatientPortalUpdateRecord,
     }))
     return { ok: true, notificationId }
