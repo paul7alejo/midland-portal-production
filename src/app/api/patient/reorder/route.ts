@@ -9,6 +9,7 @@ import {
   type ReorderRecord,
   type ReorderDeliveryAddress,
   type ReorderStatus,
+  type PatientAddressStructured,
 } from '@/lib/aws/dynamodb'
 import { randomUUID } from 'crypto'
 
@@ -80,6 +81,56 @@ function isValidAddress(a: unknown): a is ReorderDeliveryAddress {
     typeof addr.postcode === 'string' && addr.postcode.trim().length > 0 &&
     typeof addr.country  === 'string' && addr.country.trim().length  > 0
   )
+}
+
+// Address-change requests use the admin record's structured shape (with a
+// distinct suburb field), not the simplified ReorderDeliveryAddress used by
+// supply requests.
+function isValidStructuredAddress(a: unknown): a is PatientAddressStructured {
+  if (!a || typeof a !== 'object') return false
+  const addr = a as Record<string, unknown>
+  return (
+    typeof addr.line1 === 'string' && addr.line1.trim().length > 0 &&
+    typeof addr.city  === 'string' && addr.city.trim().length  > 0 &&
+    typeof addr.postal_code === 'string' && addr.postal_code.trim().length > 0 &&
+    typeof addr.country === 'string' && addr.country.trim().length > 0
+  )
+}
+
+function cleanStructuredAddress(a: PatientAddressStructured): PatientAddressStructured {
+  const result: PatientAddressStructured = {
+    line1:       a.line1?.trim() ?? '',
+    city:        a.city?.trim() ?? '',
+    postal_code: a.postal_code?.trim() ?? '',
+    country:     a.country?.trim() ?? '',
+  }
+  const line2  = a.line2?.trim()
+  if (line2) result.line2 = line2
+  const suburb = a.suburb?.trim()
+  if (suburb) result.suburb = suburb
+  const region = a.region?.trim()
+  if (region) result.region = region
+  return result
+}
+
+// Best-effort snapshot of the admin-controlled address at submission time —
+// optional and may be partial/absent if the patient has no address on file.
+function cleanOptionalStructuredAddress(a: unknown): PatientAddressStructured | undefined {
+  if (!a || typeof a !== 'object') return undefined
+  const addr = a as Record<string, unknown>
+  const line1       = typeof addr.line1 === 'string' ? addr.line1.trim() : ''
+  const city        = typeof addr.city === 'string' ? addr.city.trim() : ''
+  const postal_code = typeof addr.postal_code === 'string' ? addr.postal_code.trim() : ''
+  const country     = typeof addr.country === 'string' ? addr.country.trim() : ''
+  const suburb       = typeof addr.suburb === 'string' ? addr.suburb.trim() : ''
+  const line2       = typeof addr.line2 === 'string' ? addr.line2.trim() : ''
+  const region      = typeof addr.region === 'string' ? addr.region.trim() : ''
+  if (!line1 && !city && !postal_code && !country && !suburb) return undefined
+  const result: PatientAddressStructured = { line1, city, postal_code, country }
+  if (line2) result.line2 = line2
+  if (suburb) result.suburb = suburb
+  if (region) result.region = region
+  return result
 }
 
 const SAFE_RESPONSE_STEPS = new Set([
@@ -281,6 +332,108 @@ export async function POST(request: NextRequest) {
         existing: false,
         orderId:  reorder.id,
         request:  toPatientReorderResponse(reorder),
+      })
+    }
+
+    // ── Address change request path ──────────────────────────────────────────
+    // Patient-submitted correction. Never applied to the patient record here —
+    // this only ever creates a staff-reviewable request (admin record stays
+    // the source of truth until a staff member acts on it elsewhere).
+    if (requestType === 'address_change') {
+      const { requestedAddress, currentAddressSnapshot, patientNote } = b as {
+        requestedAddress?: unknown
+        currentAddressSnapshot?: unknown
+        patientNote?: unknown
+      }
+
+      if (!isValidStructuredAddress(requestedAddress)) {
+        return NextResponse.json(
+          { error: 'A complete address is required (line1, city, postcode, country)' },
+          { status: 400 }
+        )
+      }
+
+      const requested_address = cleanStructuredAddress(requestedAddress)
+      const snapshot = cleanOptionalStructuredAddress(currentAddressSnapshot)
+      const note = typeof patientNote === 'string' ? patientNote.trim().slice(0, 1000) : undefined
+
+      const requestId  = randomUUID()
+      const createdAt  = new Date().toISOString()
+      const requestReference = createRequestReference(createdAt)
+
+      step = 'audit_write'
+      try {
+        await appendAuditLog({
+          userId:       sub,
+          event_type:   'PATIENT_ADDRESS_CHANGE_REQUESTED',
+          action:       'PATIENT_ADDRESS_CHANGE_REQUESTED',
+          patient_id:   patient.patient_id,
+          patient_msid: patient.portal_id,
+          order_id:     requestId,
+          request_id:   requestReference,
+          org_id:       orgId,
+          timestamp:    createdAt,
+          result:       'success',
+          details:      `Address change request ${requestReference} created; status new.`,
+          category:     'Orders',
+          source:       'address_change',
+          status:       'new',
+        })
+      } catch (auditErr) {
+        const awsMeta = (auditErr as { $metadata?: { requestId?: string; httpStatusCode?: number } }).$metadata
+        console.error('[patient/reorder] audit_write failed (address_change)', {
+          step,
+          msid,
+          cognitoSub: sub,
+          orgId,
+          requestType: 'address_change',
+          errorName: auditErr instanceof Error ? auditErr.name : 'UnknownError',
+          errorMessage: (auditErr instanceof Error ? auditErr.message : String(auditErr)).slice(0, 200),
+          awsRequestId: awsMeta?.requestId,
+          awsHttpStatus: awsMeta?.httpStatusCode,
+        })
+        return NextResponse.json({ error: 'Unable to submit request. Please try again.', code: 'REORDER_SUBMISSION_FAILED', step: safeStep(step) }, { status: 500 })
+      }
+
+      step = 'request_create'
+      let addressChange: ReorderRecord
+      try {
+        addressChange = await createReorderRequest({
+          id:                requestId,
+          request_reference: requestReference,
+          patient_id:        patient.patient_id,
+          patient_msid:      patient.portal_id,
+          patient_name:      patient.name ?? 'Patient name unavailable',
+          org_id:            orgId,
+          source:            'address_change',
+          items:             [],
+          requested_address: requested_address,
+          current_address_snapshot: snapshot,
+          reason:            note,
+          created_by:        sub,
+        })
+      } catch (createErr) {
+        const awsMeta = (createErr as { $metadata?: { requestId?: string; httpStatusCode?: number } }).$metadata
+        const errName = createErr instanceof Error ? createErr.name : 'UnknownError'
+        console.error('[patient/reorder] request_create failed (address_change)', {
+          step,
+          requestType: 'address_change',
+          source: 'address_change',
+          status: 'new',
+          errorName: errName,
+          errorMessage: (createErr instanceof Error ? createErr.message : String(createErr)).slice(0, 200),
+          awsRequestId: awsMeta?.requestId,
+          awsHttpStatus: awsMeta?.httpStatusCode,
+        })
+        return NextResponse.json({ error: 'Unable to submit request. Please try again.', code: 'REORDER_SUBMISSION_FAILED', step: safeStep(step), errorName: errName }, { status: 500 })
+      }
+
+      safeLog('patient/reorder: address change request created', { orderId: addressChange.id, orgId })
+
+      return NextResponse.json({
+        existing: false,
+        orderId:  addressChange.id,
+        request:  toPatientReorderResponse(addressChange),
       })
     }
 

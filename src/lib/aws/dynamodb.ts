@@ -1058,6 +1058,7 @@ export type ReorderSource =
   | 'patient_portal'
   | 'support_request'
   | 'admin_created'
+  | 'address_change'
 
 export interface ReorderDeliveryAddress {
   line1: string
@@ -1090,6 +1091,14 @@ export interface ReorderRequest {
   estimated_patient_copay?: number
   estimated_remaining_after?: number
   note?: string
+  // Address-change requests only. requested_address is the patient's proposed
+  // correction; current_address_snapshot is the admin-controlled address at
+  // time of submission, kept so staff can compare before/after. Neither is
+  // ever applied to the patient record automatically — uses the same
+  // structured shape as the admin patient record (PatientAddressStructured),
+  // not the simplified ReorderDeliveryAddress used by supply requests.
+  requested_address?: PatientAddressStructured
+  current_address_snapshot?: PatientAddressStructured
 }
 
 export interface ReorderRecord {
@@ -1124,6 +1133,8 @@ export interface ReorderRecord {
   estimated_patient_copay?: number
   estimated_remaining_after?: number
   note?: string
+  requested_address?: PatientAddressStructured
+  current_address_snapshot?: PatientAddressStructured
 }
 
 export function createRequestReference(createdAt: string): string {
@@ -1160,7 +1171,7 @@ export function normalizeReorderStatus(status: unknown): ReorderStatus {
 
 export function normalizeReorderSource(source: unknown): ReorderSource {
   if (source === 'patient_portal_reorder') return 'patient_portal'
-  if (source === 'support_request' || source === 'admin_created') return source
+  if (source === 'support_request' || source === 'admin_created' || source === 'address_change') return source
   return 'patient_portal'
 }
 
@@ -1200,6 +1211,8 @@ export async function createReorderRequest(req: ReorderRequest): Promise<Reorder
     ...(req.estimated_patient_copay !== undefined && { estimated_patient_copay: req.estimated_patient_copay }),
     ...(req.estimated_remaining_after !== undefined && { estimated_remaining_after: req.estimated_remaining_after }),
     ...(req.note !== undefined && { note: req.note }),
+    ...(req.requested_address !== undefined && { requested_address: req.requested_address }),
+    ...(req.current_address_snapshot !== undefined && { current_address_snapshot: req.current_address_snapshot }),
   }
   await docClient.send(new PutCommand({
     TableName: TABLES.ORDERS,
@@ -1215,12 +1228,13 @@ export async function listReorderRequests(orgId: string): Promise<ReorderRecord[
   do {
     const res = await docClient.send(new ScanCommand({
       TableName: TABLES.ORDERS,
-      FilterExpression: 'org_id = :orgId AND (#src = :src1 OR #src = :src2 OR #src = :legacySrc)',
+      FilterExpression: 'org_id = :orgId AND (#src = :src1 OR #src = :src2 OR #src = :src3 OR #src = :legacySrc)',
       ExpressionAttributeNames: { '#src': 'source' },
       ExpressionAttributeValues: {
         ':orgId': orgId,
         ':src1': 'patient_portal',
         ':src2': 'support_request',
+        ':src3': 'address_change',
         ':legacySrc': 'patient_portal_reorder',
       },
       ExclusiveStartKey,
@@ -1314,13 +1328,14 @@ export async function listReorderRequestsByMsid(
   do {
     const res = await docClient.send(new ScanCommand({
       TableName: TABLES.ORDERS,
-      FilterExpression: 'patient_msid = :msid AND org_id = :orgId AND (#src = :src1 OR #src = :src2 OR #src = :legacySrc)',
+      FilterExpression: 'patient_msid = :msid AND org_id = :orgId AND (#src = :src1 OR #src = :src2 OR #src = :src3 OR #src = :legacySrc)',
       ExpressionAttributeNames: { '#src': 'source' },
       ExpressionAttributeValues: {
         ':msid': msid,
         ':orgId': orgId,
         ':src1': 'patient_portal',
         ':src2': 'support_request',
+        ':src3': 'address_change',
         ':legacySrc': 'patient_portal_reorder',
       },
       ExclusiveStartKey,

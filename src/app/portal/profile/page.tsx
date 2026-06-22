@@ -4,31 +4,25 @@ import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { configureCognito, getIdToken } from "@/lib/aws/cognito";
 import { cn } from "@/lib/utils";
-import {
-  EMPTY_DELIVERY_ADDRESS,
-  formatDeliveryAddress,
-  getDeliveryAddressStorageKey,
-  hasCompleteDeliveryAddress,
-  normalizeDeliveryAddress,
-  readSavedDeliveryAddress,
-  saveDeliveryAddress,
-  type DeliveryAddress,
-} from "@/lib/patientDeliveryAddress";
+
+interface AddressStructured {
+  line1?: string;
+  line2?: string;
+  suburb?: string;
+  city?: string;
+  region?: string;
+  postal_code?: string;
+  country?: string;
+}
 
 interface ProfileData {
   name: string;
   email: string;
   msid: string;
   org_id: string;
-  address_structured?: {
-    line1?: string;
-    line2?: string;
-    suburb?: string;
-    city?: string;
-    region?: string;
-    postal_code?: string;
-    country?: string;
-  } | null;
+  date_of_birth?: string | null;
+  phone?: string | null;
+  address_structured?: AddressStructured | null;
 }
 
 type NhiState =
@@ -37,35 +31,291 @@ type NhiState =
   | { status: "revealed"; nhi: string; secondsLeft: number }
   | { status: "error"; message: string };
 
+type AddressRequestState =
+  | { status: "idle" }
+  | { status: "submitting" }
+  | { status: "success"; reference: string | null }
+  | { status: "error"; message: string };
+
+const NOT_ON_FILE = "Not on file";
+
+function formatNzDate(value?: string | null): string {
+  if (!value?.trim()) return NOT_ON_FILE;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("en-NZ", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "Pacific/Auckland",
+  }).format(date);
+}
+
+function calculateAge(value?: string | null): number | null {
+  if (!value?.trim()) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - date.getFullYear();
+  const birthdayPassed =
+    today.getMonth() > date.getMonth() ||
+    (today.getMonth() === date.getMonth() && today.getDate() >= date.getDate());
+  if (!birthdayPassed) age -= 1;
+  return age >= 0 ? age : null;
+}
+
+function hasAddressOnFile(address?: AddressStructured | null): boolean {
+  if (!address) return false;
+  return Boolean(
+    address.line1?.trim() && address.city?.trim() && address.postal_code?.trim() && address.country?.trim()
+  );
+}
+
+function formatAddressLines(address?: AddressStructured | null): string[] {
+  if (!address) return [];
+  const line1 = address.line1?.trim();
+  const line2Parts = [address.line2, address.suburb]
+    .map((part) => part?.trim())
+    .filter((part, index, parts): part is string => Boolean(part) && parts.indexOf(part) === index);
+  const cityRegionPostcode = [address.city, address.region, address.postal_code]
+    .map((part) => part?.trim())
+    .filter(Boolean)
+    .join(" ");
+  const country = address.country?.trim();
+  return [line1, line2Parts.join(", "), cityRegionPostcode, country].filter(
+    (line): line is string => Boolean(line)
+  );
+}
+
+interface AddressFormState {
+  line1: string;
+  line2: string;
+  suburb: string;
+  city: string;
+  region: string;
+  postal_code: string;
+  country: string;
+  note: string;
+}
+
+function addressToForm(address?: AddressStructured | null): AddressFormState {
+  return {
+    line1:       address?.line1 ?? "",
+    line2:       address?.line2 ?? "",
+    suburb:      address?.suburb ?? "",
+    city:        address?.city ?? "",
+    region:      address?.region ?? "",
+    postal_code: address?.postal_code ?? "",
+    country:     address?.country?.trim() || "New Zealand",
+    note:        "",
+  };
+}
+
+function AddressChangeModal({
+  currentAddress,
+  onClose,
+  onSubmit,
+}: {
+  currentAddress?: AddressStructured | null;
+  onClose: () => void;
+  onSubmit: (form: AddressFormState) => Promise<{ ok: boolean; reference?: string | null; error?: string }>;
+}) {
+  const [form, setForm] = useState<AddressFormState>(() => addressToForm(currentAddress));
+  const [state, setState] = useState<AddressRequestState>({ status: "idle" });
+
+  const update = (field: keyof AddressFormState, value: string) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const canSubmit =
+    form.line1.trim().length > 0 &&
+    form.city.trim().length > 0 &&
+    form.postal_code.trim().length > 0 &&
+    form.country.trim().length > 0;
+
+  const handleSubmit = async () => {
+    if (!canSubmit || state.status === "submitting") return;
+    setState({ status: "submitting" });
+    const result = await onSubmit(form);
+    if (result.ok) {
+      setState({ status: "success", reference: result.reference ?? null });
+    } else {
+      setState({ status: "error", message: result.error ?? "Unable to submit your request. Please try again." });
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Request address change"
+    >
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} aria-hidden="true" />
+      <div className="relative z-10 flex max-h-[calc(100dvh_-_3rem)] w-full max-w-lg flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl">
+        <div className="shrink-0 border-b border-sand px-5 py-4 sm:px-6">
+          <h2 className="font-display text-xl font-semibold leading-snug text-navy">
+            Request address change
+          </h2>
+          {state.status !== "success" && (
+            <p className="mt-1 text-sm leading-5 text-charcoal/75">
+              Submit the corrected delivery address below. Midland Sleep staff will review this before it is used for future deliveries.
+            </p>
+          )}
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 sm:px-6">
+          {state.status === "success" ? (
+            <div className="space-y-3 py-4 text-center">
+              <div className="mx-auto h-12 w-12 rounded-full bg-seafoam-pale flex items-center justify-center">
+                <span className="text-seafoam text-xl">&#10003;</span>
+              </div>
+              <p className="text-lg font-semibold text-charcoal">Request submitted</p>
+              <p className="text-base leading-6 text-charcoal/80">
+                Midland Sleep staff will review your requested address before it is used for future deliveries.
+              </p>
+              {state.reference && (
+                <p className="font-mono text-sm text-charcoal/60">Reference: {state.reference}</p>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-medium text-charcoal">Address line 1</span>
+                <input
+                  value={form.line1}
+                  onChange={(e) => update("line1", e.target.value)}
+                  className="min-h-[44px] w-full rounded-lg border border-sand bg-white px-3 py-2.5 text-base text-charcoal placeholder:text-charcoal/45 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-deep-teal"
+                  placeholder="Street address"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-medium text-charcoal">
+                  Address line 2 <span className="font-normal text-charcoal/60">(optional)</span>
+                </span>
+                <input
+                  value={form.line2}
+                  onChange={(e) => update("line2", e.target.value)}
+                  className="min-h-[44px] w-full rounded-lg border border-sand bg-white px-3 py-2.5 text-base text-charcoal placeholder:text-charcoal/45 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-deep-teal"
+                  placeholder="Apartment, unit, or care of"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-medium text-charcoal">
+                  Suburb <span className="font-normal text-charcoal/60">(optional)</span>
+                </span>
+                <input
+                  value={form.suburb}
+                  onChange={(e) => update("suburb", e.target.value)}
+                  className="min-h-[44px] w-full rounded-lg border border-sand bg-white px-3 py-2.5 text-base text-charcoal placeholder:text-charcoal/45 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-deep-teal"
+                />
+              </label>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block">
+                  <span className="mb-1.5 block text-sm font-medium text-charcoal">City/Town</span>
+                  <input
+                    value={form.city}
+                    onChange={(e) => update("city", e.target.value)}
+                    className="min-h-[44px] w-full rounded-lg border border-sand bg-white px-3 py-2.5 text-base text-charcoal placeholder:text-charcoal/45 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-deep-teal"
+                    placeholder="Hamilton"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1.5 block text-sm font-medium text-charcoal">
+                    Region <span className="font-normal text-charcoal/60">(optional)</span>
+                  </span>
+                  <input
+                    value={form.region}
+                    onChange={(e) => update("region", e.target.value)}
+                    className="min-h-[44px] w-full rounded-lg border border-sand bg-white px-3 py-2.5 text-base text-charcoal placeholder:text-charcoal/45 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-deep-teal"
+                    placeholder="Waikato"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1.5 block text-sm font-medium text-charcoal">Postcode</span>
+                  <input
+                    value={form.postal_code}
+                    onChange={(e) => update("postal_code", e.target.value)}
+                    inputMode="numeric"
+                    className="min-h-[44px] w-full rounded-lg border border-sand bg-white px-3 py-2.5 text-base text-charcoal placeholder:text-charcoal/45 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-deep-teal"
+                    placeholder="3204"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1.5 block text-sm font-medium text-charcoal">Country</span>
+                  <input
+                    value={form.country}
+                    onChange={(e) => update("country", e.target.value)}
+                    className="min-h-[44px] w-full rounded-lg border border-sand bg-white px-3 py-2.5 text-base text-charcoal placeholder:text-charcoal/45 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-deep-teal"
+                    placeholder="New Zealand"
+                  />
+                </label>
+              </div>
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-medium text-charcoal">
+                  Reason / note <span className="font-normal text-charcoal/60">(optional)</span>
+                </span>
+                <textarea
+                  value={form.note}
+                  onChange={(e) => update("note", e.target.value)}
+                  rows={3}
+                  maxLength={1000}
+                  placeholder="Let staff know what changed or why"
+                  className="w-full rounded-lg border border-sand bg-white px-3 py-2.5 text-base text-charcoal placeholder:text-charcoal/45 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-deep-teal"
+                />
+              </label>
+
+              {state.status === "error" && (
+                <p role="alert" className="text-sm leading-5 text-[#C0392B] bg-red-50 border border-red-200 rounded-lg px-3 py-2.5">
+                  {state.message}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="shrink-0 border-t border-sand bg-sand-pale/30 px-5 py-3.5 sm:px-6">
+          {state.status === "success" ? (
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-full rounded-lg bg-[#0B5C6C] px-5 py-2.5 text-base font-medium text-white min-h-[44px] hover:bg-[#0B5C6C]/90 transition-colors"
+            >
+              Done
+            </button>
+          ) : (
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={!canSubmit || state.status === "submitting"}
+                className="flex-1 rounded-lg bg-[#0B5C6C] px-5 py-2.5 text-base font-medium text-white min-h-[44px] hover:bg-[#0B5C6C]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {state.status === "submitting" ? "Submitting..." : "Submit change request"}
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-lg border border-sand px-5 py-2.5 text-base font-medium text-charcoal min-h-[44px] hover:border-deep-teal/40 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ProfilePage() {
   const { patient } = useAuth();
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [nhiState, setNhiState] = useState<NhiState>({ status: "hidden" });
-  const [deliveryAddress, setDeliveryAddress] = useState<DeliveryAddress>(
-    EMPTY_DELIVERY_ADDRESS
-  );
-  const [addressMessage, setAddressMessage] = useState<string | null>(null);
+  const [addressModalOpen, setAddressModalOpen] = useState(false);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const addressEditedRef = useRef(false);
-  const adminAddressLoadedRef = useRef(false);
-
-  function mapStructuredAddress(address: ProfileData["address_structured"]): DeliveryAddress | null {
-    if (!address) return null;
-    const line2Parts = [address.line2, address.suburb]
-      .map((part) => part?.trim())
-      .filter((part, index, parts): part is string => Boolean(part) && parts.indexOf(part) === index);
-    const mapped = normalizeDeliveryAddress({
-      line1:    address.line1,
-      line2:    line2Parts.join(", "),
-      city:     address.city || address.suburb,
-      region:   address.region,
-      postcode: address.postal_code,
-      country:  address.country,
-    });
-    return hasCompleteDeliveryAddress(mapped) ? mapped : null;
-  }
 
   useEffect(() => {
     const load = async () => {
@@ -78,11 +328,6 @@ export default function ProfilePage() {
       if (res.ok) {
         const data = await res.json() as ProfileData;
         setProfile(data);
-        const adminAddress = mapStructuredAddress(data.address_structured);
-        if (adminAddress && !addressEditedRef.current) {
-          adminAddressLoadedRef.current = true;
-          setDeliveryAddress(adminAddress);
-        }
       }
       setProfileLoading(false);
     };
@@ -94,40 +339,13 @@ export default function ProfilePage() {
   }, []);
 
   const msid = profile?.msid ?? (patient as { msid?: string })?.msid ?? "";
-  const addressStorageKey = getDeliveryAddressStorageKey(patient?.userId);
-
-  useEffect(() => {
-    if (!patient?.userId) return;
-    if (adminAddressLoadedRef.current || addressEditedRef.current) return;
-    const savedAddress = readSavedDeliveryAddress(addressStorageKey);
-    if (savedAddress) setDeliveryAddress(savedAddress);
-  }, [addressStorageKey, patient?.userId]);
+  const age = calculateAge(profile?.date_of_birth);
 
   const handleCopy = async () => {
     if (!msid) return;
     await navigator.clipboard.writeText(msid);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  };
-
-  const updateDeliveryAddress = (
-    field: keyof DeliveryAddress,
-    value: string
-  ) => {
-    addressEditedRef.current = true;
-    setDeliveryAddress((prev) => ({ ...prev, [field]: value }));
-    setAddressMessage(null);
-  };
-
-  const handleSaveDeliveryAddress = () => {
-    const normalized = normalizeDeliveryAddress(deliveryAddress);
-    if (!hasCompleteDeliveryAddress(normalized)) {
-      setAddressMessage("Please complete the required address fields first.");
-      return;
-    }
-    saveDeliveryAddress(addressStorageKey, normalized);
-    setDeliveryAddress(normalized);
-    setAddressMessage("Default delivery address saved for supply requests.");
   };
 
   const handleRevealNhi = async () => {
@@ -174,13 +392,56 @@ export default function ProfilePage() {
     }, 1000);
   };
 
+  const handleSubmitAddressChange = async (
+    form: AddressFormState
+  ): Promise<{ ok: boolean; reference?: string | null; error?: string }> => {
+    try {
+      configureCognito();
+      const token = await getIdToken();
+      if (!token) return { ok: false, error: "Session expired. Please log in again." };
+
+      const requestedAddress: AddressStructured = {
+        line1: form.line1.trim(),
+        line2: form.line2.trim() || undefined,
+        suburb: form.suburb.trim() || undefined,
+        city: form.city.trim(),
+        region: form.region.trim() || undefined,
+        postal_code: form.postal_code.trim(),
+        country: form.country.trim(),
+      };
+
+      const res = await fetch("/api/patient/reorder", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "address_change",
+          requestedAddress,
+          currentAddressSnapshot: profile?.address_structured ?? null,
+          patientNote: form.note.trim() || undefined,
+        }),
+      });
+
+      let data: { request?: { referenceNumber?: string }; error?: string } = {};
+      try { data = await res.json(); } catch { /* non-JSON body */ }
+
+      if (!res.ok) {
+        return { ok: false, error: data.error ?? "Unable to submit your request. Please try again." };
+      }
+      return { ok: true, reference: data.request?.referenceNumber ?? null };
+    } catch {
+      return { ok: false, error: "Unable to submit your request. Please try again." };
+    }
+  };
+
+  const addressOnFile = hasAddressOnFile(profile?.address_structured);
+
   return (
     <>
       <h1 className="font-display text-[28px] md:text-[34px] leading-tight font-semibold text-navy mb-2">
         My profile
       </h1>
       <p className="text-base leading-6 text-charcoal/80 mb-3">
-        Your account details and Midland Sleep ID.
+        Review the details Midland Sleep has on record. If something needs correcting, let us know and staff will review it.
       </p>
 
       <div className="space-y-3">
@@ -211,7 +472,7 @@ export default function ProfilePage() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="max-w-full truncate text-base font-semibold leading-snug text-charcoal">{profile.name}</p>
-                  <p className="max-w-full truncate font-mono text-xs text-charcoal/60">{profile.msid}</p>
+                  <p className="max-w-full truncate text-sm text-charcoal/60">Verify these details are correct</p>
                 </div>
               </div>
             )}
@@ -228,15 +489,33 @@ export default function ProfilePage() {
                 </div>
                 <div className="min-w-0">
                   <dt className="text-xs uppercase tracking-wide text-charcoal/80 font-mono mb-1">
-                    Email
-                  </dt>
-                  <dd className="break-all text-charcoal">{profile.email}</dd>
-                </div>
-                <div className="min-w-0">
-                  <dt className="text-xs uppercase tracking-wide text-charcoal/80 font-mono mb-1">
                     Midland Sleep ID
                   </dt>
                   <dd className="font-mono text-charcoal break-all">{profile.msid}</dd>
+                </div>
+                <div className="min-w-0">
+                  <dt className="text-xs uppercase tracking-wide text-charcoal/80 font-mono mb-1">
+                    Date of birth
+                  </dt>
+                  <dd className="break-words text-charcoal">{formatNzDate(profile.date_of_birth)}</dd>
+                </div>
+                <div className="min-w-0">
+                  <dt className="text-xs uppercase tracking-wide text-charcoal/80 font-mono mb-1">
+                    Age
+                  </dt>
+                  <dd className="break-words text-charcoal">{age !== null ? `${age} years` : NOT_ON_FILE}</dd>
+                </div>
+                <div className="min-w-0">
+                  <dt className="text-xs uppercase tracking-wide text-charcoal/80 font-mono mb-1">
+                    Email
+                  </dt>
+                  <dd className="break-all text-charcoal">{profile.email || NOT_ON_FILE}</dd>
+                </div>
+                <div className="min-w-0">
+                  <dt className="text-xs uppercase tracking-wide text-charcoal/80 font-mono mb-1">
+                    Phone
+                  </dt>
+                  <dd className="break-words text-charcoal">{profile.phone?.trim() || NOT_ON_FILE}</dd>
                 </div>
               </dl>
             ) : (
@@ -244,6 +523,10 @@ export default function ProfilePage() {
                 Unable to load your details. Please try again later.
               </p>
             )}
+
+            <p className="text-sm leading-5 text-charcoal/70">
+              These details are managed by Midland Sleep staff. If anything is incorrect, please contact us.
+            </p>
           </section>
 
           {/* SECTION 2 — Portal ID Card */}
@@ -361,116 +644,57 @@ export default function ProfilePage() {
           </section>
         </div>
 
-        {/* SECTION 4 — Default Delivery Address, full width */}
+        {/* SECTION 4 — Default Delivery Address (admin-controlled, read-only), full width */}
         <section id="delivery-address" className="bg-white border border-sand rounded-2xl p-4 md:p-5 space-y-3">
           <div>
             <h2 className="font-display text-xl font-semibold text-navy leading-snug">Default delivery address</h2>
             <p className="text-base leading-6 text-charcoal/80 mt-0.5">
-              Used for supply requests unless you choose a different delivery
-              address for a specific request.
+              This is the address Midland Sleep currently has on record for supply deliveries.
             </p>
           </div>
 
-          {hasCompleteDeliveryAddress(deliveryAddress) && (
+          {addressOnFile ? (
             <div className="rounded-xl border border-deep-teal/20 bg-seafoam-pale/30 p-4">
               <div className="flex items-start justify-between gap-3 mb-2">
                 <p className="font-mono text-xs uppercase tracking-wide text-charcoal/60">
-                  Saved address
+                  On file with Midland Sleep
                 </p>
                 <span className="shrink-0 rounded-full border border-deep-teal/20 bg-white px-2.5 py-0.5 text-xs font-medium text-deep-teal">
                   Default
                 </span>
               </div>
               <div className="space-y-0.5 text-base leading-6 text-charcoal font-medium">
-                {formatDeliveryAddress(deliveryAddress).map((line) => (
-                  <p key={line}>{line}</p>
+                {formatAddressLines(profile?.address_structured).map((line, i) => (
+                  <p key={`${line}-${i}`}>{line}</p>
                 ))}
               </div>
             </div>
-          )}
-
-          <div className="grid gap-3 md:grid-cols-2">
-            <label className="block md:col-span-2">
-              <span className="mb-1.5 block text-sm font-medium text-charcoal">
-                Address line 1
-              </span>
-              <input
-                value={deliveryAddress.line1}
-                onChange={(event) => updateDeliveryAddress("line1", event.target.value)}
-                className="min-h-[44px] w-full rounded-lg border border-sand bg-white px-3 py-2.5 text-base text-charcoal placeholder:text-charcoal/45 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-deep-teal"
-                placeholder="Street address"
-              />
-            </label>
-
-            <label className="block md:col-span-2">
-              <span className="mb-1.5 block text-sm font-medium text-charcoal">
-                Address line 2{" "}
-                <span className="font-normal text-charcoal/60">(optional)</span>
-              </span>
-              <input
-                value={deliveryAddress.line2}
-                onChange={(event) => updateDeliveryAddress("line2", event.target.value)}
-                className="min-h-[44px] w-full rounded-lg border border-sand bg-white px-3 py-2.5 text-base text-charcoal placeholder:text-charcoal/45 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-deep-teal"
-                placeholder="Apartment, unit, or care of"
-              />
-            </label>
-
-            <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-charcoal">City</span>
-              <input
-                value={deliveryAddress.city}
-                onChange={(event) => updateDeliveryAddress("city", event.target.value)}
-                className="min-h-[44px] w-full rounded-lg border border-sand bg-white px-3 py-2.5 text-base text-charcoal placeholder:text-charcoal/45 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-deep-teal"
-                placeholder="Hamilton"
-              />
-            </label>
-
-            <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-charcoal">Region</span>
-              <input
-                value={deliveryAddress.region}
-                onChange={(event) => updateDeliveryAddress("region", event.target.value)}
-                className="min-h-[44px] w-full rounded-lg border border-sand bg-white px-3 py-2.5 text-base text-charcoal placeholder:text-charcoal/45 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-deep-teal"
-                placeholder="Waikato"
-              />
-            </label>
-
-            <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-charcoal">Postcode</span>
-              <input
-                value={deliveryAddress.postcode}
-                onChange={(event) => updateDeliveryAddress("postcode", event.target.value)}
-                className="min-h-[44px] w-full rounded-lg border border-sand bg-white px-3 py-2.5 text-base text-charcoal placeholder:text-charcoal/45 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-deep-teal"
-                inputMode="numeric"
-                placeholder="3204"
-              />
-            </label>
-
-            <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-charcoal">Country</span>
-              <input
-                value={deliveryAddress.country}
-                onChange={(event) => updateDeliveryAddress("country", event.target.value)}
-                className="min-h-[44px] w-full rounded-lg border border-sand bg-white px-3 py-2.5 text-base text-charcoal placeholder:text-charcoal/45 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-deep-teal"
-                placeholder="New Zealand"
-              />
-            </label>
-          </div>
-
-          {addressMessage && (
-            <p className="text-sm leading-5 text-charcoal/80">{addressMessage}</p>
+          ) : (
+            <div className="rounded-lg border border-dashed border-sand bg-sand-pale/50 p-4">
+              <p className="text-base leading-6 text-charcoal/75">
+                No delivery address is currently on file.
+              </p>
+            </div>
           )}
 
           <button
-            onClick={handleSaveDeliveryAddress}
+            onClick={() => setAddressModalOpen(true)}
             className="bg-[#0B5C6C] text-white px-6 py-2.5 rounded-lg text-base font-medium
                        min-h-[44px] hover:bg-[#0B5C6C]/90 transition-colors"
           >
-            Save default delivery address
+            Request address change
           </button>
         </section>
 
       </div>
+
+      {addressModalOpen && (
+        <AddressChangeModal
+          currentAddress={profile?.address_structured}
+          onClose={() => setAddressModalOpen(false)}
+          onSubmit={handleSubmitAddressChange}
+        />
+      )}
     </>
   );
 }

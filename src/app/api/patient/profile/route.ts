@@ -59,6 +59,8 @@ export async function GET(request: NextRequest) {
       email: patient.email,
       msid: patient.portal_id,
       org_id: patient.org_id,
+      date_of_birth: patient.date_of_birth ?? null,
+      phone: patient.phone ?? null,
       address_structured: canonicalAddress(patient.address_structured, patient.address),
     });
   } catch (err) {
