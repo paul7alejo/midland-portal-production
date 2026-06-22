@@ -8,8 +8,11 @@ import {
   appendAuditLog,
   getReorderById,
   createPatientPortalUpdate,
+  getPatientByMSID,
+  updatePatientProfile,
   type ReorderRecord,
   type ReorderStatus,
+  type PatientAddressStructured,
 } from '@/lib/aws/dynamodb'
 import { listPortalUsers } from '@/lib/aws/cognito-admin'
 import {
@@ -56,6 +59,19 @@ function formatDateForDisplay(iso: string): string {
   return d.toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
+// Mirrors the address_structured -> legacy address string formatting already
+// used by /api/admin/patients, so both fields stay consistent after an
+// address-change approval.
+function formatAddress(address: PatientAddressStructured): string {
+  return [
+    address.line1,
+    address.line2,
+    address.suburb,
+    [address.city, address.region, address.postal_code].filter(Boolean).join(' '),
+    address.country,
+  ].filter(Boolean).join(', ')
+}
+
 type PortalAccountStatus = 'linked' | 'no_account' | 'unknown'
 
 function toAdminOrder(r: ReorderRecord, portalMsids: Set<string> | null) {
@@ -96,6 +112,10 @@ function toAdminOrder(r: ReorderRecord, portalMsids: Set<string> | null) {
     estimatedPatientCopay:   r.estimated_patient_copay,
     estimatedRemainingAfter: r.estimated_remaining_after,
     portalAccountStatus,
+    // Address-change requests only — undefined for ordinary supply/support requests.
+    requestedAddress:        r.requested_address,
+    currentAddressSnapshot:  r.current_address_snapshot,
+    patientNote:             r.reason,
   }
 }
 
@@ -175,6 +195,114 @@ export async function PATCH(request: NextRequest) {
   const patientMsid       = existingRecord?.patient_msid
   const requestReference  = existingRecord?.request_reference
   const previousStatus    = existingRecord?.status
+
+  // Route: approve an address-change request — updates the patient record's
+  // address_structured from the patient's requested correction. Fails closed
+  // at every validation step; never touches NHI, DOB, MSID, entitlement,
+  // equipment, or clinical fields.
+  if (b.action === 'approve_address_change') {
+    let stage = 'validate'
+    try {
+      if (!existingRecord) {
+        return NextResponse.json({ error: 'Request not found' }, { status: 404 })
+      }
+      if (existingRecord.source !== 'address_change') {
+        return NextResponse.json({ error: 'Request is not an address change request' }, { status: 400 })
+      }
+      const approvableStatuses = new Set<ReorderStatus>(['new', 'reviewing'])
+      if (!approvableStatuses.has(existingRecord.status)) {
+        return NextResponse.json(
+          { error: `Request status '${existingRecord.status}' cannot be approved` },
+          { status: 400 }
+        )
+      }
+      const requestedAddress = existingRecord.requested_address
+      if (!requestedAddress) {
+        return NextResponse.json({ error: 'Request has no requested address' }, { status: 400 })
+      }
+      if (!patientMsid) {
+        return NextResponse.json({ error: 'Request is missing patient context' }, { status: 400 })
+      }
+
+      stage = 'patient_lookup'
+      const patient = await getPatientByMSID(patientMsid, ORG_ID)
+      if (!patient) {
+        return NextResponse.json({ error: 'Patient record not found' }, { status: 404 })
+      }
+
+      // Audit-first: write before mutating the patient record. Abort if it fails.
+      stage = 'audit_write'
+      try {
+        await appendAuditLog({
+          userId:          admin.sub,
+          event_type:      'ADDRESS_CHANGE_APPROVED',
+          action:          'ADDRESS_CHANGE_APPROVED',
+          order_id:        id,
+          org_id:          ORG_ID,
+          timestamp:       new Date().toISOString(),
+          result:          'success',
+          details:         `Address change request ${requestReference ?? id} approved; patient record address updated.`,
+          admin_email:     admin.email,
+          category:        'Orders',
+          patient_msid:    patientMsid,
+          request_id:      requestReference,
+          previous_status: previousStatus,
+          new_status:      'approved',
+        })
+      } catch (err) {
+        console.error('admin/orders PATCH approve_address_change: audit failed', {
+          errorName: err instanceof Error ? err.name : 'UnknownError',
+          requestType: 'address_change',
+          stage,
+        })
+        return NextResponse.json({ error: 'Unable to approve address change' }, { status: 500 })
+      }
+
+      // Update the patient record — address_structured (+ legacy string mirror)
+      // only. Preserves every other existing patient field.
+      stage = 'patient_update'
+      await updatePatientProfile(patient.pk, {
+        address_structured: requestedAddress,
+        address: formatAddress(requestedAddress),
+      })
+
+      // Mark the request approved, with approved_at/approved_by stamped.
+      stage = 'request_update'
+      await updateReorderStatus({
+        id,
+        status: 'approved',
+        orgId: ORG_ID,
+        adminSub: admin.sub,
+        adminEmail: admin.email,
+        markApproved: true,
+      })
+
+      // Best-effort patient-facing notice — never blocks the approval itself.
+      stage = 'notification'
+      const noticeResult = await createPatientPortalUpdate({
+        patientMsid,
+        requestId: id,
+        requestReference,
+        status: 'approved',
+        orgId: ORG_ID,
+        titleOverride: 'Delivery address updated',
+        messageOverride: 'Midland Sleep has reviewed your address change request and updated the delivery address on your profile.',
+      })
+
+      return NextResponse.json({
+        ok: true,
+        status: 'approved',
+        notification: noticeResult.ok ? { ok: true } : { ok: false, reason: noticeResult.reason },
+      })
+    } catch (err) {
+      console.error('admin/orders PATCH approve_address_change failed', {
+        errorName: err instanceof Error ? err.name : 'UnknownError',
+        requestType: 'address_change',
+        stage,
+      })
+      return NextResponse.json({ error: 'Unable to approve address change' }, { status: 500 })
+    }
+  }
 
   // Route: needsFundingReview toggle
   if ('needsFundingReview' in b) {

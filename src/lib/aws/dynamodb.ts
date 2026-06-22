@@ -863,7 +863,7 @@ export async function countAuditEventsSince(
 
 export async function updatePatientProfile(
   pk: string,
-  fields: { name?: string; email?: string }
+  fields: { name?: string; email?: string; address_structured?: PatientAddressStructured; address?: string }
 ): Promise<void> {
   const entries = Object.entries(fields).filter(([, v]) => v !== undefined)
   if (entries.length === 0) return
@@ -1135,6 +1135,10 @@ export interface ReorderRecord {
   note?: string
   requested_address?: PatientAddressStructured
   current_address_snapshot?: PatientAddressStructured
+  // Address-change approval tracking — set only when an admin approves an
+  // address_change request and the patient record is updated.
+  approved_at?: string
+  approved_by?: string
 }
 
 export function createRequestReference(createdAt: string): string {
@@ -1356,21 +1360,29 @@ export async function updateReorderStatus(params: {
   orgId: string
   adminSub: string
   adminEmail: string
+  // When true, also stamps approved_at/approved_by — used by the address-change
+  // approval mutation. Existing callers (plain status changes) omit this.
+  markApproved?: boolean
 }): Promise<void> {
   const now = new Date().toISOString()
+  const updateClauses = ['#status = :status', 'updated_at = :now', 'updated_by = :sub', 'updated_by_email = :email']
+  const ExpressionAttributeValues: Record<string, unknown> = {
+    ':status': params.status,
+    ':orgId': params.orgId,
+    ':now': now,
+    ':sub': params.adminSub,
+    ':email': params.adminEmail,
+  }
+  if (params.markApproved) {
+    updateClauses.push('approved_at = :now', 'approved_by = :sub')
+  }
   await docClient.send(new UpdateCommand({
     TableName: TABLES.ORDERS,
     Key: { pk: `ORDER#${params.id}`, sk: 'REORDER' },
     ConditionExpression: 'attribute_exists(pk) AND org_id = :orgId',
-    UpdateExpression: 'SET #status = :status, updated_at = :now, updated_by = :sub, updated_by_email = :email',
+    UpdateExpression: `SET ${updateClauses.join(', ')}`,
     ExpressionAttributeNames: { '#status': 'status' },
-    ExpressionAttributeValues: {
-      ':status': params.status,
-      ':orgId': params.orgId,
-      ':now': now,
-      ':sub': params.adminSub,
-      ':email': params.adminEmail,
-    },
+    ExpressionAttributeValues,
   }))
 }
 
@@ -1455,6 +1467,10 @@ export async function createPatientPortalUpdate(params: {
   requestReference?: string
   status: ReorderStatus
   orgId: string
+  // Optional copy overrides — used when the canned per-status copy doesn't
+  // apply (e.g. address-change approval, which isn't a supply-request event).
+  titleOverride?: string
+  messageOverride?: string
 }): Promise<PatientPortalUpdateWriteResult> {
   const tableName = process.env.NOTIFICATIONS_TABLE_NAME
   if (!tableName) return { ok: false, reason: 'notifications_table_unavailable' }
@@ -1462,6 +1478,8 @@ export async function createPatientPortalUpdate(params: {
   const notificationId = randomUUID()
   const createdAt = new Date().toISOString()
   const copy = PATIENT_PORTAL_UPDATE_COPY[params.status]
+  const title = params.titleOverride ?? copy.title
+  const message = params.messageOverride ?? copy.message
 
   try {
     await docClient.send(new PutCommand({
@@ -1474,8 +1492,8 @@ export async function createPatientPortalUpdate(params: {
         request_reference: params.requestReference,
         type:              'request_status_update',
         request_status:    params.status,
-        title:             copy.title,
-        message:           copy.message,
+        title,
+        message,
         channel:           'portal',
         delivery_status:   'visible',
         created_at:        createdAt,

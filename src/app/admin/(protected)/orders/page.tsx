@@ -12,10 +12,20 @@ type DateRange     = "week" | "month" | "older" | "custom";
 type OrderSortOpt  = "newest" | "oldest" | "name_az" | "status";
 type RequestCategory = "Mask" | "Headgear" | "Filters" | "Tubing" | "Cleaning supplies" | "Support request";
 type ReportWindow    = "7d" | "30d" | "90d" | "all";
-type ReportSource    = "patient_portal" | "support_request" | "admin_created" | "other";
+type ReportSource    = "patient_portal" | "support_request" | "admin_created" | "address_change" | "other";
 type ReviewTab       = "request" | "funding" | "patient" | "communication" | "workLog" | "history";
 type KpiActiveFilter = "newRequests" | "needsStaffReview" | "needsFundingReview" | "needsFollowUp" | "deliveredThisMonth";
 type RowsPerPage     = 20 | 50 | 100;
+
+interface AdminAddressStructured {
+  line1?: string;
+  line2?: string;
+  suburb?: string;
+  city?: string;
+  region?: string;
+  postal_code?: string;
+  country?: string;
+}
 
 interface Order {
   id: string;
@@ -46,6 +56,10 @@ interface Order {
   isDemo?: boolean;
   localOnly?: boolean;
   portalAccountStatus?: "linked" | "no_account" | "unknown";
+  // Address-change requests only — undefined for ordinary supply/support requests.
+  requestedAddress?: AdminAddressStructured | null;
+  currentAddressSnapshot?: AdminAddressStructured | null;
+  patientNote?: string;
 }
 
 interface TestRequestForm {
@@ -128,6 +142,13 @@ function SourceBadge({ source }: { source: string | undefined }) {
     return (
       <span className="inline-flex items-center text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[#0B5C6C]/10 text-[#0B5C6C] border border-[#0B5C6C]/20 whitespace-nowrap">
         Support
+      </span>
+    );
+  }
+  if (source === "address_change") {
+    return (
+      <span className="inline-flex items-center text-xs font-semibold px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200 whitespace-nowrap">
+        Address change
       </span>
     );
   }
@@ -363,19 +384,48 @@ const STATUS_QUEUE_COPY: Record<OrderStatus, string> = {
   Declined:          "Not proceeding",
   "Needs Follow-Up": "Follow-up required",
 };
-const REPORT_SOURCE_OPTIONS: ReportSource[] = ["patient_portal", "support_request", "admin_created", "other"];
+const REPORT_SOURCE_OPTIONS: ReportSource[] = ["patient_portal", "support_request", "admin_created", "address_change", "other"];
 const REPORT_SOURCE_LABEL: Record<ReportSource, string> = {
   patient_portal:  "Portal",
   support_request: "Support",
   admin_created:   "Admin created",
+  address_change:  "Address change",
   other:           "Other",
 };
 
 function getSourceKey(source: string | undefined): ReportSource {
-  if (source === "patient_portal" || source === "support_request" || source === "admin_created") {
+  if (source === "patient_portal" || source === "support_request" || source === "admin_created" || source === "address_change") {
     return source;
   }
   return "other";
+}
+
+function isAddressChangeRequest(order: Order): boolean {
+  return order.source === "address_change";
+}
+
+function formatStructuredAddressLines(address?: AdminAddressStructured | null): string[] {
+  if (!address) return [];
+  const line1 = address.line1?.trim();
+  const line2Parts = [address.line2, address.suburb]
+    .map((part) => part?.trim())
+    .filter((part, index, parts): part is string => Boolean(part) && parts.indexOf(part) === index);
+  const cityRegionPostcode = [address.city, address.region, address.postal_code]
+    .map((part) => part?.trim())
+    .filter(Boolean)
+    .join(" ");
+  const country = address.country?.trim();
+  return [line1, line2Parts.join(", "), cityRegionPostcode, country].filter(
+    (line): line is string => Boolean(line)
+  );
+}
+
+function canApproveAddressChange(order: Order): boolean {
+  return (
+    isAddressChangeRequest(order) &&
+    (order.status === "New" || order.status === "Reviewing") &&
+    Boolean(order.requestedAddress)
+  );
 }
 
 function getSourceLabel(source: string | undefined): string {
@@ -1399,6 +1449,111 @@ function calcFundingBreakdown(order: Order) {
   };
 }
 
+// ─── AddressChangeRequestPanel ────────────────────────────────────────────────
+// Dedicated Request-tab content for address_change requests — replaces the
+// supply-request layout (requested items / funding context) entirely, since
+// neither applies to an address correction.
+
+const ADDRESS_CHANGE_STATUS_COPY: Partial<Record<OrderStatus, string>> = {
+  New:       "Awaiting staff review.",
+  Reviewing: "Staff are reviewing this address change.",
+  Approved:  "Approved — the patient record has been updated with this address.",
+  Declined:  "This address change was not approved.",
+};
+
+function AddressChangeRequestPanel({
+  order,
+  isApproving,
+  onApprove,
+}: {
+  order: Order;
+  isApproving: boolean;
+  onApprove: () => void;
+}) {
+  const currentLines = formatStructuredAddressLines(order.currentAddressSnapshot);
+  const requestedLines = formatStructuredAddressLines(order.requestedAddress);
+  const canApprove = canApproveAddressChange(order);
+
+  return (
+    <div className="space-y-5">
+      <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700 mb-1">Address change request</p>
+        <p className="text-sm text-indigo-800 leading-5">
+          Submitted by the patient through the portal. The patient record is not updated until staff approve this request.
+        </p>
+      </div>
+
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Status</p>
+        <span className={cn("inline-flex items-center text-xs font-semibold px-2.5 py-0.5 rounded-full", STATUS_BADGE[order.status])}>
+          {order.status}
+        </span>
+        <p className="mt-2 text-xs text-gray-500 leading-5">
+          {ADDRESS_CHANGE_STATUS_COPY[order.status] ?? "Status updated."}
+        </p>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5">Current address on record</p>
+          {currentLines.length > 0 ? (
+            <div className="space-y-0.5 text-sm text-gray-800 leading-5">
+              {currentLines.map((line, i) => <p key={i}>{line}</p>)}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-400">No address currently on file.</p>
+          )}
+        </div>
+        <div className="rounded-lg border border-indigo-200 bg-indigo-50/40 px-4 py-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700 mb-1.5">Requested new address</p>
+          {requestedLines.length > 0 ? (
+            <div className="space-y-0.5 text-sm font-medium text-gray-800 leading-5">
+              {requestedLines.map((line, i) => <p key={i}>{line}</p>)}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-400">No requested address provided.</p>
+          )}
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5">Patient note</p>
+        <p className="text-sm text-gray-800 leading-5">{order.patientNote?.trim() || "No note provided."}</p>
+      </div>
+
+      <dl className="divide-y divide-gray-100">
+        <div className="flex justify-between items-center py-2.5">
+          <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Patient</dt>
+          <dd className="text-xs text-gray-700">{order.patient}</dd>
+        </div>
+        <div className="flex justify-between items-center py-2.5">
+          <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Midland Sleep ID</dt>
+          <dd className="font-mono text-xs text-gray-700">{order.msid}</dd>
+        </div>
+        <div className="flex justify-between items-center py-2.5">
+          <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Submitted</dt>
+          <dd className="text-xs text-gray-700">{order.date}</dd>
+        </div>
+        <div className="flex justify-between items-center py-2.5">
+          <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Reference</dt>
+          <dd className="font-mono text-xs font-semibold text-gray-800">{order.requestId}</dd>
+        </div>
+      </dl>
+
+      {canApprove && (
+        <button
+          type="button"
+          onClick={onApprove}
+          disabled={isApproving}
+          className="w-full rounded-lg bg-[#0B5C6C] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#0B5C6C]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isApproving ? "Approving…" : "Approve address change"}
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ─── RequestReviewDrawer ──────────────────────────────────────────────────────
 
 interface RequestReviewDrawerProps {
@@ -1409,6 +1564,7 @@ interface RequestReviewDrawerProps {
   fundingReviewLoading: Set<string>;
   onStatusChange: (order: Order, status: OrderStatus) => void;
   onFundingReviewToggle: (order: Order) => void;
+  onApproveAddressChange: (order: Order) => void;
   onViewPatient: () => void;
   notifState?: OrderNotifState | null | undefined;
 }
@@ -1418,6 +1574,7 @@ function RequestReviewDrawer({
   order,
   statusLoading, fundingReviewLoading,
   onStatusChange, onFundingReviewToggle,
+  onApproveAddressChange,
   onViewPatient,
   notifState,
 }: RequestReviewDrawerProps) {
@@ -1650,6 +1807,13 @@ function RequestReviewDrawer({
           {!order ? (
             <p className="text-sm text-gray-400">No request selected.</p>
           ) : tab === "request" ? (
+            isAddressChangeRequest(order) ? (
+              <AddressChangeRequestPanel
+                order={order}
+                isApproving={statusLoading.has(order.id)}
+                onApprove={() => onApproveAddressChange(order)}
+              />
+            ) : (
             <div className="space-y-5">
 
               {/* Requested items */}
@@ -1776,6 +1940,7 @@ function RequestReviewDrawer({
                 </div>
               )}
             </div>
+            )
           ) : tab === "funding" ? (
             <div className="space-y-5">
 
@@ -2927,6 +3092,42 @@ const reviewOrder = useMemo(
     }
   }
 
+  async function handleApproveAddressChange(order: Order) {
+    if (!window.confirm("Approve this address change and update the patient record?")) return;
+
+    if (order.isDemo || order.localOnly) {
+      setOrders((prev) =>
+        prev.map((o) => (o.id === order.id ? { ...o, status: "Approved", updatedDate: formatToday() } : o))
+      );
+      return;
+    }
+
+    setStatusLoading((prev) => new Set(prev).add(order.id));
+    setStatusError(null);
+    try {
+      const res = await fetch('/api/admin/orders', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: order.id, action: 'approve_address_change' }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(data.error ?? `HTTP ${res.status}`);
+      }
+      setOrders((prev) =>
+        prev.map((o) => (o.id === order.id ? { ...o, status: "Approved", updatedDate: formatToday() } : o))
+      );
+    } catch (err) {
+      setStatusError(err instanceof Error ? err.message : `Failed to approve address change for ${order.requestId}.`);
+    } finally {
+      setStatusLoading((prev) => {
+        const next = new Set(prev);
+        next.delete(order.id);
+        return next;
+      });
+    }
+  }
+
   function handleReviewRequest(order: Order) {
     setReviewOrderId(order.id);
     setReviewDrawerOpen(true);
@@ -3504,9 +3705,15 @@ const reviewOrder = useMemo(
                       </td>
                       {/* ITEMS */}
                       <td className="px-2.5 py-3 align-top">
-                        <span className="block text-sm text-gray-700 leading-5 line-clamp-2">
-                          {order.items ? formatItemsDisplay(order.items) : order.itemDescription || "—"}
-                        </span>
+                        {isAddressChangeRequest(order) ? (
+                          <span className="block text-sm font-medium text-indigo-700 leading-5">
+                            Address change request
+                          </span>
+                        ) : (
+                          <span className="block text-sm text-gray-700 leading-5 line-clamp-2">
+                            {order.items ? formatItemsDisplay(order.items) : order.itemDescription || "—"}
+                          </span>
+                        )}
                       </td>
                       {/* FUNDING */}
                       <td className="px-2.5 py-3 align-top">
@@ -3738,6 +3945,7 @@ const reviewOrder = useMemo(
         fundingReviewLoading={fundingReviewLoading}
         onStatusChange={handleStatusChange}
         onFundingReviewToggle={handleFundingReviewToggle}
+        onApproveAddressChange={handleApproveAddressChange}
         onViewPatient={() => reviewOrder && handleReviewToPatient(reviewOrder)}
         notifState={
           reviewOrder
