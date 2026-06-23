@@ -203,7 +203,7 @@ function PortalInner({ children }: { children: React.ReactNode }) {
           aria-hidden="true"
         />
         <TopBar />
-        <div className="relative z-10 max-w-5xl mx-auto px-4 pt-6 pb-20 md:px-8 md:pt-8 lg:pb-8">
+        <div className="relative z-10 mx-auto max-w-[1200px] px-4 pt-6 pb-20 md:px-8 md:pt-8 lg:px-10 lg:pb-8">
           {children}
         </div>
       </main>

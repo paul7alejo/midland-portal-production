@@ -455,7 +455,7 @@ export default function DashboardPage() {
   );
 
   return (
-    <div className="relative left-1/2 flex w-[calc(100vw-2rem)] max-w-[82rem] -translate-x-1/2 flex-col gap-5 pb-20 md:w-[calc(100vw-4rem)] md:gap-6 lg:w-[calc(100vw-19rem)] lg:pb-10">
+    <div className="relative left-1/2 flex w-[calc(100vw-2rem)] max-w-[1200px] -translate-x-1/2 flex-col gap-5 pb-20 md:w-[calc(100vw-4rem)] md:gap-6 lg:w-[calc(100vw-19rem)] lg:pb-10">
       <section className="relative min-h-[164px] overflow-hidden rounded-[20px] border border-white/10 bg-[radial-gradient(circle_at_78%_36%,rgba(116,192,162,0.28),transparent_34%),linear-gradient(118deg,#0B2A3C_0%,#0B3348_48%,#0B5C6C_100%)] px-6 py-7 shadow-[0_14px_34px_rgba(11,42,60,0.18)] sm:px-9 sm:py-9 md:min-h-[176px]">
         <div className="pointer-events-none absolute -right-16 -top-20 h-72 w-72 rounded-full bg-seafoam/20 blur-3xl" aria-hidden="true" />
         <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(11,42,60,0.08),rgba(11,42,60,0.28))]" aria-hidden="true" />

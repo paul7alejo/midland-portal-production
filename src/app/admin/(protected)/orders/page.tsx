@@ -35,6 +35,8 @@ interface Order {
   msid: string;
   date: string;
   updatedDate: string;
+  created_at?: string;
+  updated_at?: string;
   items: string;
   itemDescription?: string;
   category: RequestCategory;
@@ -502,16 +504,46 @@ function shortNextAction(fullText: string): string {
   return NEEDS_ATTENTION_ACTION_SHORT[fullText] ?? fullText;
 }
 
-// "3 days" / "Today" — used for Needs Attention's Age column and the Work
-// Log summary card's Request age metric. Derived only from the request's
-// already-loaded created date.
-function formatRequestAge(dateStr: string): string {
-  const d = parseToDate(dateStr);
+// "Just now" / "12 min" / "2 hrs" / "Today" / "1 day" / "7 days" — used for
+// Needs Attention's Age column, the Work Log summary's Request age metric,
+// and the request drawer's timing summary. Prefers a precise ISO timestamp
+// (real API rows carry created_at) for minute/hour granularity; falls back
+// to day-only granularity for demo rows that only have a formatted date
+// string like "26 May 2026".
+function formatRequestAge(value: string): string {
+  if (value.includes("T")) {
+    const d = new Date(value);
+    if (isNaN(d.getTime())) return "—";
+    const diffMin = Math.floor((Date.now() - d.getTime()) / 60000);
+    if (diffMin < 1) return "Just now";
+    if (diffMin < 60) return `${diffMin} min`;
+    const diffHrs = Math.floor(diffMin / 60);
+    if (diffHrs < 24) return `${diffHrs} hr${diffHrs === 1 ? "" : "s"}`;
+    const diffDays = Math.floor(diffHrs / 24);
+    return diffDays === 1 ? "1 day" : `${diffDays} days`;
+  }
+  const d = parseToDate(value);
   if (!d) return "—";
   const diffDays = Math.floor((Date.now() - d.getTime()) / (1000 * 60 * 60 * 24));
   if (diffDays <= 0) return "Today";
   if (diffDays === 1) return "1 day";
   return `${diffDays} days`;
+}
+
+// Full date + time (e.g. "23 Jun 2026, 2:45 pm") for the request drawer's
+// timing summary. Falls back to the existing date-only display string when
+// no ISO timestamp is available (demo rows).
+function formatTimestamp(iso: string | undefined, fallback: string): string {
+  if (!iso) return fallback;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return fallback;
+  return new Intl.DateTimeFormat("en-NZ", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(d);
 }
 
 // Communication cell label — derived only from data the notification queue
@@ -1548,8 +1580,19 @@ function AddressChangeRequestPanel({
         </div>
         <div className="flex justify-between items-center py-2.5">
           <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Submitted</dt>
-          <dd className="text-xs text-gray-700">{order.date}</dd>
+          <dd className="text-xs text-gray-700">{formatTimestamp(order.created_at, order.date)}</dd>
         </div>
+        {order.status === "Approved" ? (
+          <div className="flex justify-between items-center py-2.5">
+            <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Approved at</dt>
+            <dd className="text-xs text-gray-700">{formatTimestamp(order.updated_at, order.updatedDate ?? order.date)}</dd>
+          </div>
+        ) : (
+          <div className="flex justify-between items-center py-2.5">
+            <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Open for</dt>
+            <dd className="text-xs text-gray-700">{formatRequestAge(order.created_at ?? order.date)}</dd>
+          </div>
+        )}
         <div className="flex justify-between items-center py-2.5">
           <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Reference</dt>
           <dd className="font-mono text-xs font-semibold text-gray-800">{order.requestId}</dd>
@@ -1931,13 +1974,17 @@ function RequestReviewDrawer({
                   <dd><SourceBadge source={order.source} /></dd>
                 </div>
                 <div className="flex justify-between items-center py-2.5">
-                  <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Created</dt>
-                  <dd className="text-xs text-gray-700">{order.date}</dd>
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Submitted</dt>
+                  <dd className="text-xs text-gray-700">{formatTimestamp(order.created_at, order.date)}</dd>
+                </div>
+                <div className="flex justify-between items-center py-2.5">
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Open for</dt>
+                  <dd className="text-xs text-gray-700">{formatRequestAge(order.created_at ?? order.date)}</dd>
                 </div>
                 {order.updatedDate && order.updatedDate !== order.date && (
                   <div className="flex justify-between items-center py-2.5">
-                    <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Updated</dt>
-                    <dd className="text-xs text-gray-700">{order.updatedDate}</dd>
+                    <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Last updated</dt>
+                    <dd className="text-xs text-gray-700">{formatTimestamp(order.updated_at, order.updatedDate)}</dd>
                   </div>
                 )}
                 {order.contactPreference && (
@@ -2157,7 +2204,7 @@ function RequestReviewDrawer({
                   </div>
                   <div>
                     <dt className="text-xs text-gray-500">Request age</dt>
-                    <dd className="text-sm font-semibold text-gray-800">{formatRequestAge(order.date)}</dd>
+                    <dd className="text-sm font-semibold text-gray-800">{formatRequestAge(order.created_at ?? order.date)}</dd>
                   </div>
                   <div>
                     <dt className="text-xs text-gray-500">Current status</dt>
@@ -2236,13 +2283,17 @@ function RequestReviewDrawer({
               {/* Safe metadata */}
               <dl className="divide-y divide-gray-100">
                 <div className="flex justify-between items-center py-3">
-                  <dt className="text-sm text-gray-600">Created</dt>
-                  <dd className="text-sm font-semibold text-gray-800">{order.date}</dd>
+                  <dt className="text-sm text-gray-600">Submitted</dt>
+                  <dd className="text-sm font-semibold text-gray-800">{formatTimestamp(order.created_at, order.date)}</dd>
+                </div>
+                <div className="flex justify-between items-center py-3">
+                  <dt className="text-sm text-gray-600">Open for</dt>
+                  <dd className="text-sm font-semibold text-gray-800">{formatRequestAge(order.created_at ?? order.date)}</dd>
                 </div>
                 {order.updatedDate && order.updatedDate !== order.date && (
                   <div className="flex justify-between items-center py-3">
                     <dt className="text-sm text-gray-600">Last updated</dt>
-                    <dd className="text-sm font-semibold text-gray-800">{order.updatedDate}</dd>
+                    <dd className="text-sm font-semibold text-gray-800">{formatTimestamp(order.updated_at, order.updatedDate)}</dd>
                   </div>
                 )}
                 <div className="flex justify-between items-center py-3">
@@ -3375,7 +3426,7 @@ const reviewOrder = useMemo(
                           <span className="min-w-0 text-sm font-medium text-navy truncate" title={order.patient}>{order.patient}</span>
                           <span className="min-w-0 text-xs text-gray-600 leading-5 truncate" title={reason}>{reason}</span>
                           <div className="min-w-0">{statusOrCommBadge}</div>
-                          <span className="text-xs text-gray-400 whitespace-nowrap" title={order.date}>{formatRequestAge(order.date)}</span>
+                          <span className="text-xs text-gray-400 whitespace-nowrap" title={order.date}>{formatRequestAge(order.created_at ?? order.date)}</span>
                           <button
                             type="button"
                             onClick={() => handleReviewRequest(order)}
@@ -3404,7 +3455,7 @@ const reviewOrder = useMemo(
                           </div>
                           <p className="text-xs text-gray-600 leading-5" title={reason}>{reason}</p>
                           <div className="flex items-center justify-between gap-3 pt-1">
-                            <span className="text-xs text-gray-400 whitespace-nowrap">{formatRequestAge(order.date)}</span>
+                            <span className="text-xs text-gray-400 whitespace-nowrap">{formatRequestAge(order.created_at ?? order.date)}</span>
                             <button
                               type="button"
                               onClick={() => handleReviewRequest(order)}
